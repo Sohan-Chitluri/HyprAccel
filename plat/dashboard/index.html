@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HyprAccel Telemetry Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">HYPRACCEL · PLAT-T1</p>
+      <h1>CORDIC telemetry</h1>
+      <p id="connection-state" class="status">Connecting to software telemetry…</p>
+    </header>
+
+    <section class="grid values" aria-label="Current CORDIC results">
+      <article><h2>Angle</h2><output id="angle">—</output></article>
+      <article><h2>sin(angle)</h2><output id="sine">—</output></article>
+      <article><h2>cos(angle)</h2><output id="cosine">—</output></article>
+      <article class="route"><h2>Compute path</h2><output id="target">—</output></article>
+      <article><h2>Latest software latency</h2><output id="sample-latency">—</output></article>
+    </section>
+
+    <section class="comparison" aria-labelledby="comparison-title">
+      <div>
+        <p class="eyebrow">RUNNING COMPARISON</p>
+        <h2 id="comparison-title">Latency by compute path</h2>
+      </div>
+      <div class="metrics">
+        <article><h3>Software baseline</h3><output id="software-average">—</output><p>Measured through `hyp_route(...HYP_TARGET_SOFTWARE)` and `hyp_compute()`.</p></article>
+        <article class="placeholder"><h3>FPGA hardware</h3><output id="hardware-latency">—</output><p><strong>Simulated placeholder</strong> — not hardware data. Awaiting RTL-T4 driver.</p></article>
+        <article><h3>Relative latency</h3><output id="speedup">—</output><p>Comparison uses the simulated placeholder until RTL-T4 exists.</p></article>
+      </div>
+    </section>
+  </main>
+  <script src="dashboard.js"></script>
+</body>
+</html>
