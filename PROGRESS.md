@@ -6,7 +6,7 @@
 - [x] CORE-T2 | boards.yaml schema | Owner: Antigravity | Status: Complete
 - [x] CORE-T3 | yaml→header codegen | Owner: Antigravity | Status: Complete
 - [x] CORE-T4 | CORDIC ref C impl | Owner: Antigravity | Status: Complete (Fixed Q1.15 conversion factor and angle table, validated < 2e-4 error)
-- [ ] CORE-T5 | THEJAS sw path | Owner:  | Status: Not started
+- [x] CORE-T5 | THEJAS sw path | Owner: Antigravity | Status: Complete
 - [ ] CORE-T6 | ESP32 sw path | Owner:  | Status: Not started
 - [ ] CORE-T7 | routing layer | Owner:  | Status: Not started
 
