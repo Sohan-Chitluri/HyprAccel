@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HyprAccel — Pin Configuration</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --accent: #58a6ff; --accent2: #3fb950; --warn: #f85149;
+    --warn-soft: #b08800; --text: #e6edf3; --muted: #8b949e;
+    --font: 'Inter', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  
+  /* ── Header ── */
+  header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  header .logo { font-size: 13px; font-weight: 700; color: var(--accent); letter-spacing: .08em; text-transform: uppercase; }
+  header h1 { font-size: 14px; font-weight: 600; color: var(--text); }
+  header .sep { color: var(--border); }
+  header .board-select { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  header .board-select label { color: var(--muted); }
+  select { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 5px 10px; font-size: 13px; cursor: pointer; }
+  select:focus { outline: none; border-color: var(--accent); }
+
+  /* ── Main layout ── */
+  main { display: grid; grid-template-columns: 300px 1fr 340px; flex: 1; overflow: hidden; }
+
+  /* ── Left panel: peripheral tree ── */
+  .panel { display: flex; flex-direction: column; border-right: 1px solid var(--border); overflow: hidden; }
+  .panel-header { padding: 10px 16px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .panel-body { overflow-y: auto; flex: 1; padding: 8px; }
+
+  /* peripheral groups */
+  .periph-group { margin-bottom: 4px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+  .periph-group-hdr { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #1c2128; cursor: pointer; font-size: 12px; font-weight: 600; user-select: none; }
+  .periph-group-hdr .tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; font-weight: 700; }
+  .tag-spi { background: #1a3a5c; color: #58a6ff; }
+  .tag-i2c { background: #1a3c2c; color: #3fb950; }
+  .tag-uart { background: #3c2a1a; color: #d29922; }
+  .tag-gpio { background: #2a1a3c; color: #bc8cff; }
+  .tag-pwm  { background: #1a3030; color: #56d3a0; }
+  .tag-adc  { background: #3c1a1a; color: #f07a7a; }
+  .periph-group-hdr .chevron { margin-left: auto; transition: transform .2s; }
+  .periph-group-hdr.open .chevron { transform: rotate(90deg); }
+  .periph-items { display: none; }
+  .periph-group-hdr.open + .periph-items { display: block; }
+
+  /* pin items */
+  .pin-item { display: flex; align-items: center; padding: 6px 12px 6px 28px; font-size: 12px; gap: 8px; cursor: grab; border-top: 1px solid var(--border); transition: background .12s; }
+  .pin-item:hover { background: #1c2128; }
+  .pin-item.assigned { opacity: .45; cursor: not-allowed; }
+  .pin-name { font-family: 'JetBrains Mono', monospace; font-size: 11px; flex: 1; }
+  .pin-role { font-size: 10px; color: var(--muted); }
+  .drag-handle { color: var(--muted); font-size: 10px; }
+
+  /* ── Centre panel: node assignment grid ── */
+  .centre { display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--border); }
+  .drop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; overflow-y: auto; flex: 1; }
+
+  .node-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: 10px; overflow: hidden; transition: border-color .15s; }
+  .node-card.drag-over { border-color: var(--accent); box-shadow: 0 0 0 2px #58a6ff33; }
+  .node-card-hdr { display: flex; align-items: center; gap: 8px; padding: 10px 14px; font-size: 12px; font-weight: 700; border-bottom: 1px solid var(--border); }
+  .node-type-badge { font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+  .badge-sensor   { background: #1a3c2c; color: #3fb950; }
+  .badge-actuator { background: #1a3a5c; color: #58a6ff; }
+  .node-card-body { padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+
+  .slot { display: flex; align-items: center; gap: 8px; font-size: 11px; height: 30px; }
+  .slot-label { color: var(--muted); width: 70px; flex-shrink: 0; }
+  .slot-drop { flex: 1; height: 28px; border: 1.5px dashed var(--border); border-radius: 5px; display: flex; align-items: center; padding: 0 8px; font-family: monospace; font-size: 11px; transition: border-color .12s, background .12s; position: relative; }
+  .slot-drop.filled { border-style: solid; border-color: var(--accent2); background: #1a3c2c22; }
+  .slot-drop.filled .slot-pin { color: var(--accent2); }
+  .slot-drop .slot-placeholder { color: #484f58; }
+  .slot-drop .slot-clear { position: absolute; right: 6px; font-size: 14px; color: var(--warn); cursor: pointer; opacity: 0; line-height: 1; }
+  .slot-drop:hover .slot-clear { opacity: 1; }
+  .slot-drop.conflict { border-color: var(--warn); background: #f8514910; }
+
+  .add-node-btn { display: flex; align-items: center; justify-content: center; gap: 6px; height: 36px; background: #1c2128; border: 1.5px dashed var(--border); border-radius: 10px; font-size: 12px; color: var(--muted); cursor: pointer; transition: border-color .15s, color .15s; }
+  .add-node-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Right panel: generated output ── */
+  .output-panel { display: flex; flex-direction: column; overflow: hidden; }
+  .output-actions { display: flex; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .btn { padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; transition: opacity .15s; }
+  .btn:hover { opacity: .85; }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-secondary { background: #21262d; color: var(--text); border: 1px solid var(--border); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  .output-code { flex: 1; overflow-y: auto; padding: 14px; }
+  .output-code pre { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 11px; line-height: 1.7; white-space: pre-wrap; color: #e6edf3; }
+  .output-code .line-kw  { color: #ff7b72; }
+  .output-code .line-def { color: #79c0ff; }
+  .output-code .line-val { color: #a5d6ff; }
+  .output-code .line-cm  { color: #8b949e; }
+
+  .status-bar { padding: 6px 12px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--border); flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+  .status-dot.ok   { background: var(--accent2); }
+  .status-dot.warn { background: var(--warn-soft); }
+  .status-dot.err  { background: var(--warn); }
+
+  /* scroll */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<header>
+  <span class="logo">HyprAccel</span>
+  <span class="sep">›</span>
+  <h1>Pin Configuration</h1>
+  <div class="board-select">
+    <label>Board:</label>
+    <select id="boardSelect"><option value="">Loading…</option></select>
+    <span id="boardMeta" style="font-size:11px;color:var(--muted)"></span>
+  </div>
+</header>
+
+<main>
+  <!-- Left: peripheral tree -->
+  <div class="panel" id="peripheralPanel">
+    <div class="panel-header">Available Peripherals</div>
+    <div class="panel-body" id="peripheralTree">
+      <div style="padding:20px;color:var(--muted);font-size:12px">Select a board to see its peripherals.</div>
+    </div>
+  </div>
+
+  <!-- Centre: node drop grid -->
+  <div class="centre">
+    <div class="panel-header" style="padding:10px 16px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);display:flex;align-items:center;gap:8px">
+      Node Pin Assignments
+      <span style="margin-left:auto;font-size:10px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">Drag a pin from the left onto a slot</span>
+    </div>
+    <div class="drop-grid" id="dropGrid">
+      <!-- node cards injected by JS -->
+      <div class="add-node-btn" id="addSensor" data-type="SensorInput">＋ Add SensorInput</div>
+      <div class="add-node-btn" id="addActuator" data-type="ActuatorOutput">＋ Add ActuatorOutput</div>
+    </div>
+  </div>
+
+  <!-- Right: generated header -->
+  <div class="output-panel">
+    <div class="panel-header">Generated hyp_board_config.h</div>
+    <div class="output-actions">
+      <button class="btn btn-primary" id="btnGenerate">▶ Generate &amp; Apply</button>
+      <button class="btn btn-secondary" id="btnCopy">Copy</button>
+    </div>
+    <div class="output-code" id="outputCode"><pre style="color:var(--muted)">← Assign pins, then click Generate.</pre></div>
+    <div class="status-bar">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">No board selected.</span>
+    </div>
+  </div>
+</main>
+
+<script>
+'use strict';
+/* ────────────────────────────────────────────────────────────────────────
+   State
+   ──────────────────────────────────────────────────────────────────────── */
+let boards        = {};          // raw boards JSON from server
+let currentBoard  = null;
+let nodes         = [];          // { id, type, slots: [{role, pin, peripheral}] }
+let assignments   = {};          // pinName → nodeId (conflict detection)
+let nodeCounter   = 0;
+
+/* ────────────────────────────────────────────────────────────────────────
+   Boot
+   ──────────────────────────────────────────────────────────────────────── */
+(async function init() {
+    try {
+        const r = await fetch('/api/boards');
+        boards  = await r.json();
+        const sel = document.getElementById('boardSelect');
+        sel.innerHTML = '<option value="">— select board —</option>';
+        for (const [id, bd] of Object.entries(boards)) {
+            sel.innerHTML += `<option value="${id}">${bd.name || id}</option>`;
+        }
+        sel.addEventListener('change', () => switchBoard(sel.value));
+    } catch(e) {
+        setStatus('err', 'Server unreachable — run: node server.js');
+    }
+})();
+
+/* ────────────────────────────────────────────────────────────────────────
+   Board switch
+   ──────────────────────────────────────────────────────────────────────── */
+function switchBoard(boardId) {
+    currentBoard = boardId || null;
+    nodes = [];
+    assignments = {};
+    nodeCounter = 0;
+
+    if (!currentBoard) {
+        document.getElementById('peripheralTree').innerHTML =
+            '<div style="padding:20px;color:var(--muted);font-size:12px">Select a board to see its peripherals.</div>';
+        renderGrid();
+        setStatus('', 'No board selected.');
+        document.getElementById('boardMeta').textContent = '';
+        return;
+    }
+
+    const bd = boards[currentBoard];
+    document.getElementById('boardMeta').textContent =
+        `${bd.architecture || ''} · ${bd.clock_freq_mhz || '?'}MHz · FPGA via ${bd.fpga_transport || '?'}`;
+    renderPeripheralTree(bd.pins);
+    renderGrid();
+    setStatus('ok', `Board loaded: ${bd.name || currentBoard}`);
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   Peripheral tree
+   ──────────────────────────────────────────────────────────────────────── */
+function renderPeripheralTree(pins) {
+    const tree = document.getElementById('peripheralTree');
+    tree.innerHTML = '';
+
+    const sections = [
+        { key: 'spi',  label: 'SPI',  tag: 'tag-spi' },
+        { key: 'i2c',  label: 'I²C',  tag: 'tag-i2c' },
+        { key: 'uart', label: 'UART', tag: 'tag-uart' },
+        { key: 'gpio', label: 'GPIO', tag: 'tag-gpio' },
+        { key: 'pwm',  label: 'PWM',  tag: 'tag-pwm' },
+        { key: 'adc',  label: 'ADC',  tag: 'tag-adc' },
+    ];
+
+    for (const sec of sections) {
+        const data = pins[sec.key];
+        if (!data) continue;
+
+        let items = [];
+        if (Array.isArray(data)) {
+            // gpio / pwm / adc — flat list
+            items = data.map(p => ({ periph: sec.key, bus: null, role: sec.key, pin: p }));
+        } else {
+            // spi / i2c / uart — object of bus → {role: pin}
+            for (const [bus, signals] of Object.entries(data)) {
+                for (const [role, pin] of Object.entries(signals)) {
+                    items.push({ periph: sec.key, bus, role, pin });
+                }
+            }
+        }
+        if (items.length === 0) continue;
+
+        const grp = document.createElement('div');
+        grp.className = 'periph-group';
+        grp.innerHTML = `
+            <div class="periph-group-hdr open" onclick="this.classList.toggle('open')">
+                <span class="tag ${sec.tag}">${sec.label}</span>
+                <span>${sec.label} pins</span>
+                <span style="color:var(--muted);font-size:11px">(${items.length})</span>
+                <span class="chevron">›</span>
+            </div>
+            <div class="periph-items" id="section-${sec.key}"></div>`;
+        tree.appendChild(grp);
+
+        const itemsEl = grp.querySelector('.periph-items');
+        for (const item of items) {
+            const el = document.createElement('div');
+            el.className = 'pin-item';
+            el.dataset.periph = item.periph;
+            el.dataset.bus    = item.bus || '';
+            el.dataset.role   = item.role;
+            el.dataset.pin    = item.pin;
+            el.id             = 'pitem-' + item.pin;
+            el.draggable      = true;
+            el.innerHTML = `
+                <span class="drag-handle">⠿</span>
+                <span class="pin-name">${item.pin}</span>
+                <span class="pin-role">${item.bus ? item.bus + '.' + item.role : item.role}</span>`;
+            el.addEventListener('dragstart', onPinDragStart);
+            itemsEl.appendChild(el);
+        }
+    }
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   Node grid
+   ──────────────────────────────────────────────────────────────────────── */
+function addNode(type) {
+    const id = ++nodeCounter;
+    const slotDefs = type === 'SensorInput'
+        ? ['bus', 'data', 'cs', 'clk']
+        : ['bus', 'data', 'cs', 'clk'];
+    nodes.push({ id, type, label: `${type}[${id}]`, slots: slotDefs.map(r => ({ role: r, pin: null, peripheral: null })) });
+    renderGrid();
+}
+
+function renderGrid() {
+    const grid = document.getElementById('dropGrid');
+    grid.innerHTML = '';
+
+    for (const nd of nodes) {
+        const card = document.createElement('div');
+        card.className = 'node-card';
+        card.id = 'node-' + nd.id;
+
+        const badgeClass = nd.type === 'SensorInput' ? 'badge-sensor' : 'badge-actuator';
+        card.innerHTML = `
+            <div class="node-card-hdr">
+                <span class="node-type-badge ${badgeClass}">${nd.type === 'SensorInput' ? 'IN' : 'OUT'}</span>
+                <span style="font-size:12px">${nd.label}</span>
+                <button onclick="removeNode(${nd.id})" style="margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px">×</button>
+            </div>
+            <div class="node-card-body" id="slots-${nd.id}"></div>`;
+        grid.appendChild(card);
+
+        const slotsEl = card.querySelector(`#slots-${nd.id}`);
+        for (const slot of nd.slots) {
+            const row = document.createElement('div');
+            row.className = 'slot';
+            const dropId = `drop-${nd.id}-${slot.role}`;
+            const isFilled = !!slot.pin;
+            row.innerHTML = `
+                <span class="slot-label">${slot.role}</span>
+                <div class="slot-drop ${isFilled ? 'filled' : ''}" id="${dropId}"
+                     data-nodeid="${nd.id}" data-role="${slot.role}">
+                    ${isFilled
+                        ? `<span class="slot-pin">${slot.pin}</span><span style="font-size:9px;color:var(--muted);margin-left:4px">${slot.peripheral || ''}</span>`
+                        : `<span class="slot-placeholder">drop pin here</span>`}
+                    <span class="slot-clear" onclick="clearSlot(${nd.id},'${slot.role}')">×</span>
+                </div>`;
+            slotsEl.appendChild(row);
+
+            const dropEl = row.querySelector('.slot-drop');
+            dropEl.addEventListener('dragover', e => { e.preventDefault(); dropEl.classList.add('drag-over'); });
+            dropEl.addEventListener('dragleave', () => dropEl.classList.remove('drag-over'));
+            dropEl.addEventListener('drop', e => { e.preventDefault(); dropEl.classList.remove('drag-over'); onDrop(e, nd.id, slot.role); });
+        }
+    }
+
+    // Add-node buttons
+    const addS = document.createElement('div');
+    addS.className = 'add-node-btn';
+    addS.textContent = '＋ Add SensorInput';
+    addS.onclick = () => addNode('SensorInput');
+    grid.appendChild(addS);
+
+    const addA = document.createElement('div');
+    addA.className = 'add-node-btn';
+    addA.textContent = '＋ Add ActuatorOutput';
+    addA.onclick = () => addNode('ActuatorOutput');
+    grid.appendChild(addA);
+
+    refreshPinAvailability();
+}
+
+function removeNode(id) {
+    const nd = nodes.find(n => n.id === id);
+    if (nd) {
+        for (const sl of nd.slots) {
+            if (sl.pin) delete assignments[sl.pin];
+        }
+    }
+    nodes = nodes.filter(n => n.id !== id);
+    renderGrid();
+}
+
+function clearSlot(nodeId, role) {
+    const nd = nodes.find(n => n.id === nodeId);
+    if (!nd) return;
+    const slot = nd.slots.find(s => s.role === role);
+    if (!slot || !slot.pin) return;
+    delete assignments[slot.pin];
+    slot.pin = null; slot.peripheral = null;
+    renderGrid();
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   Drag & drop
+   ──────────────────────────────────────────────────────────────────────── */
+let dragging = null;
+
+function onPinDragStart(e) {
+    dragging = {
+        pin:    e.currentTarget.dataset.pin,
+        periph: e.currentTarget.dataset.periph,
+        bus:    e.currentTarget.dataset.bus,
+        role:   e.currentTarget.dataset.role,
+    };
+    e.dataTransfer.effectAllowed = 'copy';
+}
+
+function onDrop(e, nodeId, slotRole) {
+    if (!dragging) return;
+    const { pin, periph, bus } = dragging;
+    dragging = null;
+
+    // Conflict check
+    if (assignments[pin] && assignments[pin] !== `${nodeId}-${slotRole}`) {
+        const prev = assignments[pin];
+        setStatus('warn', `⚠ Pin ${pin} already assigned to ${prev} — reassigning.`);
+        // Clear old assignment
+        for (const nd of nodes) {
+            for (const sl of nd.slots) {
+                if (sl.pin === pin) { sl.pin = null; sl.peripheral = null; }
+            }
+        }
+    }
+
+    assignments[pin] = `${nodeId}-${slotRole}`;
+    const nd   = nodes.find(n => n.id === nodeId);
+    const slot = nd && nd.slots.find(s => s.role === slotRole);
+    if (slot) {
+        if (slot.pin) delete assignments[slot.pin]; // evict previous occupant
+        slot.pin        = pin;
+        slot.peripheral = bus ? `${periph}.${bus}` : periph;
+    }
+    renderGrid();
+    setStatus('ok', `Assigned ${pin} → ${nd.label}.${slotRole}`);
+}
+
+function refreshPinAvailability() {
+    const assigned = new Set(Object.keys(assignments));
+    document.querySelectorAll('.pin-item').forEach(el => {
+        const isAssigned = assigned.has(el.dataset.pin);
+        el.classList.toggle('assigned', isAssigned);
+        el.draggable = !isAssigned;
+    });
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   Generate
+   ──────────────────────────────────────────────────────────────────────── */
+document.getElementById('btnGenerate').addEventListener('click', async () => {
+    if (!currentBoard) { setStatus('err', 'No board selected.'); return; }
+
+    const payload = {
+        board: currentBoard,
+        assignments: nodes.flatMap(nd =>
+            nd.slots.filter(s => s.pin).map(s => ({
+                node:       nd.label,
+                role:       s.role,
+                pin:        s.pin,
+                peripheral: s.peripheral || ''
+            }))
+        )
+    };
+
+    setStatus('', 'Generating…');
+    document.getElementById('btnGenerate').disabled = true;
+
+    try {
+        const r   = await fetch('/api/generate', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        const res = await r.json();
+        if (res.error) throw new Error(res.error);
+        renderHeader(res.header);
+        setStatus('ok', `Generated hyp_board_config.h — ${payload.assignments.length} pin(s) assigned.`);
+    } catch(e) {
+        setStatus('err', `Generation failed: ${e.message}`);
+    } finally {
+        document.getElementById('btnGenerate').disabled = false;
+    }
+});
+
+document.getElementById('btnCopy').addEventListener('click', () => {
+    const pre = document.querySelector('#outputCode pre');
+    navigator.clipboard.writeText(pre ? pre.textContent : '').then(() => setStatus('ok', 'Copied to clipboard.'));
+});
+
+/* ────────────────────────────────────────────────────────────────────────
+   Syntax-highlighted header render
+   ──────────────────────────────────────────────────────────────────────── */
+function renderHeader(text) {
+    const lines = text.split('\n').map(line => {
+        if (line.startsWith('/*') || line.startsWith(' *') || line.startsWith('//'))
+            return `<span class="line-cm">${esc(line)}</span>`;
+        if (line.startsWith('#define'))
+            return `<span class="line-kw">#define</span> <span class="line-def">${esc(line.slice(8).split(' ')[0])}</span> <span class="line-val">${esc(line.slice(8).split(' ').slice(1).join(' '))}</span>`;
+        if (line.startsWith('#ifndef') || line.startsWith('#endif') || line.startsWith('#include'))
+            return `<span class="line-kw">${esc(line)}</span>`;
+        return esc(line);
+    });
+    document.getElementById('outputCode').innerHTML = `<pre>${lines.join('\n')}</pre>`;
+}
+
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* ────────────────────────────────────────────────────────────────────────
+   Status bar
+   ──────────────────────────────────────────────────────────────────────── */
+function setStatus(level, msg) {
+    document.getElementById('statusDot').className = 'status-dot' + (level ? ' ' + level : '');
+    document.getElementById('statusText').textContent = msg;
+}
+</script>
+</body>
+</html>

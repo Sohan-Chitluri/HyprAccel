@@ -1,0 +1,12 @@
+{
+  "name": "hypraccel-mbd-editor",
+  "version": "0.1.0",
+  "description": "HyprAccel MBD node editor — local dev server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

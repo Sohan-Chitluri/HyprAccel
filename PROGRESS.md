@@ -11,7 +11,7 @@
 - [x] CORE-T7 | routing layer | Owner: Antigravity | Status: Complete
 
 ## TRACK RTL
-- [ ] RTL-T1 | validate existing RTL | Owner:  | Status: Blocked on Q2 (waiting for RTL location)
+- [ ] RTL-T1 | validate existing RTL | Owner: Codex | Status: Blocked — copied 8-stage Q4.12 RTL and ran the exact 10,000-vector Verilator regression; all 10,000 vectors disagree with reference/cordic_golden/cordic_golden.py (no tolerance applied). Example: x=-5561, y=-4453, z=-5744, sat=0: RTL=(-5368, 4686, 5, 0), golden=(-5294, 4769, 26, 0). Reconcile the source RTL/golden arithmetic contract before RTL-T1 can complete.
 - [ ] RTL-T2 | register interface | Owner:  | Status: Not started (Decision: SPI for THEJAS<->FPGA)
 - [ ] RTL-T3 | synth + timing | Owner:  | Status: Blocked on Q4 (waiting for target FPGA board)
 - [ ] RTL-T4 | host-side driver | Owner:  | Status: Not started
@@ -21,8 +21,8 @@
 
 ## TRACK MBD
 - [x] MBD-T1  | node vocabulary | Owner: Codex | Status: Complete
-- [ ] MBD-T1a | pin config screen | Owner:  | Status: Not started
-- [ ] MBD-T1b | pin→codegen wire | Owner:  | Status: Not started
+- [x] MBD-T1a | pin config screen | Owner: Antigravity (Sonnet) | Status: Complete (standalone pin_config.html + Express server; board→real pins from boards.yaml; drag-drop to SensorInput/ActuatorOutput slots; conflict detection)
+- [x] MBD-T1b | pin→codegen wire | Owner: Antigravity (Sonnet) | Status: Complete (POST /api/generate injects HYP_PIN_* #defines into hyp_board_config.h; tested: assign SPI1MOSI → header reflects it)
 - [x] MBD-T2  | graph data model | Owner: Codex | Status: Complete
 - [x] MBD-T3  | graph→C codegen | Owner: Codex (GPT-5.6 Terra) | Status: Complete
 - [x] MBD-T4  | HW backend routing | Owner: Codex (GPT-5.6 Terra) | Status: Complete
