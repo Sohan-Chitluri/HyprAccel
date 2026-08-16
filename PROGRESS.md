@@ -26,8 +26,8 @@
 - [x] MBD-T2  | graph data model | Owner: Codex | Status: Complete
 - [x] MBD-T3  | graph→C codegen | Owner: Codex (GPT-5.6 Terra) | Status: Complete
 - [x] MBD-T4  | HW backend routing | Owner: Codex (GPT-5.6 Terra) | Status: Complete
-- [ ] MBD-T5  | editor UI | Owner:  | Status: Not started (Decision: local dev server)
-- [ ] MBD-T6  | editor→codegen wire | Owner:  | Status: Not started
+- [x] MBD-T5  | editor UI | Owner: Codex (GPT-5.6 Terra) | Status: Complete (React Flow graph view at `/graph` on the existing port-3737 Express server; fixed node vocabulary, drag/connect canvas, parameter panels, CordicOp hardware/software routing, and embedded existing pin-config view for SensorInput/ActuatorOutput)
+- [x] MBD-T6  | editor→codegen wire | Owner: Codex (GPT-5.6 Terra) | Status: Complete (`Build` POSTs the current graph to `/api/build`, invokes `mbd/codegen/graph_to_c.js`, and displays generated C; verified against the committed CordicOp→Publish example)
 - [x] MBD-T7  | complexity comparison | Owner: Gemini CLI | Status: Complete (Comparison document created in mbd/docs/complexity_comparison.md) ⚠️ AUDIT: file exists on disk but has NO git commit — untracked, at risk of loss
 - [x] MBD-T8  | lineages comparison | Owner: Gemini CLI | Status: Complete (Comparison document created in mbd/docs/three_lineages_comparison.md) ⚠️ AUDIT: file exists on disk but has NO git commit — untracked, at risk of loss
 - [ ] MBD-T9  | live reflash demo | Owner:  | Status: Not started
