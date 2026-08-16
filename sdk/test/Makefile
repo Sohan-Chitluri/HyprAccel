@@ -1,7 +1,8 @@
 # HyprAccel CORE-T4 — CORDIC reference test harness build script
 #
 # Usage (via make if available, or run gcc directly):
-#   make test                Run accuracy test
+#   make test                Run accuracy test (math.h check)
+#   make validate            Run bit-exact validation against JSON vectors
 #   make bench               Run benchmark (10M iterations)
 #   make bench N=5000000     Custom iteration count
 #   make dump                Dump CSV for RTL testbench stimulus
@@ -49,6 +50,14 @@ bench: $(TARGET)
 	@echo ">>> Running CORDIC benchmark (N=$(N))..."
 	@echo ""
 	$(TARGET) --bench $(N)
+
+validate: $(TARGET)
+	@echo ""
+	@echo ">>> Running CORDIC bit-exact validation against 10k vectors..."
+	@echo ""
+	$(TARGET) --validate ../../reference/cordic_golden/vectors/regression_10k.json
+	@echo ""
+	@echo ">>> Exit code: $$?"
 
 dump: $(TARGET)
 	@echo ">>> Dumping CSV stimulus for RTL testbench..."

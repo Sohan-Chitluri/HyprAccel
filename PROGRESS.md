@@ -5,7 +5,7 @@
 - [x] CORE-T1 | API header | Owner: Antigravity | Status: Complete
 - [x] CORE-T2 | boards.yaml schema | Owner: Antigravity | Status: Complete
 - [x] CORE-T3 | yaml→header codegen | Owner: Antigravity | Status: Complete
-- [x] CORE-T4 | CORDIC ref C impl | Owner: Antigravity | Status: Complete (Fixed Q1.15 conversion factor and angle table, validated < 2e-4 error)
+- [x] CORE-T4 | CORDIC ref C impl | Owner: Antigravity | Status: Complete (Revised to match confirmed RTL parameters: 8-stage Q4.12, bit-exact verified against 10k vectors)
 - [x] CORE-T5 | THEJAS sw path | Owner: Antigravity | Status: Complete
 - [x] CORE-T6 | ESP32 sw path | Owner: Antigravity | Status: Complete
 - [x] CORE-T7 | routing layer | Owner: Antigravity | Status: Complete
@@ -25,7 +25,7 @@
 - [ ] MBD-T1b | pin→codegen wire | Owner:  | Status: Not started
 - [x] MBD-T2  | graph data model | Owner: Codex | Status: Complete
 - [x] MBD-T3  | graph→C codegen | Owner: Codex (GPT-5.6 Terra) | Status: Complete
-- [ ] MBD-T4  | HW backend routing | Owner:  | Status: Not started
+- [x] MBD-T4  | HW backend routing | Owner: Codex (GPT-5.6 Terra) | Status: Complete
 - [ ] MBD-T5  | editor UI | Owner:  | Status: Not started (Decision: local dev server)
 - [ ] MBD-T6  | editor→codegen wire | Owner:  | Status: Not started
 - [ ] MBD-T7  | complexity comparison | Owner:  | Status: Not started
@@ -42,6 +42,6 @@
 - [ ] SIM-T6 | N-point stress test | Owner:  | Status: Not started
 
 ## TRACK PLATFORM
-- [ ] PLAT-T1 | telemetry dashboard | Owner:  | Status: Not started
+- [x] PLAT-T1 | telemetry dashboard | Owner: Antigravity | Status: Complete
 - [x] PLAT-T2 | Siemens comparison | Owner: Gemini CLI | Status: Complete
 - [ ] PLAT-T3 | Bare carrier PCB | Owner:  | Status: Not started
