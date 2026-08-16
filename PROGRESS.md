@@ -28,7 +28,7 @@
 - [ ] MBD-T5  | editor UI | Owner: Antigravity | Status: Not started (Decision: local dev server)
 - [ ] MBD-T6  | editor→codegen wire | Owner: Antigravity | Status: Not started
 - [ ] MBD-T7  | complexity comparison | Owner: Antigravity | Status: Not started
-- [x] MBD-T8  | lineages comparison | Owner: Gemini CLI | Status: Complete (Three-lineage comparison document created in mbd/docs/three_lineages_comparison.md)
+- [x] MBD-T8  | lineages comparison | Owner: Gemini CLI | Status: Complete (Comparison document created in mbd/docs/three_lineages_comparison.md)
 - [ ] MBD-T9  | live reflash demo | Owner: Antigravity | Status: Not started
 - [ ] MBD-T10 | pre-synth bitstreams | Owner: Antigravity | Status: Not started
 
