@@ -3,7 +3,7 @@
 
 ## TRACK CORE
 - [x] CORE-T1 | API header | Owner: Antigravity | Status: Complete
-- [ ] CORE-T2 | boards.yaml schema | Owner:  | Status: Not started
+- [x] CORE-T2 | boards.yaml schema | Owner: Antigravity | Status: Complete
 - [ ] CORE-T3 | yaml→header codegen | Owner:  | Status: Not started
 - [x] CORE-T4 | CORDIC ref C impl | Owner: Antigravity | Status: Complete (Fixed Q1.15 conversion factor and angle table, validated < 2e-4 error)
 - [ ] CORE-T5 | THEJAS sw path | Owner:  | Status: Not started

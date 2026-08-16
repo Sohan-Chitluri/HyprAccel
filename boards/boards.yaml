@@ -1,0 +1,136 @@
+# HyprAccel Board Descriptor Schema (CORE-T2)
+# Defines hardware capabilities, transports, and complete pinouts for target boards.
+
+boards:
+  # -------------------------------------------------------------------------
+  # THEJAS32 (ARIES v2.0)
+  # Indigenous RISC-V SoC by C-DAC.
+  # -------------------------------------------------------------------------
+  thejas32:
+    name: "THEJAS32 (ARIES v2.0)"
+    architecture: "riscv32"
+    clock_freq_mhz: 100
+    
+    # Transport used to communicate with the FPGA accelerator
+    fpga_transport: "SPI"
+    
+    # Accelerators available on the paired FPGA
+    accelerators:
+      - "CORDIC"
+      
+    # Peripheral Pin Map
+    # Real enumeration of usable peripheral pins on the THEJAS32 SoC
+    pins:
+      gpio:
+        - "GPIO0"
+        - "GPIO1"
+        - "GPIO2"
+        - "GPIO3"
+        - "GPIO4"
+        - "GPIO5"
+        - "GPIO6"
+        - "GPIO7"
+        - "GPIO8"
+        - "GPIO9"
+        - "GPIO10"
+        - "GPIO11"
+        - "GPIO12"
+        - "GPIO13"
+        - "GPIO14"
+        - "GPIO15"
+        - "GPIO16"
+        - "GPIO17"
+        - "GPIO18"
+        - "GPIO19"
+        - "GPIO20"
+        - "GPIO21"
+        - "GPIO22"
+        - "GPIO23"
+        - "GPIO24"
+        - "GPIO25"
+        - "GPIO26"
+        - "GPIO27"
+        - "GPIO28"
+        - "GPIO29"
+        - "GPIO30"
+        - "GPIO31"
+      spi:
+        spi0: { sck: "SPI0CLK", mosi: "SPI0MOSI", miso: "SPI0MISO", cs: "SPI0CSN" }
+        spi1: { sck: "SPI1CLK", mosi: "SPI1MOSI", miso: "SPI1MISO", cs: "SPI1CSN" }
+        spi2: { sck: "SPI2CLK", mosi: "SPI2MOSI", miso: "SPI2MISO", cs: "SPI2CSN" }
+        spi3: { sck: "SPI3CLK", mosi: "SPI3MOSI", miso: "SPI3MISO", cs: "SPI3CSN" }
+      i2c:
+        i2c0: { scl: "IIC0SCL", sda: "IIC0SDA" }
+        i2c1: { scl: "IIC1SCL", sda: "IIC1SDA" }
+        i2c2: { scl: "IIC2SCL", sda: "IIC2SDA" }
+      uart:
+        uart0: { tx: "URT0SOUT", rx: "URT0SIN" }
+        uart1: { tx: "URT1SOUT", rx: "URT1SIN" }
+        uart2: { tx: "URT2SOUT", rx: "URT2SIN" }
+      pwm:
+        - "PWM0"
+        - "PWM1"
+        - "PWM2"
+        - "PWM3"
+        - "PWM4"
+        - "PWM5"
+        - "PWM6"
+        - "PWM7"
+      adc:
+        - "ADC0"
+        - "ADC1"
+        - "ADC2"
+        - "ADC3"
+
+  # -------------------------------------------------------------------------
+  # ESP32 (Secondary target)
+  # Standard ESP-WROOM-32 module.
+  # -------------------------------------------------------------------------
+  esp32:
+    name: "ESP32 (WROOM-32)"
+    architecture: "xtensa-lx6"
+    clock_freq_mhz: 240
+    
+    fpga_transport: "SPI"
+    
+    accelerators:
+      - "CORDIC"
+      
+    # Peripheral Pin Map
+    pins:
+      gpio:
+        - "GPIO0"
+        - "GPIO1"
+        - "GPIO2"
+        - "GPIO3"
+        - "GPIO4"
+        - "GPIO5"
+        - "GPIO12"
+        - "GPIO13"
+        - "GPIO14"
+        - "GPIO15"
+        - "GPIO16"
+        - "GPIO17"
+        - "GPIO18"
+        - "GPIO19"
+        - "GPIO21"
+        - "GPIO22"
+        - "GPIO23"
+        - "GPIO25"
+        - "GPIO26"
+        - "GPIO27"
+        - "GPIO32"
+        - "GPIO33"
+        - "GPIO34"
+        - "GPIO35"
+        - "GPIO36"
+        - "GPIO39"
+      spi:
+        hspi: { sck: "GPIO14", mosi: "GPIO13", miso: "GPIO12", cs: "GPIO15" }
+        vspi: { sck: "GPIO18", mosi: "GPIO23", miso: "GPIO19", cs: "GPIO5" }
+      i2c:
+        i2c0: { scl: "GPIO22", sda: "GPIO21" } # Typical defaults
+      uart:
+        uart0: { tx: "GPIO1", rx: "GPIO3" }
+        uart1: { tx: "GPIO10", rx: "GPIO9" }
+        uart2: { tx: "GPIO17", rx: "GPIO16" }
