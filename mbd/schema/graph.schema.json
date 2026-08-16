@@ -56,22 +56,32 @@
       }
     },
     "node": {
-      "allOf": [
-        { "$ref": "#/$defs/nodeBase" },
-        {
-          "properties": {
-            "params": {
-              "type": "object",
-              "additionalProperties": true,
-              "properties": {
-                "operation": { "enum": ["sin", "cos", "sincos", "atan2"] },
-                "implementation": { "enum": ["auto", "software", "hardware"] },
-                "iterations": { "type": "integer", "minimum": 1, "maximum": 32 }
-              }
-            }
-          }
-        }
+      "oneOf": [
+        { "$ref": "#/$defs/sensorInputNode" },
+        { "$ref": "#/$defs/cordicNode" },
+        { "$ref": "#/$defs/kinematicsNode" },
+        { "$ref": "#/$defs/controlLoopNode" },
+        { "$ref": "#/$defs/actuatorOutputNode" },
+        { "$ref": "#/$defs/publishNode" }
       ]
+    },
+    "sensorInputNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "SensorInput" }, "params": { "type": "object", "additionalProperties": false, "required": ["source", "valueType", "samplePeriodUs"], "properties": { "source": { "type": "string", "minLength": 1 }, "valueType": { "enum": ["number", "boolean", "vector<number>", "pose", "any"] }, "samplePeriodUs": { "type": "integer", "minimum": 1 }, "unit": { "type": "string" } } } } }]
+    },
+    "cordicNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "CordicOp" }, "params": { "type": "object", "additionalProperties": false, "required": ["operation"], "properties": { "operation": { "enum": ["sin", "cos", "sincos", "atan2"] }, "implementation": { "enum": ["auto", "software", "hardware"] }, "iterations": { "type": "integer", "minimum": 1, "maximum": 32 } } } } }]
+    },
+    "kinematicsNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "KinematicsSolve" }, "params": { "type": "object", "additionalProperties": false, "required": ["mode", "robotModel"], "properties": { "mode": { "enum": ["forward", "inverse"] }, "robotModel": { "type": "string", "minLength": 1 }, "maxIterations": { "type": "integer", "minimum": 1 }, "tolerance": { "type": "number", "exclusiveMinimum": 0 } } } } }]
+    },
+    "controlLoopNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "ControlLoop" }, "params": { "type": "object", "additionalProperties": false, "required": ["kp", "ki", "kd", "samplePeriodUs", "outputMin", "outputMax"], "properties": { "kp": { "type": "number" }, "ki": { "type": "number" }, "kd": { "type": "number" }, "samplePeriodUs": { "type": "integer", "minimum": 1 }, "outputMin": { "type": "number" }, "outputMax": { "type": "number" }, "initialOutput": { "type": "number" } } } } }]
+    },
+    "actuatorOutputNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "ActuatorOutput" }, "params": { "type": "object", "additionalProperties": false, "required": ["target", "unit", "min", "max"], "properties": { "target": { "type": "string", "minLength": 1 }, "unit": { "type": "string", "minLength": 1 }, "min": { "type": "number" }, "max": { "type": "number" }, "safeValue": { "type": "number" } } } } }]
+    },
+    "publishNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "Publish" }, "params": { "type": "object", "additionalProperties": false, "required": ["topic", "transport"], "properties": { "topic": { "type": "string", "minLength": 1 }, "transport": { "enum": ["telemetry", "log", "host"] }, "retain": { "type": "boolean" } } } } }]
     },
     "endpoint": {
       "type": "object", "additionalProperties": false,
