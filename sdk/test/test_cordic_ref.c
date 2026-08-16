@@ -125,21 +125,28 @@ static int mode_validate(const char *json_path)
     
     int32_t x_in = 0, y_in = 0, z_in = 0, saturate = 0;
     int32_t exp_x = 0, exp_y = 0, exp_z = 0, exp_ovf = 0;
+    int vector_ready = 0;
     
     while (fgets(line, sizeof(line), f)) {
-        if (strstr(line, "\"x_in\":")) sscanf(line, " \"x_in\": %d,", &x_in);
-        else if (strstr(line, "\"y_in\":")) sscanf(line, " \"y_in\": %d,", &y_in);
-        else if (strstr(line, "\"z_in\":")) sscanf(line, " \"z_in\": %d,", &z_in);
-        else if (strstr(line, "\"cfg_saturate\":")) {
-            saturate = strstr(line, "true") ? 1 : 0;
+        char *p = line;
+        while (*p == ' ' || *p == '\t') p++;
+
+        if      (strstr(p, "\"x_in\":"))        { sscanf(p, "\"x_in\": %d", &x_in); }
+        else if (strstr(p, "\"y_in\":"))        { sscanf(p, "\"y_in\": %d", &y_in); }
+        else if (strstr(p, "\"z_in\":"))        { sscanf(p, "\"z_in\": %d", &z_in); }
+        else if (strstr(p, "\"cfg_saturate\":")) { sscanf(p, "\"cfg_saturate\": %d", &saturate); }
+        else if (strstr(p, "\"x_out\":"))       { sscanf(p, "\"x_out\": %d", &exp_x); }
+        else if (strstr(p, "\"y_out\":"))       { sscanf(p, "\"y_out\": %d", &exp_y); }
+        else if (strstr(p, "\"z_out\":"))       { sscanf(p, "\"z_out\": %d", &exp_z); }
+        else if (strstr(p, "\"overflow\":"))    {
+            /* overflow is always the last field in expected{} — use it as the
+               commit signal to run the core and compare. */
+            sscanf(p, "\"overflow\": %d", &exp_ovf);
+            vector_ready = 1;
         }
-        else if (strstr(line, "\"x_out\":")) sscanf(line, " \"x_out\": %d,", &exp_x);
-        else if (strstr(line, "\"y_out\":")) sscanf(line, " \"y_out\": %d,", &exp_y);
-        else if (strstr(line, "\"z_out\":")) sscanf(line, " \"z_out\": %d,", &exp_z);
-        else if (strstr(line, "\"overflow\":")) {
-            exp_ovf = strstr(line, "true") ? 1 : 0;
-            
-            // Reached end of vector, run core and compare
+
+        if (vector_ready) {
+            vector_ready = 0;
             int32_t act_x, act_y, act_z;
             int act_ovf;
             hyp_cordic_core(x_in, y_in, z_in, saturate, &act_x, &act_y, &act_z, &act_ovf);
@@ -150,7 +157,7 @@ static int mode_validate(const char *json_path)
                 fails++;
                 if (fails <= 5) {
                     printf("Mismatch at vector %d:\n", passes + fails);
-                    printf("  Input: x=%d y=%d z=%d sat=%d\n", x_in, y_in, z_in, saturate);
+                    printf("  Input:  x=%d y=%d z=%d sat=%d\n", x_in, y_in, z_in, saturate);
                     printf("  Expect: x=%d y=%d z=%d ovf=%d\n", exp_x, exp_y, exp_z, exp_ovf);
                     printf("  Actual: x=%d y=%d z=%d ovf=%d\n", act_x, act_y, act_z, act_ovf);
                 }
