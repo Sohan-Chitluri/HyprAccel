@@ -1,1 +1,8 @@
 node_modules/
+
+# Compiled artifacts
+*.o
+sdk/test/build/
+
+# npm lock files (not tracking in this repo)
+package-lock.json
