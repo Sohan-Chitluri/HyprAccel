@@ -8,7 +8,7 @@
 - [x] CORE-T4 | CORDIC ref C impl | Owner: Antigravity | Status: Complete (Fixed Q1.15 conversion factor and angle table, validated < 2e-4 error)
 - [x] CORE-T5 | THEJAS sw path | Owner: Antigravity | Status: Complete
 - [x] CORE-T6 | ESP32 sw path | Owner: Antigravity | Status: Complete
-- [ ] CORE-T7 | routing layer | Owner:  | Status: Not started
+- [x] CORE-T7 | routing layer | Owner: Antigravity | Status: Complete
 
 ## TRACK RTL
 - [ ] RTL-T1 | validate existing RTL | Owner:  | Status: Blocked on Q2 (waiting for RTL location)
@@ -43,5 +43,5 @@
 
 ## TRACK PLATFORM
 - [ ] PLAT-T1 | telemetry dashboard | Owner:  | Status: Not started
-- [ ] PLAT-T2 | Siemens comparison | Owner:  | Status: Not started
+- [x] PLAT-T2 | Siemens comparison | Owner: Gemini CLI | Status: Complete
 - [ ] PLAT-T3 | Bare carrier PCB | Owner:  | Status: Not started
