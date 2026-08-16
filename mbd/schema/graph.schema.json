@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hypraccel.dev/schemas/mbd/graph-v1.schema.json",
+  "title": "HyprAccel MBD graph V1",
+  "description": "On-disk representation of a HyprAccel model-based design graph. Port existence and edge type compatibility are validated against mbd/nodes/node_spec.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "version", "id", "nodes", "edges"],
+  "properties": {
+    "format": { "const": "hypraccel.mbd.graph" },
+    "version": { "const": 1 },
+    "id": { "$ref": "#/$defs/identifier" },
+    "name": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "inputs": {
+      "description": "Optional host-supplied graph inputs. An unconnected node input may name one of these bindings in editor metadata.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/graphInput" },
+      "uniqueItems": true
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/edge" }
+    },
+    "metadata": { "type": "object", "additionalProperties": true }
+  },
+  "$defs": {
+    "identifier": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
+    "graphInput": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "type"],
+      "properties": {
+        "name": { "$ref": "#/$defs/identifier" },
+        "type": { "enum": ["number", "boolean", "vector<number>", "pose", "any"] },
+        "unit": { "type": "string" }
+      }
+    },
+    "nodeBase": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "type", "params"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "type": { "enum": ["SensorInput", "CordicOp", "KinematicsSolve", "ControlLoop", "ActuatorOutput", "Publish"] },
+        "label": { "type": "string", "minLength": 1 },
+        "params": { "type": "object" },
+        "position": {
+          "type": "object", "additionalProperties": false,
+          "required": ["x", "y"],
+          "properties": { "x": { "type": "number" }, "y": { "type": "number" } }
+        }
+      }
+    },
+    "node": {
+      "allOf": [
+        { "$ref": "#/$defs/nodeBase" },
+        {
+          "properties": {
+            "params": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "operation": { "enum": ["sin", "cos", "sincos", "atan2"] },
+                "implementation": { "enum": ["auto", "software", "hardware"] },
+                "iterations": { "type": "integer", "minimum": 1, "maximum": 32 }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "endpoint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["node", "port"],
+      "properties": {
+        "node": { "$ref": "#/$defs/identifier" },
+        "port": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$" }
+      }
+    },
+    "edge": {
+      "type": "object", "additionalProperties": false,
+      "required": ["from", "to"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "from": { "$ref": "#/$defs/endpoint" },
+        "to": { "$ref": "#/$defs/endpoint" }
+      }
+    }
+  }
+}

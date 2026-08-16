@@ -1,0 +1,39 @@
+{
+  "$schema": "../graph.schema.json",
+  "format": "hypraccel.mbd.graph",
+  "version": 1,
+  "id": "cordic-sine-publish",
+  "name": "CORDIC sine to telemetry",
+  "description": "A host supplies angle_rad; CordicOp calculates its sine and Publish sends it to telemetry.",
+  "inputs": [
+    { "name": "angle_rad", "type": "number", "unit": "rad" }
+  ],
+  "nodes": [
+    {
+      "id": "cordic",
+      "type": "CordicOp",
+      "label": "Sine",
+      "params": { "operation": "sin", "implementation": "auto", "iterations": 16 },
+      "position": { "x": 120, "y": 160 }
+    },
+    {
+      "id": "publish",
+      "type": "Publish",
+      "label": "Publish sine",
+      "params": { "topic": "telemetry/cordic/sine", "transport": "telemetry", "retain": false },
+      "position": { "x": 420, "y": 160 }
+    }
+  ],
+  "edges": [
+    {
+      "id": "cordic-value-to-publish-value",
+      "from": { "node": "cordic", "port": "value" },
+      "to": { "node": "publish", "port": "value" }
+    }
+  ],
+  "metadata": {
+    "externalBindings": [
+      { "input": "angle_rad", "to": { "node": "cordic", "port": "angle_rad" } }
+    ]
+  }
+}
