@@ -28,8 +28,8 @@
 - [x] MBD-T4  | HW backend routing | Owner: Codex (GPT-5.6 Terra) | Status: Complete
 - [ ] MBD-T5  | editor UI | Owner:  | Status: Not started (Decision: local dev server)
 - [ ] MBD-T6  | editor→codegen wire | Owner:  | Status: Not started
-- [ ] MBD-T7  | complexity comparison | Owner:  | Status: Not started
-- [x] MBD-T8  | lineages comparison | Owner: Gemini CLI | Status: Complete (Comparison document created in mbd/docs/three_lineages_comparison.md)
+- [x] MBD-T7  | complexity comparison | Owner: Gemini CLI | Status: Complete (Comparison document created in mbd/docs/complexity_comparison.md) ⚠️ AUDIT: file exists on disk but has NO git commit — untracked, at risk of loss
+- [x] MBD-T8  | lineages comparison | Owner: Gemini CLI | Status: Complete (Comparison document created in mbd/docs/three_lineages_comparison.md) ⚠️ AUDIT: file exists on disk but has NO git commit — untracked, at risk of loss
 - [ ] MBD-T9  | live reflash demo | Owner:  | Status: Not started
 - [ ] MBD-T10 | pre-synth bitstreams | Owner:  | Status: Not started
 
@@ -42,6 +42,6 @@
 - [ ] SIM-T6 | N-point stress test | Owner:  | Status: Not started
 
 ## TRACK PLATFORM
-- [x] PLAT-T1 | telemetry dashboard | Owner: Antigravity | Status: Complete
-- [x] PLAT-T2 | Siemens comparison | Owner: Gemini CLI | Status: Complete
+- [x] PLAT-T1 | telemetry dashboard | Owner: Antigravity | Status: Complete ⚠️ AUDIT: files exist in plat/dashboard/ but have NO git commit — untracked, at risk of loss
+- [x] PLAT-T2 | Siemens comparison | Owner: Gemini CLI | Status: Complete ⚠️ AUDIT: file exists in plat/docs/ but has NO git commit — untracked, at risk of loss
 - [ ] PLAT-T3 | Bare carrier PCB | Owner:  | Status: Not started
