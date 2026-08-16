@@ -9,9 +9,10 @@ node mbd/codegen/graph_to_c.js <graph.json> <output.c>
 The V1 SDK currently exposes CORDIC SINCOS and raw publication, so this
 generator supports `CordicOp` (`sin`, `cos`, or `sincos`) and `Publish` nodes.
 It emits `hyp_graph_init()` and one graph step function that accepts declared
-numeric graph inputs. A Cordic operation is routed to hardware only when its
-`implementation` is `hardware`; `auto` and `software` route to software until
-the routing layer gains automatic target selection.
+numeric graph inputs. The `CordicOp.params.implementation` selector maps
+directly to the SDK's `hyp_target_t`: `hardware` emits
+`HYP_TARGET_HARDWARE`, while `auto` and `software` emit
+`HYP_TARGET_SOFTWARE` until the routing layer gains automatic target selection.
 
 Example:
 

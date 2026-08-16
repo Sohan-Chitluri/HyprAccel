@@ -53,6 +53,20 @@ function nodeOutputNames(node) {
     }
 }
 
+function cordicTarget(node) {
+    // These names intentionally match hyp_target_t in sdk/include/hyprccel.h
+    // and are consumed unchanged by CORE-T7's hyp_route() implementation.
+    switch (node.params.implementation || 'auto') {
+        case 'auto':
+        case 'software':
+            return 'HYP_TARGET_SOFTWARE';
+        case 'hardware':
+            return 'HYP_TARGET_HARDWARE';
+        default:
+            fail(`CordicOp '${node.id}' has unsupported implementation '${node.params.implementation}'`);
+    }
+}
+
 function topologicalOrder(nodes, edges) {
     const byId = new Map(nodes.map(node => [node.id, node]));
     const indegree = new Map(nodes.map(node => [node.id, 0]));
@@ -173,7 +187,7 @@ function generate(graph, sourceName) {
             if (!input) fail(`CordicOp '${node.id}' requires an external binding for angle_rad`);
             const nodeName = cIdentifier(node.id, 'node id');
             const args = `${nodeName}_args`;
-            const target = node.params.implementation === 'hardware' ? 'HYP_TARGET_HARDWARE' : 'HYP_TARGET_SOFTWARE';
+            const target = cordicTarget(node);
             lines.push(`    hyp_cordic_args_t ${args} = {0};`);
             lines.push(`    ${args}.angle_degrees = ${cIdentifier(input, 'graph input')} * (180.0f / 3.14159265358979323846f);`);
             lines.push(`    hyp_route(HYP_OP_CORDIC_SINCOS, ${target});`);
