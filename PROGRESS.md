@@ -1,5 +1,6 @@
 # HyprAccel Task Progress
 *Note: Owner field = the AI tool/person actually executing this task, update on every status change.*
+*General Fixes: SDK include path fixed (-I sdk/include) for hyp_thejas.c, hyp_esp32.c, hyp_router.c standalone build; root .gitignore updated for build artifacts.*
 
 ## TRACK CORE
 - [x] CORE-T1 | API header | Owner: Antigravity | Status: Complete

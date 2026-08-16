@@ -1,8 +1,21 @@
+# Dependencies
 node_modules/
+**/node_modules/
 
-# Compiled artifacts
+# Build directories & Verilator output
+build/
+**/build/
+obj_dir/
+**/obj_dir/
+
+# Compiled object files & binaries
 *.o
-sdk/test/build/
+*.a
+*.so
+*.dylib
+
+# Temporary test outputs
+stimulus.csv
 
 # npm lock files (not tracking in this repo)
 package-lock.json

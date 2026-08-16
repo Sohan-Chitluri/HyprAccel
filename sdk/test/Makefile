@@ -9,33 +9,44 @@
 #   make clean               Remove build artifacts
 #
 # Direct gcc (if make is unavailable):
-#   gcc -O2 -std=c99 -I../src -o build/test_cordic test_cordic_ref.c ../src/hyp_cordic_ref.c -lm
+#   gcc -O2 -std=c99 -I../include -I../src -o build/test_cordic test_cordic_ref.c ../src/hyp_cordic_ref.c -lm
+#   gcc -O2 -std=c99 -I../include -I../src -c ../src/hyp_thejas.c -o build/hyp_thejas.o
+#   gcc -O2 -std=c99 -I../include -I../src -c ../src/hyp_esp32.c -o build/hyp_esp32.o
+#   gcc -O2 -std=c99 -I../include -I../src -c ../src/hyp_router.c -o build/hyp_router.o
 #   ./build/test_cordic --test
 #   ./build/test_cordic --bench 10000000
 #   ./build/test_cordic --dump > stimulus.csv
 
 CC      = gcc
-CFLAGS  = -O2 -Wall -Wextra -std=c99
+INC_DIR = ../include
+SRC_DIR = ../src
+CFLAGS  = -O2 -Wall -Wextra -std=c99 -I$(INC_DIR) -I$(SRC_DIR)
 LDFLAGS = -lm
 
-SRC_DIR  = ../src
 BUILD    = build
 TARGET   = $(BUILD)/test_cordic
 
 N ?= 10000000
 
 SRCS = test_cordic_ref.c $(SRC_DIR)/hyp_cordic_ref.c
-HDRS = $(SRC_DIR)/hyp_cordic_ref.h
+HDRS = $(SRC_DIR)/hyp_cordic_ref.h $(INC_DIR)/hyprccel.h
 
-.PHONY: all test bench dump clean
+SDK_OBJS = $(BUILD)/hyp_cordic_ref.o $(BUILD)/hyp_thejas.o $(BUILD)/hyp_esp32.o $(BUILD)/hyp_router.o
 
-all: $(TARGET)
+.PHONY: all test bench dump clean objs
+
+all: $(TARGET) objs
 
 $(BUILD):
 	mkdir -p $(BUILD)
 
 $(TARGET): $(SRCS) $(HDRS) | $(BUILD)
-	$(CC) $(CFLAGS) -I$(SRC_DIR) -o $@ $(SRCS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $(SRCS) $(LDFLAGS)
+
+objs: $(SDK_OBJS)
+
+$(BUILD)/%.o: $(SRC_DIR)/%.c | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 test: $(TARGET)
 	@echo ""
