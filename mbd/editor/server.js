@@ -1,28 +1,40 @@
 /**
  * server.js — HyprAccel MBD Editor Dev Server
- * MBD-T1a / MBD-T1b
+ * MBD-T1a / MBD-T1b / MBD-T5 / MBD-T6
  *
  * Endpoints:
  *   GET  /api/boards          → parsed boards.yaml as JSON
  *   POST /api/generate        → write pin assignments → call gen_board_config.js → return header
  *   GET  /                    → serves pin_config.html
+ *   GET  /graph                → serves the node graph editor
+ *   POST /api/build           → run graph_to_c.js for the current graph
  */
 
 const express = require('express');
 const fs      = require('fs');
 const path    = require('path');
-const { execSync } = require('child_process');
+const os           = require('os');
+const { execFileSync, execSync } = require('child_process');
 
 const app  = express();
-const PORT = 3737;
+const PORT = Number(process.env.HYPRACCEL_EDITOR_PORT || 3737);
 
 const REPO_ROOT    = path.resolve(__dirname, '../../');
 const BOARDS_YAML  = path.join(REPO_ROOT, 'boards/boards.yaml');
 const CODEGEN_JS   = path.join(REPO_ROOT, 'boards/codegen/gen_board_config.js');
 const CODEGEN_OUT  = path.join(REPO_ROOT, 'boards/codegen');
+const GRAPH_CODEGEN = path.join(REPO_ROOT, 'mbd/codegen/graph_to_c.js');
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'src')));
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'src/pin_config.html'));
+});
+
+app.get('/graph', (req, res) => {
+    res.sendFile(path.join(__dirname, 'src/graph_editor.html'));
+});
 
 /* --------------------------------------------------------------------------
  * YAML parser (mirrors the logic in gen_board_config.js — no npm yaml dep)
@@ -167,6 +179,39 @@ app.post('/api/generate', (req, res) => {
         res.json({ success: true, header: headerText, assignments });
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+});
+
+/* --------------------------------------------------------------------------
+ * POST /api/build
+ * Body: a hypraccel.mbd.graph object from graph_editor.html.
+ * The existing graph_to_c.js remains the source of truth for validation and
+ * generated C; this endpoint only supplies its temporary JSON/C file paths.
+ * ----------------------------------------------------------------------- */
+app.post('/api/build', (req, res) => {
+    const graph = req.body;
+    if (!graph || typeof graph !== 'object' || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
+        return res.status(400).json({ error: 'Body must be a graph with nodes and edges arrays.' });
+    }
+
+    let tempDir;
+    try {
+        tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hypraccel-mbd-build-'));
+        const graphPath = path.join(tempDir, 'graph.json');
+        const outputPath = path.join(tempDir, 'graph.c');
+        fs.writeFileSync(graphPath, JSON.stringify(graph, null, 2), 'utf8');
+        execFileSync(process.execPath, [GRAPH_CODEGEN, graphPath, outputPath], { encoding: 'utf8', stdio: 'pipe' });
+        res.json({ success: true, graph, source: fs.readFileSync(outputPath, 'utf8') });
+    } catch (err) {
+        const detail = err.stderr ? String(err.stderr).trim() : err.message;
+        res.status(422).json({ error: detail || 'Graph code generation failed.' });
+    } finally {
+        if (tempDir) {
+            for (const file of ['graph.json', 'graph.c']) {
+                try { fs.unlinkSync(path.join(tempDir, file)); } catch (_) { /* best-effort temp cleanup */ }
+            }
+            try { fs.rmdirSync(tempDir); } catch (_) { /* best-effort temp cleanup */ }
+        }
     }
 });
 
