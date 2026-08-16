@@ -24,7 +24,7 @@
 - [ ] MBD-T1a | pin config screen | Owner:  | Status: Not started
 - [ ] MBD-T1b | pin→codegen wire | Owner:  | Status: Not started
 - [x] MBD-T2  | graph data model | Owner: Codex | Status: Complete
-- [ ] MBD-T3  | graph→C codegen | Owner:  | Status: Not started
+- [x] MBD-T3  | graph→C codegen | Owner: Codex (GPT-5.6 Terra) | Status: Complete
 - [ ] MBD-T4  | HW backend routing | Owner:  | Status: Not started
 - [ ] MBD-T5  | editor UI | Owner:  | Status: Not started (Decision: local dev server)
 - [ ] MBD-T6  | editor→codegen wire | Owner:  | Status: Not started
