@@ -24,6 +24,7 @@
 - [x] MBD-T1  | node vocabulary | Owner: Codex | Status: Complete
 - [x] MBD-T1a | pin config screen | Owner: Antigravity (Sonnet) | Status: Complete (standalone pin_config.html + Express server; board→real pins from boards.yaml; drag-drop to SensorInput/ActuatorOutput slots; conflict detection)
 - [x] MBD-T1b | pin→codegen wire | Owner: Antigravity (Sonnet) | Status: Complete (POST /api/generate injects HYP_PIN_* #defines into hyp_board_config.h; tested: assign SPI1MOSI → header reflects it)
+- [x] MBD-T1c | pin assignment presets | Owner: Antigravity (Sonnet) | Status: Complete (Quick Select preset panel on pin-config UI: SPI Accelerometer, RS-485 Modbus, CORDIC FPGA Link, Servo/PWM; validated per board pinout against boards.yaml with conflict detection)
 - [x] MBD-T2  | graph data model | Owner: Codex | Status: Complete
 - [x] MBD-T3  | graph→C codegen | Owner: Codex (GPT-5.6 Terra) | Status: Complete
 - [x] MBD-T4  | HW backend routing | Owner: Codex (GPT-5.6 Terra) | Status: Complete

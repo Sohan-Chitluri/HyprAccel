@@ -102,6 +102,15 @@
   .status-dot.warn { background: var(--warn-soft); }
   .status-dot.err  { background: var(--warn); }
 
+  /* ── Preset Panel (MBD-T1c) ── */
+  .preset-container { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-bottom: 1px solid var(--border); background: #12161f; flex-shrink: 0; }
+  .preset-card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; cursor: pointer; transition: border-color .15s, background .15s; }
+  .preset-card:hover { border-color: var(--accent); background: #1c2128; }
+  .preset-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; }
+  .preset-name { font-size: 11px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 5px; }
+  .preset-type { font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 700; text-transform: uppercase; }
+  .preset-desc { font-size: 10px; color: var(--muted); line-height: 1.3; }
+
   /* scroll */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -125,8 +134,15 @@
 </header>
 
 <main>
-  <!-- Left: peripheral tree -->
+  <!-- Left: peripheral tree & presets -->
   <div class="panel" id="peripheralPanel">
+    <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;background:#161b22">
+      <span>⚡ Quick Select Presets</span>
+      <span style="font-size:9px;color:var(--accent);font-weight:700">MBD-T1c</span>
+    </div>
+    <div class="preset-container" id="presetContainer">
+      <!-- Preset cards rendered by JS -->
+    </div>
     <div class="panel-header">Available Peripherals</div>
     <div class="panel-body" id="peripheralTree">
       <div style="padding:20px;color:var(--muted);font-size:12px">Select a board to see its peripherals.</div>
@@ -173,9 +189,232 @@ let assignments   = {};          // pinName → nodeId (conflict detection)
 let nodeCounter   = 0;
 
 /* ────────────────────────────────────────────────────────────────────────
+   Industrial Node Presets (MBD-T1c)
+   ──────────────────────────────────────────────────────────────────────── */
+const PRESETS = [
+    {
+        id: 'spi_accelerometer',
+        name: 'SPI Accelerometer',
+        icon: '📡',
+        nodeType: 'SensorInput',
+        description: 'SPI bus (MOSI/MISO, CS, CLK) for industrial IMU/accelerometer',
+        boardConfigs: {
+            thejas32: {
+                slots: [
+                    { role: 'bus',  pin: 'SPI0MOSI', peripheral: 'spi.spi0' },
+                    { role: 'data', pin: 'SPI0MISO', peripheral: 'spi.spi0' },
+                    { role: 'cs',   pin: 'SPI0CSN',  peripheral: 'spi.spi0' },
+                    { role: 'clk',  pin: 'SPI0CLK',  peripheral: 'spi.spi0' }
+                ]
+            },
+            esp32: {
+                slots: [
+                    { role: 'bus',  pin: 'GPIO13', peripheral: 'spi.hspi' },
+                    { role: 'data', pin: 'GPIO12', peripheral: 'spi.hspi' },
+                    { role: 'cs',   pin: 'GPIO15', peripheral: 'spi.hspi' },
+                    { role: 'clk',  pin: 'GPIO14', peripheral: 'spi.hspi' }
+                ]
+            }
+        }
+    },
+    {
+        id: 'modbus_rs485',
+        name: 'RS-485 Modbus Transceiver',
+        icon: '🔌',
+        nodeType: 'SensorInput',
+        description: 'UART TX/RX lines + GPIO Direction/Enable (DE) for Modbus RTU',
+        boardConfigs: {
+            thejas32: {
+                slots: [
+                    { role: 'bus',  pin: 'URT0SOUT', peripheral: 'uart.uart0' },
+                    { role: 'data', pin: 'URT0SIN',  peripheral: 'uart.uart0' },
+                    { role: 'cs',   pin: 'GPIO0',    peripheral: 'gpio'       },
+                    { role: 'clk',  pin: 'GPIO1',    peripheral: 'gpio'       }
+                ]
+            },
+            esp32: {
+                slots: [
+                    { role: 'bus',  pin: 'GPIO17', peripheral: 'uart.uart2' },
+                    { role: 'data', pin: 'GPIO16', peripheral: 'uart.uart2' },
+                    { role: 'cs',   pin: 'GPIO4',  peripheral: 'gpio'       },
+                    { role: 'clk',  pin: 'GPIO5',  peripheral: 'gpio'       }
+                ]
+            }
+        }
+    },
+    {
+        id: 'cordic_fpga_link',
+        name: 'CORDIC FPGA Link',
+        icon: '⚡',
+        nodeType: 'SensorInput',
+        description: 'Host-to-FPGA accelerator SPI transport (RTL-T2 interface contract)',
+        boardConfigs: {
+            thejas32: {
+                slots: [
+                    { role: 'bus',  pin: 'SPI1MOSI', peripheral: 'spi.spi1' },
+                    { role: 'data', pin: 'SPI1MISO', peripheral: 'spi.spi1' },
+                    { role: 'cs',   pin: 'SPI1CSN',  peripheral: 'spi.spi1' },
+                    { role: 'clk',  pin: 'SPI1CLK',  peripheral: 'spi.spi1' }
+                ]
+            },
+            esp32: {
+                slots: [
+                    { role: 'bus',  pin: 'GPIO23', peripheral: 'spi.vspi' },
+                    { role: 'data', pin: 'GPIO19', peripheral: 'spi.vspi' },
+                    { role: 'cs',   pin: 'GPIO5',  peripheral: 'spi.vspi' },
+                    { role: 'clk',  pin: 'GPIO18', peripheral: 'spi.vspi' }
+                ]
+            }
+        }
+    },
+    {
+        id: 'servo_pwm',
+        name: 'Servo/PWM Actuator',
+        icon: '⚙️',
+        nodeType: 'ActuatorOutput',
+        description: 'Hardware PWM signal + control GPIO for servo motor actuator',
+        boardConfigs: {
+            thejas32: {
+                slots: [
+                    { role: 'bus',  pin: 'PWM0',  peripheral: 'pwm'  },
+                    { role: 'data', pin: 'PWM1',  peripheral: 'pwm'  },
+                    { role: 'cs',   pin: 'GPIO2', peripheral: 'gpio' },
+                    { role: 'clk',  pin: 'GPIO3', peripheral: 'gpio' }
+                ]
+            },
+            esp32: {
+                slots: [
+                    { role: 'bus',  pin: 'PWM0',  peripheral: 'pwm'  },
+                    { role: 'data', pin: 'PWM1',  peripheral: 'pwm'  },
+                    { role: 'cs',   pin: 'GPIO2', peripheral: 'gpio' },
+                    { role: 'clk',  pin: 'GPIO3', peripheral: 'gpio' }
+                ]
+            }
+        }
+    }
+];
+
+function renderPresets() {
+    const container = document.getElementById('presetContainer');
+    if (!container) return;
+    container.innerHTML = '';
+
+    for (const p of PRESETS) {
+        const card = document.createElement('div');
+        card.className = 'preset-card';
+        card.onclick = () => applyPreset(p.id);
+
+        const badgeClass = p.nodeType === 'SensorInput' ? 'badge-sensor' : 'badge-actuator';
+        card.innerHTML = `
+            <div class="preset-hdr">
+                <span class="preset-name">${p.icon} ${p.name}</span>
+                <span class="preset-type ${badgeClass}">${p.nodeType === 'SensorInput' ? 'IN' : 'OUT'}</span>
+            </div>
+            <div class="preset-desc">${p.description}</div>`;
+        container.appendChild(card);
+    }
+}
+
+function boardHasPin(bd, pinName) {
+    if (!bd || !bd.pins) return false;
+    for (const secVal of Object.values(bd.pins)) {
+        if (Array.isArray(secVal)) {
+            if (secVal.includes(pinName)) return true;
+        } else if (typeof secVal === 'object' && secVal !== null) {
+            for (const busObj of Object.values(secVal)) {
+                if (typeof busObj === 'object' && busObj !== null) {
+                    if (Object.values(busObj).includes(pinName)) return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+function applyPreset(presetId) {
+    if (!currentBoard) {
+        setStatus('err', '❌ Please select a board first before applying a preset.');
+        return;
+    }
+    const preset = PRESETS.find(p => p.id === presetId);
+    if (!preset) return;
+
+    const bd = boards[currentBoard];
+    const cfg = preset.boardConfigs[currentBoard];
+
+    if (!cfg) {
+        setStatus('err', `❌ Preset "${preset.name}" is not supported on ${bd.name || currentBoard}.`);
+        return;
+    }
+
+    // 1. Validation: Verify all required pins exist on the current board
+    const missingPins = [];
+    for (const slot of cfg.slots) {
+        if (!boardHasPin(bd, slot.pin)) {
+            missingPins.push(slot.pin);
+        }
+    }
+
+    if (missingPins.length > 0) {
+        setStatus('err', `❌ Preset "${preset.name}" unavailable on ${bd.name || currentBoard}: Required pin(s) [${missingPins.join(', ')}] not in board pinout.`);
+        return;
+    }
+
+    // 2. Conflict detection: Check for already assigned pins and reassign
+    const conflictMsgs = [];
+    for (const slot of cfg.slots) {
+        if (assignments[slot.pin]) {
+            const prev = assignments[slot.pin];
+            conflictMsgs.push(`${slot.pin} (reassigned from node ${prev.split('-')[0]})`);
+            // Clear previous assignment
+            for (const nd of nodes) {
+                for (const sl of nd.slots) {
+                    if (sl.pin === slot.pin) {
+                        sl.pin = null;
+                        sl.peripheral = null;
+                    }
+                }
+            }
+            delete assignments[slot.pin];
+        }
+    }
+
+    // 3. Create node and assign slots
+    const id = ++nodeCounter;
+    const newNode = {
+        id,
+        type: preset.nodeType,
+        label: `${preset.nodeType}[${id}]`,
+        slots: ['bus', 'data', 'cs', 'clk'].map(r => ({ role: r, pin: null, peripheral: null }))
+    };
+
+    for (const pSlot of cfg.slots) {
+        const slot = newNode.slots.find(s => s.role === pSlot.role);
+        if (slot) {
+            slot.pin = pSlot.pin;
+            slot.peripheral = pSlot.peripheral;
+            assignments[pSlot.pin] = `${id}-${pSlot.role}`;
+        }
+    }
+
+    nodes.push(newNode);
+    renderGrid();
+
+    const assignedPinList = cfg.slots.map(s => s.pin).join(', ');
+    let msg = `⚡ Applied preset "${preset.name}" → Created ${newNode.label} [${assignedPinList}]`;
+    if (conflictMsgs.length > 0) {
+        msg += ` · Reassigned: ${conflictMsgs.join('; ')}`;
+        setStatus('warn', msg);
+    } else {
+        setStatus('ok', msg);
+    }
+}
+
+/* ────────────────────────────────────────────────────────────────────────
    Boot
    ──────────────────────────────────────────────────────────────────────── */
 (async function init() {
+    renderPresets();
     try {
         const r = await fetch('/api/boards');
         boards  = await r.json();
