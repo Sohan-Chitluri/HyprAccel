@@ -332,8 +332,6 @@ function applyPreset(presetId) {
         setStatus('err', '❌ Please select a board first before applying a preset.');
         return;
     }
-    const preset = PRESETS.find(p => p.id === presetId);
-    if (!preset) return;
 
     const bd = boards[currentBoard];
     const cfg = preset.boardConfigs[currentBoard];
