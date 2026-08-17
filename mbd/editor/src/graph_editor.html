@@ -49,7 +49,23 @@ const descriptions = {SensorInput:'board / simulator signal',CordicOp:'trigonome
 const portTypes = {SensorInput:{in:[],out:[['value','any'],['timestamp_us','number'],['valid','boolean']]},CordicOp:{in:[['angle_rad','number']],out:[['value','number'] ]},KinematicsSolve:{in:[['joint_positions_rad','vector<number>']],out:[['end_effector_pose','pose']]},ControlLoop:{in:[['setpoint','number'],['measurement','number'],['enable','boolean']],out:[['command','number'],['error','number']]},ActuatorOutput:{in:[['command','number'],['enable','boolean']],out:[['applied','number'],['active','boolean']]},Publish:{in:[['value','any'],['timestamp_us','number']],out:[['published','boolean']]}};
 function ports(type, params) { if (type==='CordicOp') { if(params.operation==='atan2') return {in:[['y','number'],['x','number']],out:[['angle_rad','number']]}; if(params.operation==='sincos') return {in:[['angle_rad','number']],out:[['sin','number'],['cos','number']]}; } return portTypes[type]; }
 function makeNode(type, id, position) { return {id, type:'graphNode', position, data:{nodeType:type, label:type+' '+id, params:JSON.parse(JSON.stringify(defaults[type]))}}; }
-function NodeView({data, selected}) { const ps=ports(data.nodeType,data.params); const rows=[]; ps.in.forEach(([name,type])=>rows.push(h('div',{className:'port in',key:'i'+name},h(RF.Handle,{type:'target',position:RF.Position.Left,id:name}),name,h('span',{className:'port-type'},type)))); ps.out.forEach(([name,type])=>rows.push(h('div',{className:'port out',key:'o'+name},h('span',{className:'port-type'},type),name,h(RF.Handle,{type:'source',position:RF.Position.Right,id:name}))); return h('div',{className:'node'+(selected?' selected':'')},h('div',{className:'node-head'},h('span',{className:'node-type'},data.nodeType),h('span',{className:'node-label'},data.label)),h('div',{className:'ports'},rows)); }
+function NodeView({data, selected}) {
+  const ps = ports(data.nodeType, data.params);
+  const rows = [];
+  ps.in.forEach(([name, type]) => rows.push(
+    h('div', {className:'port in', key:'i' + name},
+      h(RF.Handle, {type:'target', position:RF.Position.Left, id:name}),
+      name, h('span', {className:'port-type'}, type))));
+  ps.out.forEach(([name, type]) => rows.push(
+    h('div', {className:'port out', key:'o' + name},
+      h('span', {className:'port-type'}, type), name,
+      h(RF.Handle, {type:'source', position:RF.Position.Right, id:name}))));
+  return h('div', {className:'node' + (selected ? ' selected' : '')},
+    h('div', {className:'node-head'},
+      h('span', {className:'node-type'}, data.nodeType),
+      h('span', {className:'node-label'}, data.label)),
+    h('div', {className:'ports'}, rows));
+}
 const nodeTypes={graphNode:NodeView};
 let nextId=1, rfInstance=null, selectedId=null, graphNodes=[], graphEdges=[];
 const paletteTypes=['SensorInput','CordicOp','KinematicsSolve','ControlLoop','ActuatorOutput','Publish'];
