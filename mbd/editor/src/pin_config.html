@@ -243,31 +243,6 @@ const PRESETS = [
         }
     },
     {
-        id: 'cordic_fpga_link',
-        name: 'CORDIC FPGA Link',
-        icon: '⚡',
-        nodeType: 'SensorInput',
-        description: 'Host-to-FPGA accelerator SPI transport (RTL-T2 interface contract)',
-        boardConfigs: {
-            thejas32: {
-                slots: [
-                    { role: 'bus',  pin: 'SPI1MOSI', peripheral: 'spi.spi1' },
-                    { role: 'data', pin: 'SPI1MISO', peripheral: 'spi.spi1' },
-                    { role: 'cs',   pin: 'SPI1CSN',  peripheral: 'spi.spi1' },
-                    { role: 'clk',  pin: 'SPI1CLK',  peripheral: 'spi.spi1' }
-                ]
-            },
-            esp32: {
-                slots: [
-                    { role: 'bus',  pin: 'GPIO23', peripheral: 'spi.vspi' },
-                    { role: 'data', pin: 'GPIO19', peripheral: 'spi.vspi' },
-                    { role: 'cs',   pin: 'GPIO5',  peripheral: 'spi.vspi' },
-                    { role: 'clk',  pin: 'GPIO18', peripheral: 'spi.vspi' }
-                ]
-            }
-        }
-    },
-    {
         id: 'servo_pwm',
         name: 'Servo/PWM Actuator',
         icon: '⚙️',
@@ -291,6 +266,15 @@ const PRESETS = [
                 ]
             }
         }
+    },
+    {
+        id: 'cordic_fpga_link',
+        name: 'CORDIC FPGA Link (Pending RTL-T1)',
+        icon: '⚡',
+        nodeType: 'SensorInput',
+        isStub: true,
+        description: 'Host-to-FPGA accelerator transport (STUB: pending RTL-T1 diagnosis & register contract)',
+        boardConfigs: null
     }
 ];
 
@@ -302,13 +286,17 @@ function renderPresets() {
     for (const p of PRESETS) {
         const card = document.createElement('div');
         card.className = 'preset-card';
+        if (p.isStub) card.style.opacity = '0.75';
         card.onclick = () => applyPreset(p.id);
 
-        const badgeClass = p.nodeType === 'SensorInput' ? 'badge-sensor' : 'badge-actuator';
+        const badgeClass = p.isStub ? '' : (p.nodeType === 'SensorInput' ? 'badge-sensor' : 'badge-actuator');
+        const badgeStyle = p.isStub ? 'style="background:#3c2a1a;color:#d29922"' : '';
+        const badgeText = p.isStub ? 'TODO / STUB' : (p.nodeType === 'SensorInput' ? 'IN' : 'OUT');
+
         card.innerHTML = `
             <div class="preset-hdr">
                 <span class="preset-name">${p.icon} ${p.name}</span>
-                <span class="preset-type ${badgeClass}">${p.nodeType === 'SensorInput' ? 'IN' : 'OUT'}</span>
+                <span class="preset-type ${badgeClass}" ${badgeStyle}>${badgeText}</span>
             </div>
             <div class="preset-desc">${p.description}</div>`;
         container.appendChild(card);
@@ -332,6 +320,14 @@ function boardHasPin(bd, pinName) {
 }
 
 function applyPreset(presetId) {
+    const preset = PRESETS.find(p => p.id === presetId);
+    if (!preset) return;
+
+    if (preset.isStub) {
+        setStatus('warn', `⚠️ Preset "${preset.name}" is currently stubbed — pending RTL-T1 diagnosis & FPGA pinout contract resolution.`);
+        return;
+    }
+
     if (!currentBoard) {
         setStatus('err', '❌ Please select a board first before applying a preset.');
         return;
