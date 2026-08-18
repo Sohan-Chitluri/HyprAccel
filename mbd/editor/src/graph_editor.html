@@ -193,6 +193,15 @@
     outline: none;
     border-color: var(--accent);
   }
+  .graph-save-state {
+    color: var(--text-muted);
+    font-size: 10px;
+    min-width: 86px;
+    text-align: center;
+  }
+  .graph-save-state.unsaved { color: var(--orange); }
+  .graph-save-state.saving { color: var(--accent); }
+  .graph-save-state.failed { color: var(--red); }
   button.tool-btn {
     background: var(--panel-header);
     border: 1px solid var(--border);
@@ -705,6 +714,7 @@
   <nav class="top-menu">
     <div class="menu-item" tabindex="0">File
       <div class="menu-dropdown">
+        <button id="menu-save">Save Graph <span>Ctrl+S</span></button>
         <button id="menu-clear">Clear Graph <span>Ctrl+Del</span></button>
         <button id="menu-export-json">Export Graph JSON</button>
       </div>
@@ -771,6 +781,8 @@
     <button id="undo" class="tool-btn" title="Undo (Ctrl+Z)" disabled>Undo</button>
     <button id="redo" class="tool-btn" title="Redo (Ctrl+Y)" disabled>Redo</button>
     <button id="clear" class="tool-btn" title="Clear Canvas">Clear</button>
+    <button id="save-graph" class="tool-btn btn-primary" title="Save Graph (Ctrl+S)">Save</button>
+    <span id="graph-save-state" class="graph-save-state">No project</span>
   </div>
   <div class="toolbar-divider"></div>
   <div class="toolbar-group">
@@ -994,6 +1006,24 @@ let undoSnapshots = [], redoSnapshots = [], pendingMoveSnapshot = null;
 let activeConsoleTab = 'console', lastSourceCode = '', lastDiagnostics = '';
 let currentHardware = null;
 let previousHardwareBoard = null;
+const graphQueryProjectId = new URLSearchParams(window.location.search).get('projectId') || new URLSearchParams(window.location.search).get('project');
+let activeProjectId = graphQueryProjectId || localStorage.getItem('hypraccel_active_project_id') || null;
+let savedGraph = null;
+let graphSaveState = activeProjectId ? 'loading' : 'none';
+
+function setGraphSaveState(state, message) {
+  graphSaveState = state;
+  const indicator = document.getElementById('graph-save-state');
+  if (!indicator) return;
+  indicator.textContent = message || ({saved:'Saved', unsaved:'Unsaved changes', saving:'Saving…', failed:'Save failed', loading:'Loading…', none:'No project'}[state] || state);
+  indicator.className = `graph-save-state ${state === 'unsaved' ? 'unsaved' : state === 'saving' ? 'saving' : state === 'failed' ? 'failed' : ''}`;
+}
+
+function markGraphUnsaved() {
+  if (!activeProjectId || graphSaveState === 'loading') return;
+  const matchesSaved = savedGraph && JSON.stringify(toGraph()) === JSON.stringify(savedGraph);
+  setGraphSaveState(matchesSaved ? 'saved' : 'unsaved');
+}
 
 function log(msg, type = 'info') {
   const txt = document.getElementById('consoleLogText');
@@ -1005,6 +1035,9 @@ function log(msg, type = 'info') {
 
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
 function snapshot() { return {nodes:clone(graphNodes),edges:clone(graphEdges),selectedId,selectedEdgeId,nextId}; }
+function projectHardwareUrl() {
+  return activeProjectId ? `/api/projects/${encodeURIComponent(activeProjectId)}/hardware` : '/api/hardware';
+}
 
 function refreshHistoryButtons() {
   document.getElementById('undo').disabled = !undoSnapshots.length;
@@ -1029,6 +1062,7 @@ function applyState(nodes, edges) {
 function setState(nodes, edges, record = true, previous) {
   if (record) remember(previous || snapshot());
   applyState(nodes, edges);
+  markGraphUnsaved();
 }
 
 function restore(snap) {
@@ -1036,6 +1070,7 @@ function restore(snap) {
   selectedEdgeId = snap.selectedEdgeId || null;
   nextId = snap.nextId;
   applyState(clone(snap.nodes), clone(snap.edges));
+  markGraphUnsaved();
 }
 
 function undo() {
@@ -1095,6 +1130,7 @@ function updateParam(key, value) {
   if (key === 'hardwareResource' && !value) delete params.hardwareResource;
   graphNodes = graphNodes.map(x => x.id === selectedId ? {...x, data:{...x.data, params}} : x);
   if (reactSetNodes) reactSetNodes(graphNodes);
+  markGraphUnsaved();
 }
 
 function getSelectOptions(key) {
@@ -1127,7 +1163,7 @@ function field(key, value, type) {
 function renderHardwareInspector(el, n) {
   const summary = document.getElementById('hardwareResourceSummary');
   select.onchange = () => updateParam('hardwareResource', select.value);
-  fetch('/api/hardware').then(response => response.json()).then(hardware => {
+  fetch(projectHardwareUrl()).then(response => response.json()).then(hardware => {
     if (selectedId !== n.id) return;
     const configured = new Set((hardware.assignments || []).map(assignment => assignment.resource));
     const resources = Object.values(hardware.resources || {}).filter(resource => resource.available && configured.has(resource.id));
@@ -1296,7 +1332,7 @@ function renderConfig() {
     inspectorBody.appendChild(resourceGroup);
     const select = resourceGroup.querySelector('#cordicResourceSelect');
     select.onchange = () => updateParam('hardwareResource', select.value);
-    fetch('/api/hardware').then(response => response.json()).then(hardware => {
+    fetch(projectHardwareUrl()).then(response => response.json()).then(hardware => {
       if (selectedId !== n.id) return;
       const resources = Object.values(hardware.resources || {}).filter(resource => resource.type === 'accelerator' && resource.available && resource.configuration && Object.keys(resource.configuration).length > 0);
       select.innerHTML = '<option value="">— no accelerator resource —</option>';
@@ -1330,6 +1366,92 @@ function toGraph() {
   };
 }
 
+function graphNodesFromDocument(graph) {
+  return (graph.nodes || []).map(node => ({
+    id: node.id,
+    type: 'graphNode',
+    position: node.position || {x: 0, y: 0},
+    data: {
+      nodeType: node.type,
+      label: node.label || `${displayNames[node.type] || node.type} ${node.id}`,
+      params: clone(node.params || {})
+    }
+  }));
+}
+
+function graphEdgesFromDocument(graph) {
+  return (graph.edges || []).map((edge, index) => ({
+    id: edge.id || `${edge.from.node}-${edge.from.port}-${edge.to.node}-${edge.to.port}-${index}`,
+    source: edge.from.node,
+    sourceHandle: edge.from.port,
+    target: edge.to.node,
+    targetHandle: edge.to.port
+  }));
+}
+
+function updateNextId() {
+  const ids = graphNodes.map(node => Number((node.id.match(/_(\d+)$/) || [])[1] || 0));
+  nextId = Math.max(0, ...ids) + 1;
+}
+
+async function loadProjectGraph() {
+  if (!activeProjectId) {
+    setGraphSaveState('none');
+    return;
+  }
+  setGraphSaveState('loading');
+  try {
+    const response = await fetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graph`);
+    if (response.status === 404) {
+      savedGraph = null;
+      setGraphSaveState('saved', 'Saved (empty project)');
+      return;
+    }
+    const graph = await response.json();
+    if (!response.ok) throw new Error(graph.error || 'Could not load project graph.');
+    if (graph.format !== 'hypraccel.mbd.graph' || graph.version !== 1 || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
+      throw new Error('Project graph failed hypraccel.mbd.graph v1 validation.');
+    }
+    savedGraph = clone(graph);
+    document.getElementById('graphId').value = graph.id;
+    selectedId = null;
+    selectedEdgeId = null;
+    undoSnapshots = [];
+    redoSnapshots = [];
+    applyState(graphNodesFromDocument(graph), graphEdgesFromDocument(graph));
+    updateNextId();
+    refreshHistoryButtons();
+    setGraphSaveState('saved');
+  } catch (error) {
+    savedGraph = null;
+    setGraphSaveState('failed', 'Load failed');
+    log(`Could not load project graph: ${error.message}`, 'err');
+  }
+}
+
+async function saveGraph() {
+  if (!activeProjectId) {
+    setGraphSaveState('failed', 'Save failed');
+    log('Save failed: open or create a project first.', 'err');
+    return false;
+  }
+  setGraphSaveState('saving');
+  try {
+    const response = await fetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graph`, {
+      method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(toGraph())
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Could not save project graph.');
+    savedGraph = clone(data.graph || toGraph());
+    setGraphSaveState('saved');
+    return true;
+  } catch (error) {
+    setGraphSaveState('failed');
+    log(`Save failed: ${error.message}`, 'err');
+    return false;
+  }
+}
+
 function updateConsoleOutput() {
   const txt = document.getElementById('consoleLogText');
   if (!txt) return;
@@ -1348,9 +1470,13 @@ function updateConsoleOutput() {
 
 async function syncHardwareTarget() {
   try {
-    const [hardwareResponse, boardsResponse] = await Promise.all([fetch('/api/hardware'), fetch('/api/boards')]);
+    const hardwareUrl = activeProjectId
+      ? `/api/projects/${encodeURIComponent(activeProjectId)}/hardware`
+      : '/api/hardware';
+    const [hardwareResponse, boardsResponse] = await Promise.all([fetch(hardwareUrl), fetch('/api/boards')]);
     const hardware = await hardwareResponse.json();
     const boards = await boardsResponse.json();
+    if (!hardwareResponse.ok) throw new Error(hardware.error || 'Hardware Setup unavailable');
     currentHardware = hardware;
     const board = boards[hardware.board];
     const label = board ? board.name : (hardware.board || 'No board selected');
@@ -1402,13 +1528,9 @@ function verify() { return requestBuild('/api/verify', 'Verifying hardware integ
 async function generateProject() {
   log('Generating Project Workspace...', 'info');
   try {
-    const activeId = localStorage.getItem('hypraccel_active_project_id') || 'demo_project';
-    let res = await fetch(`/api/projects/${encodeURIComponent(activeId)}/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    if (res.status === 404) {
-      // Create project if it doesn't exist yet
+    let activeId = activeProjectId || 'demo_project';
+    let projectResponse = await fetch(`/api/projects/${encodeURIComponent(activeId)}`);
+    if (projectResponse.status === 404 && !graphQueryProjectId) {
       const initRes = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1419,13 +1541,20 @@ async function generateProject() {
           graph: toGraph()
         })
       });
-      if (initRes.ok) {
-        res = await fetch(`/api/projects/${encodeURIComponent(activeId)}/generate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
+      if (!initRes.ok) {
+        const initData = await initRes.json();
+        throw new Error(initData.error || 'Could not create project.');
       }
+      activeProjectId = activeId;
+      localStorage.setItem('hypraccel_active_project_id', activeId);
+    } else if (!projectResponse.ok) {
+      const projectData = await projectResponse.json();
+      throw new Error(projectData.error || 'Could not resolve active project.');
     }
+    if (!await saveGraph()) return;
+    const res = await fetch(`/api/projects/${encodeURIComponent(activeId)}/generate`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }
+    });
     const data = await res.json();
     if (res.ok) {
       log('Project Workspace generated.', 'ok');
@@ -1715,6 +1844,8 @@ canvasEl.addEventListener('drop', e => {
 
 // Action bindings
 document.getElementById('clear').onclick = () => { const previous = snapshot(); nextId = 1; selectedId = null; selectedEdgeId = null; setState([], [], true, previous); };
+document.getElementById('graphId').addEventListener('input', markGraphUnsaved);
+document.getElementById('save-graph').onclick = saveGraph;
 document.getElementById('undo').onclick = undo;
 document.getElementById('redo').onclick = redo;
 document.getElementById('generate-project').onclick = generateProject;
@@ -1724,6 +1855,7 @@ document.getElementById('flash').onclick = flash;
 document.getElementById('verify').onclick = verify;
 
 // Menu actions
+document.getElementById('menu-save').onclick = saveGraph;
 document.getElementById('menu-clear').onclick = () => document.getElementById('clear').click();
 document.getElementById('menu-undo').onclick = () => document.getElementById('undo').click();
 document.getElementById('menu-redo').onclick = () => document.getElementById('redo').click();
@@ -1751,8 +1883,15 @@ document.getElementById('menu-about').onclick = () => alert('HyprAccel MBD Studi
 
 // Global Keyboard Shortcuts
 document.addEventListener('keydown', event => {
-  if (event.defaultPrevented || event.target.closest('input,select,textarea,button')) return;
+  if (event.defaultPrevented) return;
+  const editingTarget = event.target.closest('input,select,textarea,button,.custom-code-editor');
   const key = event.key.toLowerCase();
+  if ((event.ctrlKey || event.metaKey) && key === 's' && !editingTarget) {
+    event.preventDefault();
+    saveGraph();
+    return;
+  }
+  if (editingTarget) return;
   if ((event.ctrlKey || event.metaKey) && key === 'z') {
     event.preventDefault();
     if (event.shiftKey) redo();
@@ -1776,12 +1915,23 @@ document.addEventListener('keydown', event => {
 });
 
 // Initialization
-ReactDOM.render(hyprGraphH(App), canvasEl);
-renderPalette();
-renderConfig();
-refreshHistoryButtons();
-syncHardwareTarget();
+async function initializeEditor() {
+  renderPalette();
+  renderConfig();
+  refreshHistoryButtons();
+  await syncHardwareTarget();
+  await loadProjectGraph();
+  ReactDOM.render(hyprGraphH(App), canvasEl);
+  renderConfig();
+}
+initializeEditor();
 window.setInterval(syncHardwareTarget, 1000);
+window.addEventListener('beforeunload', event => {
+  if (graphSaveState === 'unsaved' || graphSaveState === 'saving') {
+    event.preventDefault();
+    event.returnValue = '';
+  }
+});
 
 })();
 </script>

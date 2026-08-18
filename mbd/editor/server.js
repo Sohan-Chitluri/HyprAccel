@@ -759,7 +759,7 @@ app.get('/api/projects/:id/graph', (req, res) => {
         readProjectManifest(id);
         const graph = readJson(projectPaths(id).graph, 'project graph');
         if (!graph) return res.status(404).json({ error: 'Project graph has not been configured.' });
-        res.json(graph);
+        res.json(assertGraphDocument(graph));
     } catch (err) { sendProjectError(res, err); }
 });
 

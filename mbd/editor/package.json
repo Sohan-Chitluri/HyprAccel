@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test:projects": "node test/project_api.test.js && node test/project_materialization.test.js"
+    "test:projects": "node test/project_api.test.js && node test/graph_persistence.test.js && node test/project_materialization.test.js"
   },
   "dependencies": {
     "express": "^4.18.2"
