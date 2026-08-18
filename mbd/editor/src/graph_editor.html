@@ -402,6 +402,11 @@
     border-color: var(--accent);
     box-shadow: 0 0 0 2px var(--accent-glow), 0 4px 12px rgba(0,0,0,0.6);
   }
+  .react-flow__edge.selected .react-flow__edge-path {
+    stroke: var(--accent);
+    stroke-width: 3;
+    filter: drop-shadow(0 0 3px var(--accent));
+  }
   .node-head {
     padding: 6px 10px;
     background: var(--panel-header);
@@ -975,7 +980,7 @@ function NodeView({data, selected}) {
 }
 
 const nodeTypes = {graphNode: NodeView};
-let nextId = 1, rfInstance = null, selectedId = null, graphNodes = [], graphEdges = [];
+let nextId = 1, rfInstance = null, selectedId = null, selectedEdgeId = null, graphNodes = [], graphEdges = [];
 let reactSetNodes = null, reactSetEdges = null;
 let undoSnapshots = [], redoSnapshots = [], pendingMoveSnapshot = null;
 let activeConsoleTab = 'console', lastSourceCode = '', lastDiagnostics = '';
@@ -991,7 +996,7 @@ function log(msg, type = 'info') {
 }
 
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
-function snapshot() { return {nodes:clone(graphNodes),edges:clone(graphEdges),selectedId,nextId}; }
+function snapshot() { return {nodes:clone(graphNodes),edges:clone(graphEdges),selectedId,selectedEdgeId,nextId}; }
 
 function refreshHistoryButtons() {
   document.getElementById('undo').disabled = !undoSnapshots.length;
@@ -1020,6 +1025,7 @@ function setState(nodes, edges, record = true, previous) {
 
 function restore(snap) {
   selectedId = snap.selectedId;
+  selectedEdgeId = snap.selectedEdgeId || null;
   nextId = snap.nextId;
   applyState(clone(snap.nodes), clone(snap.edges));
 }
@@ -1050,15 +1056,37 @@ function deleteNode(nodeId) {
   const previous = snapshot();
   const remainingEdges = graphEdges.filter(edge => edge.source !== nodeId && edge.target !== nodeId);
   selectedId = null;
+  selectedEdgeId = null;
   setState(graphNodes.filter(item => item.id !== nodeId), remainingEdges, true, previous);
+}
+
+function deleteEdge(edgeId) {
+  const edge = graphEdges.find(item => item.id === edgeId);
+  if (!edge) return;
+  const previous = snapshot();
+  selectedEdgeId = null;
+  setState(graphNodes, graphEdges.filter(item => item.id !== edgeId), true, previous);
+}
+
+function selectEdge(edgeId) {
+  selectedId = null;
+  selectedEdgeId = edgeId;
+  applyState(graphNodes.map(item => ({...item, selected:false})), graphEdges.map(item => ({...item, selected:item.id === edgeId})));
+}
+
+function clearEdgeSelection() {
+  selectedEdgeId = null;
+  applyState(graphNodes, graphEdges.map(item => ({...item, selected:false})));
 }
 
 function updateParam(key, value) {
   const n = graphNodes.find(x => x.id === selectedId);
   if (!n) return;
+  remember();
   const params = {...n.data.params, [key]: value};
   if (key === 'hardwareResource' && !value) delete params.hardwareResource;
-  setState(graphNodes.map(x => x.id === selectedId ? {...x, data:{...x.data, params}} : x), graphEdges);
+  graphNodes = graphNodes.map(x => x.id === selectedId ? {...x, data:{...x.data, params}} : x);
+  if (reactSetNodes) reactSetNodes(graphNodes);
 }
 
 function getSelectOptions(key) {
@@ -1413,7 +1441,7 @@ function confirmDelete(nodeId) {
 function showNodeContextMenu(event, node) {
   event.preventDefault();
   selectedId = node.id;
-  renderConfig();
+  clearEdgeSelection();
   const old = document.querySelector('.graph-context');
   if (old) old.remove();
   const popup = document.createElement('div');
@@ -1423,6 +1451,25 @@ function showNodeContextMenu(event, node) {
   const remove = document.createElement('button');
   remove.textContent = 'Delete Node';
   remove.onclick = () => { popup.remove(); confirmDelete(node.id); };
+  popup.appendChild(remove);
+  document.body.appendChild(popup);
+  const dismiss = click => { if (!popup.contains(click.target)) { popup.remove(); document.removeEventListener('mousedown', dismiss); } };
+  setTimeout(() => document.addEventListener('mousedown', dismiss), 0);
+}
+
+function showEdgeContextMenu(event, edge) {
+  event.preventDefault();
+  event.stopPropagation();
+  selectEdge(edge.id);
+  const old = document.querySelector('.graph-context');
+  if (old) old.remove();
+  const popup = document.createElement('div');
+  popup.className = 'graph-context';
+  popup.style.left = event.clientX + 'px';
+  popup.style.top = event.clientY + 'px';
+  const remove = document.createElement('button');
+  remove.textContent = 'Remove Connection';
+  remove.onclick = () => { popup.remove(); deleteEdge(edge.id); };
   popup.appendChild(remove);
   document.body.appendChild(popup);
   const dismiss = click => { if (!popup.contains(click.target)) { popup.remove(); document.removeEventListener('mousedown', dismiss); } };
@@ -1453,6 +1500,13 @@ function App() {
     },
     onEdgesChange: changes => {
       const next = hyprGraphRF.applyEdgeChanges(changes, edges);
+      const selected = changes.find(change => change.type === 'select' && change.selected);
+      if (selected) {
+        selectedId = null;
+        selectedEdgeId = selected.id;
+      } else if (selectedEdgeId && changes.some(change => change.type === 'select' && change.id === selectedEdgeId && !change.selected)) {
+        selectedEdgeId = null;
+      }
       if (changes.some(change => change.type === 'remove')) setState(nodes, next);
       else applyState(nodes, next);
     },
@@ -1460,9 +1514,18 @@ function App() {
       const edge = {...connection, id: connection.source + '-' + connection.sourceHandle + '-' + connection.target + '-' + connection.targetHandle};
       setState(nodes, [...edges, edge]);
     },
-    onNodeClick: (_, node) => { selectedId = node.id; renderConfig(); },
+    onNodeClick: (_, node) => {
+      selectedId = node.id;
+      selectedEdgeId = null;
+      applyState(nodes, edges.map(item => ({...item, selected:false})));
+    },
     onNodeContextMenu: showNodeContextMenu,
-    onPaneClick: () => { selectedId = null; renderConfig(); },
+    onEdgeClick: (event, edge) => {
+      event.stopPropagation();
+      selectEdge(edge.id);
+    },
+    onEdgeContextMenu: showEdgeContextMenu,
+    onPaneClick: () => { selectedId = null; clearEdgeSelection(); },
     onInit: instance => { rfInstance = instance; },
     fitView: true
   },
@@ -1623,7 +1686,7 @@ canvasEl.addEventListener('drop', e => {
 });
 
 // Action bindings
-document.getElementById('clear').onclick = () => { const previous = snapshot(); nextId = 1; selectedId = null; setState([], [], true, previous); };
+document.getElementById('clear').onclick = () => { const previous = snapshot(); nextId = 1; selectedId = null; selectedEdgeId = null; setState([], [], true, previous); };
 document.getElementById('undo').onclick = undo;
 document.getElementById('redo').onclick = redo;
 document.getElementById('generate-project').onclick = generateProject;
@@ -1671,6 +1734,11 @@ document.addEventListener('keydown', event => {
   if ((event.ctrlKey || event.metaKey) && key === 'y') {
     event.preventDefault();
     redo();
+    return;
+  }
+  if ((event.key === 'Delete' || event.key === 'Backspace') && selectedEdgeId) {
+    event.preventDefault();
+    deleteEdge(selectedEdgeId);
     return;
   }
   if ((event.key === 'Delete' || event.key === 'Backspace') && selectedId) {

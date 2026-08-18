@@ -538,11 +538,16 @@ function projectPlatformioIni(boardKey) {
         `monitor_speed = 115200\n` +
         `upload_speed = 921600\n` +
         `build_flags =\n` +
-        `    -I generated\n` +
-        // The current SDK header/source pair contains an existing C++ linkage
-        // mismatch for parse_resource_id; keep project builds compatible while
-        // leaving the SDK implementation untouched.
-        `    -fpermissive\n`;
+        `    -I generated\n`;
+}
+
+function assignmentMacroBase(assignment) {
+    return assignment.node.replace(/[^A-Za-z0-9_]/g, '_').replace(/_+/g, '_').replace(/_$/, '').toUpperCase();
+}
+
+function peripheralMacroBase(assignment) {
+    const resource = assignment.resource.replace(/[^A-Za-z0-9_]/g, '_').replace(/_+/g, '_').replace(/_$/, '').toUpperCase();
+    return `${assignmentMacroBase(assignment)}_${resource}`;
 }
 
 function injectHardwareHeader(headerPath, hardware) {
@@ -550,11 +555,12 @@ function injectHardwareHeader(headerPath, hardware) {
     const pinDefines = ['', '/* MBD Pin Assignments — generated from project hardware.json */'];
     const definedPeripherals = new Set();
     for (const assignment of hardware.assignments || []) {
-        const macroBase = assignment.node.replace(/[^A-Za-z0-9_]/g, '_').replace(/_+/g, '_').replace(/_$/, '').toUpperCase();
+        const macroBase = assignmentMacroBase(assignment);
         pinDefines.push(`#define HYP_PIN_${macroBase}_${assignment.role.toUpperCase()} "${assignment.pin}"  /* ${assignment.node} → ${assignment.resource}.${assignment.role} */`);
-        if (!definedPeripherals.has(`${macroBase}:${assignment.resource}`)) {
-            pinDefines.push(`#define HYP_PERIPH_${macroBase} "${assignment.resource}"`);
-            definedPeripherals.add(`${macroBase}:${assignment.resource}`);
+        const peripheralMacro = peripheralMacroBase(assignment);
+        if (!definedPeripherals.has(peripheralMacro)) {
+            pinDefines.push(`#define HYP_PERIPH_${peripheralMacro} "${assignment.resource}"`);
+            definedPeripherals.add(peripheralMacro);
         }
     }
     const resourceDefines = ['', '/* Hardware Setup resources — generated from project hardware.json */'];
@@ -827,11 +833,12 @@ app.post('/api/generate', (req, res) => {
             ];
             const definedPeripherals = new Set();
             for (const a of hardware.assignments) {
-                const macroBase = a.node.replace(/[^A-Za-z0-9_]/g, '_').replace(/_+/g, '_').replace(/_$/, '').toUpperCase();
+                const macroBase = assignmentMacroBase(a);
                 pinDefines.push(`#define HYP_PIN_${macroBase}_${a.role.toUpperCase()} "${a.pin}"  /* ${a.node} → ${a.resource}.${a.role} */`);
-                if (!definedPeripherals.has(`${macroBase}:${a.resource}`)) {
-                    pinDefines.push(`#define HYP_PERIPH_${macroBase} "${a.resource}"`);
-                    definedPeripherals.add(`${macroBase}:${a.resource}`);
+                const peripheralMacro = peripheralMacroBase(a);
+                if (!definedPeripherals.has(peripheralMacro)) {
+                    pinDefines.push(`#define HYP_PERIPH_${peripheralMacro} "${a.resource}"`);
+                    definedPeripherals.add(peripheralMacro);
                 }
             }
             headerText = headerText.replace(
@@ -999,18 +1006,14 @@ function materializeEsp32(graph, projectId = null) {
         }
         fs.copyFileSync(path.join(REPO_ROOT, 'sdk/include/hyprccel.h'), path.join(targetGenerated, 'hyprccel.h'));
         fs.copyFileSync(path.join(REPO_ROOT, 'sdk/include/hyp_esp32_hw.h'), path.join(targetGenerated, 'hyp_esp32_hw.h'));
-        if (projectId) {
-            const headerDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hypraccel-board-header-'));
-            try {
-                execFileSync(process.execPath, [CODEGEN_JS, boardKey, BOARDS_YAML, headerDir], { encoding: 'utf8', stdio: 'pipe' });
-                fs.copyFileSync(path.join(headerDir, 'hyp_board_config.h'), path.join(targetGenerated, 'hyp_board_config.h'));
-            } finally {
-                fs.rmSync(headerDir, { recursive: true, force: true });
-            }
-            injectHardwareHeader(path.join(targetGenerated, 'hyp_board_config.h'), hardware);
-        } else {
-            fs.copyFileSync(path.join(CODEGEN_OUT, 'hyp_board_config.h'), path.join(targetGenerated, 'hyp_board_config.h'));
+        const headerDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hypraccel-board-header-'));
+        try {
+            execFileSync(process.execPath, [CODEGEN_JS, boardKey, BOARDS_YAML, headerDir], { encoding: 'utf8', stdio: 'pipe' });
+            fs.copyFileSync(path.join(headerDir, 'hyp_board_config.h'), path.join(targetGenerated, 'hyp_board_config.h'));
+        } finally {
+            fs.rmSync(headerDir, { recursive: true, force: true });
         }
+        injectHardwareHeader(path.join(targetGenerated, 'hyp_board_config.h'), hardware);
         fs.writeFileSync(path.join(targetGenerated, 'main.cpp'), `/* Generated MBD-T9 runtime wrapper; graph.c is the application logic. */
 #include <Arduino.h>
 #include "hyprccel.h"

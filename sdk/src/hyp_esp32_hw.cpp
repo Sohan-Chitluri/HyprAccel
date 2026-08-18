@@ -875,7 +875,7 @@ int hyp_esp32_hw_init(void)
  * Parse hardware resource ID (e.g., "adc.channel0", "pwm.motor0")
  * Returns the resource type (adc, gpio, pwm, etc.) and instance identifier.
  */
-static int parse_resource_id(const char *resource_id, char *type_out, size_t type_size, char *instance_out, size_t instance_size) {
+int parse_resource_id(const char *resource_id, char *type_out, size_t type_size, char *instance_out, size_t instance_size) {
     if (!resource_id || !type_out || !instance_out) return -1;
     
     const char *dot = strchr(resource_id, '.');

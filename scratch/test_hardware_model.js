@@ -122,7 +122,8 @@ const testHwConfig = projectHardware('esp32', [
     { node: 'SensorInput[1]', role: 'mosi', pin: 'GPIO13', resource: 'spi.hspi' },
     { node: 'SensorInput[1]', role: 'miso', pin: 'GPIO12', resource: 'spi.hspi' },
     { node: 'SensorInput[1]', role: 'sck', pin: 'GPIO14', resource: 'spi.hspi' },
-    { node: 'SensorInput[1]', role: 'cs', pin: 'GPIO15', resource: 'spi.hspi' }
+    { node: 'SensorInput[1]', role: 'cs', pin: 'GPIO15', resource: 'spi.hspi' },
+    { node: 'SensorInput[1]', role: 'gpio', pin: 'GPIO4', resource: 'gpio.GPIO4' }
 ]);
 
 // Write temporary test hardware config
@@ -277,10 +278,12 @@ const pinDefines = [
 const definedPeripherals = new Set();
 for (const a of testHwConfig.assignments) {
     const macroBase = a.node.replace(/[^A-Za-z0-9_]/g, '_').replace(/_+/g, '_').replace(/_$/, '').toUpperCase();
+    const resourceMacro = a.resource.replace(/[^A-Za-z0-9_]/g, '_').replace(/_+/g, '_').replace(/_$/, '').toUpperCase();
     pinDefines.push(`#define HYP_PIN_${macroBase}_${a.role.toUpperCase()} "${a.pin}"  /* ${a.node} → ${a.resource}.${a.role} */`);
-    if (!definedPeripherals.has(`${macroBase}:${a.resource}`)) {
-        pinDefines.push(`#define HYP_PERIPH_${macroBase} "${a.resource}"`);
-        definedPeripherals.add(`${macroBase}:${a.resource}`);
+    const peripheralMacro = `${macroBase}_${resourceMacro}`;
+    if (!definedPeripherals.has(peripheralMacro)) {
+        pinDefines.push(`#define HYP_PERIPH_${peripheralMacro} "${a.resource}"`);
+        definedPeripherals.add(peripheralMacro);
     }
 }
 
@@ -294,6 +297,16 @@ for (const [id, res] of Object.entries(testHwConfig.resources || {})) {
 pinDefines.push('');
 
 headerText = headerText.replace('\n#endif /* HYP_BOARD_CONFIG_H */', pinDefines.join('\n') + '\n#endif /* HYP_BOARD_CONFIG_H */');
+
+const peripheralMacros = [...headerText.matchAll(/^#define HYP_PERIPH_([A-Z0-9_]+) /gm)].map(match => match[1]);
+if (new Set(peripheralMacros).size !== peripheralMacros.length) {
+    throw new Error('Peripheral macro generation produced duplicate macro names.');
+}
+if (!headerText.includes('#define HYP_PERIPH_SENSORINPUT_1_SPI_HSPI "spi.hspi"') ||
+    !headerText.includes('#define HYP_PERIPH_SENSORINPUT_1_GPIO_GPIO4 "gpio.GPIO4"')) {
+    throw new Error('Peripheral macro generation did not preserve distinct canonical resource IDs.');
+}
+console.log('[PASS] Peripheral macros remain unique when one node has multiple resources.');
 
 console.log('[PASS] Generated hyp_board_config.h output snippet:');
 headerText.split('\n').filter(l => l.includes('#define HYP_PIN_') || l.includes('#define HYP_RESOURCE_SPI_HSPI')).forEach(l => console.log('  ', l));
