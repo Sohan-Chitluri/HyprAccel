@@ -52,6 +52,9 @@ int hyp_esp32_sensor_read(const char *resource_id, void *out_value, uint32_t val
  */
 int hyp_esp32_actuator_write(const char *resource_id, const void *in_value, uint32_t value_size);
 
+/** Return the ESP32 runtime monotonic timestamp in microseconds. */
+uint32_t hyp_esp32_timestamp_us(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -44,6 +44,7 @@
 
 ### CRITICAL CODEGEN GAP
 - [x] MBD-GAP1 | SensorInput & ActuatorOutput peripheral C codegen | Owner: Hermes / Nemotron | Status: Complete (Implemented `hyp_sensor_read()` and `hyp_actuator_write()` SDK primitives; ESP32 backend in `hyp_esp32_hw.cpp`; `graph_to_c.js` codegen for SensorInput/ActuatorOutput; verified host compilation and syntax check)
+- [x] MBD-GAP2 | Graph-to-runtime peripheral integration verification | Owner: Codex | Status: Complete (Verified deterministic canonical-resource codegen and SDK routing for GPIOInput, ADCInput, PWMOutput, SensorInput, ActuatorOutput, and UART-backed generic sensor/actuator paths. Added runtime timestamp routing and UART scalar sensor reads; focused schema, C syntax, invalid-resource, and host SDK tests pass. SPI/I2C remain initialization-only at graph level and report unsupported transactions; no physical execution was performed.)
 
 ## TRACK FW — Firmware / Target Backend
 

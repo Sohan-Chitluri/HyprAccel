@@ -33,6 +33,7 @@ extern void hyp_esp32_compute(hyp_op_t op, void *args);
 extern void hyp_esp32_publish(const char *topic, const void *data, uint32_t size);
 extern int hyp_esp32_sensor_read(const char *resource_id, void *out_value, uint32_t value_size);
 extern int hyp_esp32_actuator_write(const char *resource_id, const void *in_value, uint32_t value_size);
+extern uint32_t hyp_esp32_timestamp_us(void);
 #endif
 
 #define MAX_OPS 8
@@ -123,5 +124,14 @@ int hyp_actuator_write(const char *resource_id, const void *in_value, uint32_t v
     (void)in_value;
     (void)value_size;
     return HYP_RUNTIME_UNSUPPORTED_RESOURCE;
+#endif
+}
+
+uint32_t hyp_timestamp_us(void)
+{
+#if defined(ARDUINO) && defined(HYP_BOARD_ARCH_XTENSA_LX6)
+    return hyp_esp32_timestamp_us();
+#else
+    return 0;
 #endif
 }

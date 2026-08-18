@@ -1087,6 +1087,10 @@ static HardwareSerial *serial_for_resource(const char *instance) {
     return NULL;
 }
 
+uint32_t hyp_esp32_timestamp_us(void) {
+    return (uint32_t)micros();
+}
+
 int hyp_esp32_sensor_read(const char *resource_id, void *out_value, uint32_t value_size) {
     if (!resource_id || !out_value || value_size == 0) {
         return HYP_RUNTIME_INVALID_ARGUMENT;
@@ -1148,6 +1152,11 @@ int hyp_esp32_sensor_read(const char *resource_id, void *out_value, uint32_t val
         if (value_size == sizeof(int)) {
             int *out = (int *)out_value;
             *out = serial->available();
+            return HYP_RUNTIME_OK;
+        }
+        if (value_size == sizeof(float)) {
+            float *out = (float *)out_value;
+            *out = (float)serial->available();
             return HYP_RUNTIME_OK;
         }
         return HYP_RUNTIME_BUFFER_TOO_SMALL;

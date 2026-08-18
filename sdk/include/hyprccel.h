@@ -120,6 +120,13 @@ int hyp_sensor_read(const char *resource_id, void *out_value, uint32_t value_siz
  */
 int hyp_actuator_write(const char *resource_id, const void *in_value, uint32_t value_size);
 
+/**
+ * hyp_timestamp_us — Return the runtime monotonic timestamp in microseconds.
+ *
+ * Graph code uses this SDK primitive rather than a target framework clock API.
+ */
+uint32_t hyp_timestamp_us(void);
+
 /* -------------------------------------------------------------------------
  * Operation-specific argument structures
  * ---------------------------------------------------------------------- */

@@ -9,6 +9,7 @@ const { spawnSync } = require('child_process');
 
 const root = path.resolve(__dirname, '..');
 const codegen = path.join(root, 'mbd', 'codegen', 'graph_to_c.js');
+const { generate } = require(codegen);
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'hypraccel-hw-nodes-'));
 
 function node(id, type, params) { return { id, type, params }; }
@@ -33,6 +34,14 @@ const cases = [
     node('gain', 'Gain', { gain: 2 }),
     node('publish', 'Publish', { topic: 'adc/value', transport: 'host' })
   ], [edge('e1', 'adc', 'value', 'gain', 'input'), edge('e2', 'gain', 'value', 'publish', 'value')])],
+  ['uart_sensor_publish', graph('uart_sensor_publish', [
+    node('sensor', 'SensorInput', { source: 'uart.rx_available', valueType: 'number', samplePeriodUs: 1000, hardwareResource: 'uart.UART1' }),
+    node('publish', 'Publish', { topic: 'uart/available', transport: 'host' })
+  ], [edge('e1', 'sensor', 'value', 'publish', 'value'), edge('e2', 'sensor', 'timestamp_us', 'publish', 'timestamp_us')])],
+  ['constant_uart_actuator', graph('constant_uart_actuator', [
+    node('constant', 'Constant', { value: 0.5 }),
+    node('actuator', 'ActuatorOutput', { target: 'uart.command', unit: 'normalized', min: 0, max: 1, hardwareResource: 'uart.UART1' })
+  ], [edge('e1', 'constant', 'value', 'actuator', 'command')])],
   ['adc_gain_pwm', graph('adc_gain_pwm', [
     node('adc', 'ADCInput', { hardwareResource: 'adc.GPIO32', minValue: 0, maxValue: 3.3 }),
     node('gain', 'Gain', { gain: 1 }),
@@ -48,7 +57,7 @@ const cases = [
       edge('e3', 'off', 'value', 'selector', 'false_value'), edge('e4', 'selector', 'value', 'pwm', 'value')])]
 ];
 
-function generate(name, value) {
+function generateCase(name, value) {
   const input = path.join(work, `${name}.json`);
   const output = path.join(work, `${name}.c`);
   fs.writeFileSync(input, JSON.stringify(value, null, 2));
@@ -56,33 +65,40 @@ function generate(name, value) {
     "import json,sys,jsonschema; schema=json.load(open(sys.argv[1])); graph=json.load(open(sys.argv[2])); jsonschema.Draft202012Validator(schema).validate(graph)",
     path.join(root, 'mbd', 'schema', 'graph.schema.json'), input], { encoding: 'utf8' });
   assert.strictEqual(schemaCheck.status, 0, `${name} schema validation failed: ${schemaCheck.stderr}`);
-  const result = spawnSync(process.execPath, [codegen, input, output], { encoding: 'utf8' });
-  assert.strictEqual(result.status, 0, `${name} codegen failed: ${result.stderr}`);
+  fs.writeFileSync(output, generate(value, path.basename(input)));
   const source = fs.readFileSync(output, 'utf8');
   const second = path.join(work, `${name}.second.c`);
-  const repeat = spawnSync(process.execPath, [codegen, input, second], { encoding: 'utf8' });
-  assert.strictEqual(repeat.status, 0);
+  fs.writeFileSync(second, generate(value, path.basename(input)));
   assert.strictEqual(source, fs.readFileSync(second, 'utf8'), `${name} output is not deterministic`);
-  assert(!/digitalRead|analogRead|ledcWrite/.test(source), `${name} bypasses the SDK abstraction`);
+  assert(!/digitalRead|analogRead|ledcWrite|micros\s*\(/.test(source), `${name} bypasses the SDK abstraction`);
   const syntax = spawnSync('gcc', ['-std=c99', '-Wall', '-Werror', '-fsyntax-only', '-I', path.join(root, 'sdk', 'include'), output], { encoding: 'utf8' });
   assert.strictEqual(syntax.status, 0, `${name} generated C failed syntax check: ${syntax.stderr}`);
   return source;
 }
 
-const outputs = Object.fromEntries(cases.map(([name, value]) => [name, generate(name, value)]));
+const outputs = Object.fromEntries(cases.map(([name, value]) => [name, generateCase(name, value)]));
 assert(outputs.constant_pwm.includes('hyp_actuator_write("pwm.GPIO25"'));
 assert(outputs.gpio_publish.includes('hyp_sensor_read("gpio.GPIO4"'));
 assert(outputs.gpio_publish.includes('!gpio_value'));
 assert(outputs.adc_gain_publish.includes('hyp_sensor_read("adc.GPIO32"'));
 assert(outputs.gpio_switch_pwm.includes('hyp_actuator_write("pwm.GPIO25"'));
+assert(outputs.uart_sensor_publish.includes('hyp_sensor_read("uart.UART1"'));
+assert(outputs.uart_sensor_publish.includes('hyp_timestamp_us()'));
+assert(outputs.constant_uart_actuator.includes('hyp_actuator_write("uart.UART1"'));
 
 const invalid = JSON.parse(JSON.stringify(cases[0][1]));
 invalid.nodes[1].params.hardwareResource = 'adc.GPIO32';
 const invalidInput = path.join(work, 'invalid.json');
 const invalidOutput = path.join(work, 'invalid.c');
 fs.writeFileSync(invalidInput, JSON.stringify(invalid));
-const rejected = spawnSync(process.execPath, [codegen, invalidInput, invalidOutput], { encoding: 'utf8' });
-assert.notStrictEqual(rejected.status, 0);
-assert(`${rejected.stderr}\n${rejected.stdout}`.length > 0, 'invalid resource rejection did not report a diagnostic');
+assert.throws(() => generate(invalid, path.basename(invalidInput)), /requires a pwm hardware resource/);
 
-console.log(`[PASS] ${cases.length} hardware I/O graph cases: schema-shaped params, canonical resources, deterministic SDK codegen, C syntax, invalid-resource diagnostics.`);
+const unsupportedBus = graph('unsupported_bus', [
+  node('sensor', 'SensorInput', { source: 'imu', valueType: 'number', samplePeriodUs: 1000, hardwareResource: 'spi.HSPI' }),
+  node('publish', 'Publish', { topic: 'imu/value', transport: 'host' })
+], [edge('e1', 'sensor', 'value', 'publish', 'value')]);
+const unsupportedInput = path.join(work, 'unsupported-bus.json');
+fs.writeFileSync(unsupportedInput, JSON.stringify(unsupportedBus, null, 2));
+assert.throws(() => generate(unsupportedBus, path.basename(unsupportedInput)), /requires a gpio or adc or uart hardware resource/);
+
+console.log(`[PASS] ${cases.length} hardware I/O graph cases: schema-shaped params, canonical resources, deterministic SDK codegen, C syntax, UART paths, and invalid-resource diagnostics.`);

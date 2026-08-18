@@ -37,8 +37,13 @@ function hardwareResource(node, expectedType) {
     if (typeof resourceId !== 'string' || !resourceId) {
         fail(`${node.type} '${node.id}' requires a hardwareResource parameter`);
     }
-    if (!resourceId.startsWith(`${expectedType}.`)) {
-        fail(`${node.type} '${node.id}' requires a ${expectedType} hardware resource, got '${resourceId}'`);
+    const match = /^(gpio|uart|spi|i2c|pwm|adc|accelerator)\.([A-Za-z0-9_-]+)$/.exec(resourceId);
+    if (!match) {
+        fail(`${node.type} '${node.id}' has invalid canonical hardware resource '${resourceId}'`);
+    }
+    const expectedTypes = Array.isArray(expectedType) ? expectedType : [expectedType];
+    if (!expectedTypes.includes(match[1])) {
+        fail(`${node.type} '${node.id}' requires a ${expectedTypes.join(' or ')} hardware resource, got '${resourceId}'`);
     }
     return resourceId;
 }
@@ -330,17 +335,21 @@ function generate(graph, sourceName) {
             }
 
         } else if (node.type === 'SensorInput') {
-            const resourceId = node.params.hardwareResource || '';
-            if (!resourceId) fail(`SensorInput '${node.id}' requires a hardwareResource parameter`);
+            const resourceId = hardwareResource(node, ['gpio', 'adc', 'uart']);
+            if (node.params.valueType !== 'number') {
+                fail(`SensorInput '${node.id}' valueType '${node.params.valueType}' is not supported by the scalar hardware runtime`);
+            }
 
             // Check if sensor outputs are actually used
             const valueUsed = usedOutputs.has(`${node.id}.value`);
             const timestampUsed = usedOutputs.has(`${node.id}.timestamp_us`);
             const validUsed = usedOutputs.has(`${node.id}.valid`);
             const resultNeeded = timestampUsed || validUsed;
+            const readNeeded = valueUsed || resultNeeded;
 
-            // Generate variables for sensor outputs that are used
-            if (valueUsed) {
+            // A status-only consumer still requires a read so that `valid` and
+            // `timestamp_us` describe this step's runtime operation.
+            if (readNeeded) {
                 lines.push(`    float ${nodeName}_value = 0.0f;`);
             }
             if (timestampUsed) {
@@ -350,8 +359,9 @@ function generate(graph, sourceName) {
                 lines.push(`    uint8_t ${nodeName}_valid = 0;`);
             }
 
-            // Call sensor read - the SDK will handle the type based on value_size
-            if (valueUsed) {
+            // The SDK owns peripheral and clock access; generated C only passes
+            // the canonical resource ID and scalar payload storage.
+            if (readNeeded) {
                 if (resultNeeded) {
                     lines.push(`    int ${nodeName}_result = hyp_sensor_read(${cString(resourceId)}, &${nodeName}_value, sizeof(${nodeName}_value));`);
                     lines.push(`    if (${nodeName}_result == 0) {`);
@@ -359,13 +369,14 @@ function generate(graph, sourceName) {
                         lines.push(`        ${nodeName}_valid = 1;`);
                     }
                     if (timestampUsed) {
-                        lines.push(`        ${nodeName}_timestamp_us = (uint32_t)micros();`);
+                        lines.push(`        ${nodeName}_timestamp_us = hyp_timestamp_us();`);
                     }
                     lines.push(`    }`);
                 } else {
                     lines.push(`    hyp_sensor_read(${cString(resourceId)}, &${nodeName}_value, sizeof(${nodeName}_value));`);
                 }
             }
+            if (readNeeded && !valueUsed) lines.push(`    (void)${nodeName}_value;`);
 
         } else if (node.type === 'PWMOutput') {
             const inputEdge = inbound.get(`${node.id}.value`);
@@ -401,8 +412,7 @@ function generate(graph, sourceName) {
             if (!edge) fail(`ActuatorOutput '${node.id}' requires a command input edge`);
             const value = `${cIdentifier(edge.node.id, 'node id')}_${edge.port}`;
 
-            const resourceId = node.params.hardwareResource || '';
-            if (!resourceId) fail(`ActuatorOutput '${node.id}' requires a hardwareResource parameter`);
+            const resourceId = hardwareResource(node, ['gpio', 'pwm', 'uart']);
 
             // Optional enable input
             const enableEdge = inbound.get(`${node.id}.enable`);
@@ -419,6 +429,14 @@ function generate(graph, sourceName) {
             const edge = inbound.get(`${node.id}.value`);
             if (!edge) fail(`Publish '${node.id}' requires a value input edge`);
             const value = `${cIdentifier(edge.node.id, 'node id')}_${edge.port}`;
+            const timestampEdge = inbound.get(`${node.id}.timestamp_us`);
+            if (timestampEdge) {
+                const timestamp = `${cIdentifier(timestampEdge.node.id, 'node id')}_${timestampEdge.port}`;
+                // The current SDK publication contract has no timestamp field.
+                // Preserve the graph dependency and avoid silently bypassing the
+                // value source while retaining its source-assigned timestamp.
+                lines.push(`    (void)${timestamp};`);
+            }
             lines.push(`    hyp_publish(${cString(node.params.topic)}, &${value}, (uint32_t)sizeof(${value}));`);
 
         } else if (node.type === 'Constant') {
@@ -523,4 +541,6 @@ function main() {
     }
 }
 
-main();
+if (require.main === module) main();
+
+module.exports = { generate };
