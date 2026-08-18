@@ -44,7 +44,9 @@ function inferSignalRole(text) {
     if (/\b(PWM|SERVO|LEDC)\w*\b/.test(t)) return { type: 'pwm', role: 'output' };
 
     // ADC
-    if (/\b(ADC|AIN|ANALOG)\w*\b/.test(t)) return { type: 'adc', role: 'input' };
+    // Avoid classifying application labels such as AIN1/AIN2 as ADC unless
+    // the schematic/net explicitly says ADC/ANALOG.
+    if (/\b(ADC|ANALOG)\w*\b/.test(t)) return { type: 'adc', role: 'input' };
 
     // GPIO fallback
     if (/\b(GPIO|IO|LED|BTN|SW|IN|OUT)\w*\b/.test(t)) return { type: 'gpio', role: 'gpio' };

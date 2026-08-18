@@ -107,26 +107,77 @@ function loadBoardDefinitions(customYamlPath) {
 
 /**
  * Target matching patterns for supported HyprAccel boards.
+ * Uses flexible substring matching to accommodate various naming conventions
+ * across EDA tools (KiCad, EasyEDA, etc.)
  */
 const BOARD_MATCH_PATTERNS = Object.freeze({
     esp32: [
-        /\bESP32\b/i,
-        /\bESP32-WROOM\b/i,
-        /\bESP32-DEVKIT\b/i,
-        /\bESP-WROOM-32\b/i,
-        /\bESP32DEV\b/i,
-        /\bESP32-S3\b/i,
-        /\bESP32-C3\b/i
+        /ESP32/i,
+        /ESP32[-\s]?WROOM/i,
+        /ESP32[-\s]?DEVKIT/i,
+        /ESP[-\s]?WROOM[-\s]?32/i,
+        /ESP32DEV/i,
+        /ESP32[-\s]?S3/i,
+        /ESP32[-\s]?C3/i
     ],
     thejas32: [
-        /\bTHEJAS\b/i,
-        /\bTHEJAS32\b/i,
-        /\bARIES\b/i,
-        /\bARIES_V2\b/i,
-        /\bARIES-V2\b/i,
-        /\bCDAC_THEJAS\b/i
+        /THEJAS/i,
+        /THEJAS32/i,
+        /ARIES[_\s]?V2/i,
+        /CDAC[_\s]?THEJAS/i
     ]
 });
+
+/**
+ * ESP32-WROOM-32 module pad -> GPIO mapping.
+ *
+ * EasyEDA / Allegro netlists often preserve only package pad numbers. This
+ * table recovers the real physical GPIO identity for the standard module.
+ */
+const ESP32_WROOM32_PACKAGE_PIN_MAP = Object.freeze({
+    '1': 'GND',
+    '2': '3V3',
+    '3': 'EN',
+    '4': 'GPIO36',
+    '5': 'GPIO39',
+    '6': 'GPIO34',
+    '7': 'GPIO35',
+    '8': 'GPIO32',
+    '9': 'GPIO33',
+    '10': 'GPIO25',
+    '11': 'GPIO26',
+    '12': 'GPIO27',
+    '13': 'GPIO14',
+    '14': 'GPIO12',
+    '15': 'GND',
+    '16': 'GPIO13',
+    '17': 'GPIO9',
+    '18': 'GPIO10',
+    '19': 'GPIO11',
+    '20': 'GPIO6',
+    '21': 'GPIO7',
+    '22': 'GPIO8',
+    '23': 'GPIO15',
+    '24': 'GPIO2',
+    '25': 'GPIO0',
+    '26': 'GPIO4',
+    '27': 'GPIO16',
+    '28': 'GPIO17',
+    '29': 'GPIO5',
+    '30': 'GPIO18',
+    '31': 'GPIO19',
+    '32': 'NC',
+    '33': 'GPIO21',
+    '34': 'GPIO3',
+    '35': 'GPIO1',
+    '36': 'GPIO22',
+    '37': 'GPIO23',
+    '38': 'GND'
+});
+
+function esp32PhysicalPinFromPad(pinNumber) {
+    return ESP32_WROOM32_PACKAGE_PIN_MAP[String(pinNumber)] || null;
+}
 
 /**
  * Resolves the target MCU from normalized schematic model.
@@ -212,11 +263,7 @@ function resolveTargetMcu(normalizedModel, boardsDict) {
         } else if (/^IO\d+$/.test(pName)) {
             physicalPin = `GPIO${pName.slice(2)}`;
         } else if (/^\d+$/.test(pNum) && boardKey === 'esp32') {
-            // Check if pin name or number corresponds to a GPIO
-            const gpioName = `GPIO${pNum}`;
-            if (boardDef && boardDef.pins && Array.isArray(boardDef.pins.gpio) && boardDef.pins.gpio.includes(gpioName)) {
-                physicalPin = gpioName;
-            }
+            physicalPin = esp32PhysicalPinFromPad(pNum);
         }
 
         // If no direct GPIOxx string match, check board.pins lists for matching pin names
@@ -227,9 +274,19 @@ function resolveTargetMcu(normalizedModel, boardsDict) {
             }
         }
 
-        // Fallback: use pin.name if non-empty, otherwise GPIO<pin.number>
+        // Fallback: if pin.name looks like a GPIO number, prefix with GPIO; otherwise use pin.name or GPIO<pin.number>
         if (!physicalPin) {
-            physicalPin = pin.name || `GPIO${pin.number}`;
+            if (/^\d+$/.test(pin.name)) {
+                physicalPin = boardKey === 'esp32'
+                    ? (esp32PhysicalPinFromPad(pin.name) || `GPIO${pin.name}`)
+                    : `GPIO${pin.name}`;
+            } else if (pin.name) {
+                physicalPin = pin.name;
+            } else {
+                physicalPin = boardKey === 'esp32'
+                    ? (esp32PhysicalPinFromPad(pin.number) || `GPIO${pin.number}`)
+                    : `GPIO${pin.number}`;
+            }
         }
 
         pinMap[pin.number] = physicalPin;
