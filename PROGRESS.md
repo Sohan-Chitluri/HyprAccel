@@ -1,9 +1,9 @@
 # HyprAccel Task Progress
 
 *DEMO SCOPE, 2026-08-17: live demo targets ESP32 physical target (THEJAS/FPGA simulated via Verilator). Robotic arm demoed via pre-recorded video (MyCobot 280), not live. Hardware model remains generic with target-specific backends.*
-
+*DEMO SCOPE, 2026-08-17: live demo targets ESP32 physical target (THEJAS/FPGA simulated via Verilator). Robotic arm demoed via pre-recorded video (MyCobot 280), not live. Hardware model remains generic with target-specific backends.*
 *Note: Owner field = the AI tool/person actually executing this task, update on every status change.*
-*General Fixes: SDK include path fixed (-I sdk/include); root .gitignore updated for build artifacts; JS scoping/IIFE protection added to graph editor; CORDIC accelerator resource validation fixed in server.js to distinguish from physical peripherals.*
+*General Fixes: SDK include path fixed (-I sdk/include); root .gitignore updated for build artifacts; JS scoping/IIFE protection added to graph editor; CORDIC accelerator resource validation fixed in server.js to distinguish from physical peripherals; hardware config migration fixed to filter stale resource configs across board changes (prevents "Unknown hardware resource" error when hardware.json has resources from a different board).*
 
 ## TRACK CORE — Core SDK & Descriptors
 - [x] CORE-T1 | API header | Owner: Antigravity | Status: Complete
@@ -45,6 +45,7 @@
 ### CRITICAL CODEGEN GAP
 - [x] MBD-GAP1 | SensorInput & ActuatorOutput peripheral C codegen | Owner: Hermes / Nemotron | Status: Complete (Implemented `hyp_sensor_read()` and `hyp_actuator_write()` SDK primitives; ESP32 backend in `hyp_esp32_hw.cpp`; `graph_to_c.js` codegen for SensorInput/ActuatorOutput; verified host compilation and syntax check)
 - [x] MBD-GAP2 | Graph-to-runtime peripheral integration verification | Owner: Codex | Status: Complete (Verified deterministic canonical-resource codegen and SDK routing for GPIOInput, ADCInput, PWMOutput, SensorInput, ActuatorOutput, and UART-backed generic sensor/actuator paths. Added runtime timestamp routing and UART scalar sensor reads; focused schema, C syntax, invalid-resource, and host SDK tests pass. SPI/I2C remain initialization-only at graph level and report unsupported transactions; no physical execution was performed.)
+- [x] MBD-GAP3 | Hardware config migration fix — prevent "Unknown hardware resource" on board change | Owner: Nemotron | Status: Complete (Fixed `readHardwareConfig()` migration to filter stale resource configurations when `hardware.json` contains resources from a different board than the stored `board` field. Previously caused silent migration failure returning empty config, leading to "Graph target stale" errors. Now filters configurations to only include resources valid for the stored board before calling `projectHardware()`. Verified: mixed esp32/thejas32 configs migrate cleanly; accelerator.cordic preserved; no regression in existing tests.)
 
 ## TRACK FW — Firmware / Target Backend
 
@@ -92,8 +93,8 @@ The runtime SDK provides embedded primitives required by generated C step functi
 - [ ] NL-P1 | Basic math & signal processing nodes | Owner: Future | Status: Not started
 - [x] NL-P2 | Control nodes (PID) | Owner: Nemotron | Status: Complete (`ControlLoop` fully implemented with schema, palette/inspector, ports, validation, deterministic C codegen, `hyp_pid_step` SDK primitive, and focused tests)
 - [x] NL-COM | Communication & timing nodes (Phase 1) | Owner: Nemotron | Status: Complete (`UARTInput`, `UARTOutput` fully implemented with schema, palette/inspector, ports, validation, deterministic C codegen via `hyp_sensor_read`/`hyp_actuator_write`, ESP32 backend via existing UART resource table, and focused tests)
+- [x] NL-4WD | 4WD / mobile robotics nodes (Phase 2) | Owner: Nemotron | Status: Complete (`EncoderInput`, `MotorOutput`, `WheelSpeed`, `DifferentialDrive` fully implemented with schema, palette/inspector, ports, validation, deterministic C codegen, `hyp_encoder_read` SDK primitive, ESP32 PCNT backend, and focused tests)
 - [ ] NL-R1 | 3-DOF robotics foundation nodes | Owner: Future | Status: Not started
-- [ ] NL-4WD | 4WD / mobile robotics nodes | Owner: Future | Status: Not started
 - [ ] NL-R2 | 6-DOF robotics foundation nodes | Owner: Future | Status: Not started
 - [/] NL-DATA | Data & telemetry nodes | Owner: Antigravity | Status: Partial (`Publish` topic streaming complete; logging pending)
 - [ ] NL-CUSTOM | Custom code & function nodes | Owner: Future | Status: Not started

@@ -309,8 +309,17 @@ function readHardwareConfig(projectId = null) {
         const configPath = projectId ? hardwareConfigPath(projectId) : HARDWARE_CONFIG;
         const stored = JSON.parse(fs.readFileSync(configPath, 'utf8'));
         if (!stored.board || !Array.isArray(stored.assignments)) return stored;
-        const configurations = Object.fromEntries(Object.entries(stored.resources || {})
-            .map(([id, resource]) => [id, resource.configuration || {}]));
+        // Build the canonical resource set for the stored board first to know valid resource IDs
+        const parsed = parseSimpleYaml(fs.readFileSync(BOARDS_YAML, 'utf8'));
+        const board = parsed.boards[stored.board];
+        if (!board) return stored; // Unknown board, skip migration
+        const canonicalResources = defaultResourceConfig(board);
+        // Filter configurations to only include resources that exist for this board
+        const configurations = Object.fromEntries(
+            Object.entries(stored.resources || {})
+                .filter(([id]) => canonicalResources[id]) // Only keep configs for valid resources
+                .map(([id, resource]) => [id, resource.configuration || {}])
+        );
         const migrated = projectHardware(stored.board, stored.assignments, configurations, stored.devices);
         if (JSON.stringify(stored) !== JSON.stringify(migrated)) writeHardwareConfig(migrated, projectId);
         return migrated;
