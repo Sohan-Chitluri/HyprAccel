@@ -87,23 +87,88 @@
   .add-node-btn:hover { border-color: var(--accent); color: var(--accent); }
 
   /* ── Right panel: generated output ── */
-  .output-panel { display: flex; flex-direction: column; overflow: hidden; }
-  .output-actions { display: flex; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-  .btn { padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; transition: opacity .15s; }
+  .output-panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    min-width: 200px;
+    max-width: 60vw;
+    transition: min-width .15s;
+  }
+  .output-panel.collapsed {
+    min-width: 32px;
+    max-width: 32px;
+    overflow: hidden;
+  }
+
+  /* Vertical resize handle between centre and output panel */
+  .panel-resize-handle {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 6px;
+    cursor: ew-resize;
+    z-index: 10;
+    background: transparent;
+    transition: background .15s;
+  }
+  .panel-resize-handle:hover,
+  .panel-resize-handle.dragging {
+    background: var(--accent);
+    opacity: .6;
+  }
+
+  /* Collapse/expand toggle button */
+  .output-panel-toggle {
+    position: absolute;
+    left: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 48px;
+    background: #21262d;
+    border: 1px solid var(--border);
+    border-radius: 0 6px 6px 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: var(--muted);
+    z-index: 11;
+    transition: background .15s, color .15s;
+    user-select: none;
+  }
+  .output-panel-toggle:hover { background: var(--accent); color: #000; }
+
+  .output-panel-inner {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+  }
+  .output-panel.collapsed .output-panel-inner { display: none; }
+  .output-panel.collapsed .panel-header { display: none; }
+
+  .output-actions { display: flex; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap; }
+  .btn { padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; transition: opacity .15s; white-space: nowrap; }
   .btn:hover { opacity: .85; }
   .btn-primary { background: var(--accent); color: #000; }
   .btn-secondary { background: #21262d; color: var(--text); border: 1px solid var(--border); }
   .btn:disabled { opacity: .4; cursor: not-allowed; }
 
-  .output-code { flex: 1; overflow-y: auto; padding: 14px; }
-  .output-code pre { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 11px; line-height: 1.7; white-space: pre; color: #e6edf3; }
+  .output-code { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 14px; min-height: 0; }
+  .output-code pre { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 11px; line-height: 1.7; white-space: pre-wrap; word-break: break-all; color: #e6edf3; user-select: text; }
   .output-code .line-kw  { color: #ff7b72; }
   .output-code .line-def { color: #79c0ff; }
   .output-code .line-val { color: #a5d6ff; }
   .output-code .line-cm  { color: #8b949e; }
 
-  .status-bar { padding: 6px 12px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--border); flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
-  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+  .status-bar { padding: 6px 12px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--border); flex-shrink: 0; display: flex; align-items: center; gap: 8px; overflow: hidden; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--muted); }
   .status-dot.ok   { background: var(--accent2); }
   .status-dot.warn { background: var(--warn-soft); }
   .status-dot.err  { background: var(--warn); }
@@ -129,14 +194,21 @@
   ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
 
   /* ── Embedded / Mobile responsive layout ── */
-  body.embedded, @media (max-width: 900px) {
+  @media (max-width: 900px) {
     body { overflow-y: auto; height: auto; min-height: 100vh; }
     header { flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
     .graph-link { display: none !important; }
     main { display: flex; flex-direction: column; overflow: visible; height: auto; }
     .panel, .centre, .output-panel { border-right: none; border-bottom: 1px solid var(--border); }
     .drop-grid { grid-template-columns: 1fr; }
+    .output-panel, .output-panel.collapsed { min-width: unset; max-width: unset; }
+    .panel-resize-handle, .output-panel-toggle { display: none; }
   }
+  body.embedded { overflow-y: auto; height: auto; min-height: 100vh; }
+  body.embedded .graph-link { display: none !important; }
+  body.embedded main { display: flex; flex-direction: column; overflow: visible; height: auto; }
+  body.embedded .panel, body.embedded .centre, body.embedded .output-panel { border-right: none; border-bottom: 1px solid var(--border); }
+  body.embedded .drop-grid { grid-template-columns: 1fr; }
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
@@ -191,16 +263,20 @@
   </div>
 
   <!-- Right: generated header -->
-  <div class="output-panel">
+  <div class="output-panel" id="outputPanel">
+    <div class="panel-resize-handle" id="panelResizeHandle" title="Drag to resize"></div>
+    <button class="output-panel-toggle" id="outputPanelToggle" title="Collapse/expand panel">‹</button>
     <div class="panel-header">Generated hyp_board_config.h</div>
-    <div class="output-actions">
-      <button class="btn btn-primary" id="btnGenerate">▶ Generate &amp; Apply</button>
-      <button class="btn btn-secondary" id="btnCopy">Copy</button>
-    </div>
-    <div class="output-code" id="outputCode"><pre style="color:var(--muted)">← Assign pins, then click Generate.</pre></div>
-    <div class="status-bar">
-      <div class="status-dot" id="statusDot"></div>
-      <span id="statusText">No board selected.</span>
+    <div class="output-panel-inner">
+      <div class="output-actions">
+        <button class="btn btn-primary" id="btnGenerate">▶ Generate &amp; Apply</button>
+        <button class="btn btn-secondary" id="btnCopy">Copy</button>
+      </div>
+      <div class="output-code" id="outputCode"><pre style="color:var(--muted)">← Assign pins, then click Generate.</pre></div>
+      <div class="status-bar">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">No board selected.</span>
+      </div>
     </div>
   </div>
 
@@ -398,13 +474,6 @@ function applyPreset(presetId) {
     let presetSlots = cfg.slots;
     let presetNode = null;
     if (preset.id === 'servo_pwm') {
-        const existingPwmNode = nodes.find(nd => nd.type === 'ActuatorOutput' &&
-            nd.slots.some(sl => sl.peripheral && sl.peripheral.startsWith('pwm.') && sl.pin));
-        if (existingPwmNode) {
-            setStatus('ok', `⚡ Preset "${preset.name}" already applied to ${existingPwmNode.label}.`);
-            return;
-        }
-
         const pwmPins = Array.isArray(bd.pins && bd.pins.pwm) ? bd.pins.pwm : [];
         const availablePwmPin = pwmPins.find(pin => !assignments[pin]);
         if (!availablePwmPin) {
@@ -415,7 +484,11 @@ function applyPreset(presetId) {
         // PWM resources are canonical IDs in the project model: pwm.<declared pin>.
         // Resolve this from the selected board descriptor, never from a preset pin.
         presetSlots = [{ role: 'output', pin: availablePwmPin, peripheral: `pwm.${availablePwmPin}` }];
-        presetNode = nodes.find(nd => nd.type === 'ActuatorOutput' && nd.slots.every(sl => !sl.pin)) || null;
+        
+        // Find an ActuatorOutput node that doesn't already have a PWM assignment.
+        // This allows multiple ActuatorOutput nodes to each get their own PWM pin.
+        presetNode = nodes.find(nd => nd.type === 'ActuatorOutput' &&
+            nd.slots.every(sl => !(sl.peripheral && sl.peripheral.startsWith('pwm.') && sl.pin))) || null;
     }
 
     // 1. Validation: Verify all required pins exist on the current board
@@ -1077,6 +1150,74 @@ function closeSchematicModal() {
 
 document.getElementById('btnCloseSchematicModal').onclick = closeSchematicModal;
 document.getElementById('btnCancelSchematic').onclick = closeSchematicModal;
+
+/* ────────────────────────────────────────────────────────────────────────
+   Right Panel — Collapse / Resize (Task A)
+   ──────────────────────────────────────────────────────────────────────── */
+(function initOutputPanel() {
+    const panel   = document.getElementById('outputPanel');
+    const handle  = document.getElementById('panelResizeHandle');
+    const toggle  = document.getElementById('outputPanelToggle');
+    if (!panel || !handle || !toggle) return;
+
+    const LS_WIDTH     = 'hyp_output_panel_width';
+    const LS_COLLAPSED = 'hyp_output_panel_collapsed';
+    const DEFAULT_W    = 340;
+    const MIN_W        = 200;
+    const MAX_W        = Math.round(window.innerWidth * 0.55);
+
+    function applyCollapsed(collapsed) {
+        panel.classList.toggle('collapsed', collapsed);
+        toggle.textContent = collapsed ? '›' : '‹';
+        toggle.title       = collapsed ? 'Expand panel' : 'Collapse panel';
+        try { localStorage.setItem(LS_COLLAPSED, collapsed ? '1' : '0'); } catch(_) {}
+    }
+
+    function applyWidth(w) {
+        const clamped = Math.max(MIN_W, Math.min(MAX_W, w));
+        panel.style.width    = clamped + 'px';
+        panel.style.minWidth = clamped + 'px';
+        panel.style.maxWidth = clamped + 'px';
+        try { localStorage.setItem(LS_WIDTH, String(clamped)); } catch(_) {}
+    }
+
+    // Restore saved state
+    try {
+        const savedW = parseInt(localStorage.getItem(LS_WIDTH), 10);
+        if (savedW >= MIN_W) applyWidth(savedW);
+        else applyWidth(DEFAULT_W);
+        if (localStorage.getItem(LS_COLLAPSED) === '1') applyCollapsed(true);
+    } catch(_) {
+        applyWidth(DEFAULT_W);
+    }
+
+    // Toggle collapse
+    toggle.addEventListener('click', () => {
+        const nowCollapsed = !panel.classList.contains('collapsed');
+        applyCollapsed(nowCollapsed);
+    });
+
+    // Horizontal resize — dragging the left edge of the panel
+    handle.addEventListener('pointerdown', (e) => {
+        if (panel.classList.contains('collapsed')) return;
+        e.preventDefault();
+        handle.classList.add('dragging');
+        const startX   = e.clientX;
+        const startW   = panel.getBoundingClientRect().width;
+        const onMove   = (mv) => {
+            // Dragging left increases width (handle is on left side of panel)
+            const delta = startX - mv.clientX;
+            applyWidth(startW + delta);
+        };
+        const onStop   = () => {
+            handle.classList.remove('dragging');
+            document.removeEventListener('pointermove', onMove);
+            document.removeEventListener('pointerup', onStop);
+        };
+        document.addEventListener('pointermove', onMove);
+        document.addEventListener('pointerup', onStop, { once: true });
+    });
+})();
 
 document.getElementById('btnApplySchematic').onclick = () => {
     if (!pendingSchematicHardware) return;

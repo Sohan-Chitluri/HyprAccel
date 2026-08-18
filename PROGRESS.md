@@ -162,5 +162,37 @@ The runtime SDK provides embedded primitives required by generated C step functi
 - [ ] HW-UX-T6 | Pinout visualization / CubeMX-style board view (physical pins, assigned peripherals, semantic roles, conflicts, available pins) | Owner: Antigravity | Status: Not started
 - [x] HW-UX-T7 | Hardware Setup ↔ Graph Editor integration polish (shared canonical hardware state; graph references resources, not independent pin mappings) | Owner: Codex/Terra | Status: Complete (bounded independently scrollable assignment list, grouped-resource drag/drop with canonical IDs, shared target/resource refresh, and Accelerator / CORDIC resource binding)
 - [ ] HW-UX-T8 | Hardware Setup validation/error UX (surface existing canonical validation: duplicate pins, invalid roles, invalid combinations, unknown resources, unconfigured resources, unresolved schematic MCU, conflicting assignments) | Owner: Antigravity | Status: Not started
+- [x] HW-UX-T9 | Actuator Preset Bug Fix — Multiple ActuatorOutput nodes can now independently use Servo/PWM preset | Owner: Nemotron | Status: Complete (Fixed global singleton behavior in servo_pwm preset application; now finds ActuatorOutput node without existing PWM assignment instead of blocking if any node has PWM; verified: multiple actuators get unique PWM pins, configurations preserved independently, save/load works)
 
 *HW-UX-T7 architectural note:* A minimal persisted `hardware.devices` profile layer is documented in `mbd/docs/hardware_setup_model.md` and validated server-side for named canonical resource connections. It is intentionally not a device database, arbitrary-device UI, node category, or codegen system.
+
+## TRACK UI-QOL — Panel Layout Quality-of-Life Pass
+*Owner: Antigravity | Task ID: UI-QOL-1*
+
+- [x] **UI-QOL-T1** | Hardware Setup right panel — collapsible + horizontally resizable | Owner: Antigravity | Status: Complete
+  - Collapse/expand button (‹/›) on left edge of panel; state persisted via `localStorage(hyp_output_panel_collapsed)`
+  - Drag-to-resize handle on left edge; width persisted via `localStorage(hyp_output_panel_width)`; min 200px, max 55vw
+  - Preserved: Generate & Apply, Copy, generated config display, resource grouping, drag/drop
+
+- [x] **UI-QOL-T2** | Hardware resource groups — preserved collapsible drag/drop | Owner: Antigravity | Status: Complete
+  - SPI/I2C/UART/GPIO/PWM/ADC groups retain existing collapse/expand and draggable resource items
+  - Resource rows and signal items remain draggable with canonical DataTransfer payloads
+
+- [x] **UI-QOL-T3** | Graph Editor bottom panel — vertically resizable with localStorage | Owner: Antigravity | Status: Complete
+  - Resize handle upgraded with visible pill indicator (::before pseudo-element), dragging class feedback
+  - Minimum 80px, maximum window.innerHeight - 120px; height persisted via `localStorage(hyp_bottom_panel_height)`
+  - `studio-body` flex: `1 1 0; min-height: 0` to prevent permanent canvas compression
+
+- [x] **UI-QOL-T4** | Generated C Source — Copy button with toast feedback | Owner: Antigravity | Status: Complete
+  - "Copy C Source" button shows inline ✓ Copied! / ✗ error toast (2s auto-dismiss)
+  - Copies complete `lastSourceCode` without regeneration; button is visible only in source tab
+
+- [x] **UI-QOL-T5** | Console Output — independently scrollable and text-selectable | Owner: Antigravity | Status: Complete
+  - Removed `user-select: none` from `body` (was preventing selection of all UI text)
+  - Added `user-select: text` explicitly on `.console-content` and `.console-content pre`
+  - `overflow-x: hidden` and `word-break: break-word` prevent horizontal blowout
+
+- [x] **UI-QOL-T6** | General panel overflow containment | Owner: Antigravity | Status: Complete
+  - `output-code` pre uses `white-space: pre-wrap; word-break: break-all` (no horizontal overflow)
+  - `status-bar` and `output-code` have `overflow: hidden` / `min-height: 0` guards
+  - Fixed invalid `body.embedded, @media` combined selector → split to proper `@media` + class rules
