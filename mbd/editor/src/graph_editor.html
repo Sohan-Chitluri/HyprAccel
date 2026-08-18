@@ -180,7 +180,11 @@
     font-weight: 500;
   }
   .graph-id-input {
-    width: 130px;
+    min-width: 130px;
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 4px;
@@ -788,7 +792,7 @@
 
 <!-- Engineering Toolbar -->
 <div class="app-toolbar">
-  <div class="toolbar-group"><span class="toolbar-label">Graph</span><strong id="activeGraphLabel" class="graph-id-input" style="display:inline-block;min-width:130px;">No graph</strong></div>
+  <div class="toolbar-group"><span class="toolbar-label">Graph</span><strong id="activeGraphLabel" class="graph-id-input" style="display:inline-block;">No graph</strong></div>
   <div class="toolbar-divider"></div>
   <div class="toolbar-group">
     <button id="undo" class="tool-btn" title="Undo (Ctrl+Z)" disabled>Undo</button>
@@ -1049,7 +1053,10 @@ function graphIdFromName(name) {
 }
 function updateGraphLabel() {
   const label = document.getElementById('activeGraphLabel');
-  if (label) label.textContent = activeGraphId ? `${activeGraphName || activeGraphId} (${activeGraphId}.json)` : 'No graph';
+  if (label) {
+    label.textContent = activeGraphId ? (activeGraphName || activeGraphId) : 'No graph';
+    label.title = activeGraphId ? `${activeGraphName || activeGraphId} (${activeGraphId}.json)` : '';
+  }
 }
 function syncGraphUrl() {
   const url = new URL(window.location);

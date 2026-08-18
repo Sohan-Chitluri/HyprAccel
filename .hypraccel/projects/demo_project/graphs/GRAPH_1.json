@@ -1,0 +1,12 @@
+{
+  "format": "hypraccel.mbd.graph",
+  "version": 1,
+  "id": "GRAPH_1",
+  "name": "GRAPH-1",
+  "nodes": [],
+  "edges": [],
+  "inputs": [],
+  "metadata": {
+    "targetBoard": "esp32"
+  }
+}

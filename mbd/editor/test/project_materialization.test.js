@@ -51,7 +51,7 @@ async function run() {
         let response = await request(server, 'POST', '/api/projects', { id: 'project_a', name: 'Project A', hardware, graph });
         assert.equal(response.status, 201);
 
-        response = await request(server, 'POST', '/api/projects/project_a/generate');
+        response = await request(server, 'POST', '/api/projects/project_a/graphs/materialized_graph/generate');
         assert.equal(response.status, 200);
         for (const file of ['graph.c', 'main.cpp', 'hyp_board_config.h', 'hyprccel.h', 'hyp_esp32_hw.h']) {
             assert.equal(fs.existsSync(path.join(projectDir, 'generated', file)), true, `${file} was not materialized`);
@@ -64,7 +64,7 @@ async function run() {
         // must continue using its own persisted ESP32 hardware.json.
         response = await request(server, 'POST', '/api/hardware', { board: 'thejas32', assignments: [] });
         assert.equal(response.status, 200);
-        response = await request(server, 'POST', '/api/projects/project_a/compile');
+        response = await request(server, 'POST', '/api/projects/project_a/graphs/materialized_graph/compile');
         if (response.status !== 200) console.error('real PlatformIO compile response:', response.body);
         assert.equal(response.status, 200);
         if (!process.env.HYPRACCEL_TEST_REAL_PIO) assert.match(response.body, /fake platformio build/);
@@ -76,13 +76,15 @@ async function run() {
         assert.equal(fs.readFileSync(path.join(projectDir, 'hardware', 'hardware.json'), 'utf8').includes('"board": "esp32"'), true);
 
         // Reload and compile again from disk, with no client-supplied graph.
-        response = await request(server, 'POST', '/api/compile?projectId=project_a');
+        response = await request(server, 'POST', '/api/compile?projectId=project_a&graphId=materialized_graph');
         assert.equal(response.status, 200);
         response = await request(server, 'GET', '/api/projects/project_a/status');
         assert.equal(response.status, 200);
         const status = JSON.parse(response.body);
         assert.equal(status.build.log, 'build/build.log');
         assert.deepEqual(status.build.environments, ['esp32dev']);
+        assert.equal(status.graphArtifacts.generatedGraphId, 'materialized_graph');
+        assert.equal(status.graphArtifacts.buildGraphId, 'materialized_graph');
 
         response = await request(server, 'GET', '/api/projects/project_a/source?path=generated/main.cpp');
         assert.equal(response.status, 200);

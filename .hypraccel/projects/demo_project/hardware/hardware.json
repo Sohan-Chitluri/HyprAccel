@@ -1,0 +1,646 @@
+{
+  "version": 1,
+  "board": "esp32",
+  "resources": {
+    "spi.hspi": {
+      "id": "spi.hspi",
+      "type": "spi",
+      "instance": "hspi",
+      "available": true,
+      "assignments": [
+        {
+          "role": "sck",
+          "pin": "GPIO14"
+        },
+        {
+          "role": "mosi",
+          "pin": "GPIO13"
+        },
+        {
+          "role": "miso",
+          "pin": "GPIO12"
+        },
+        {
+          "role": "cs",
+          "pin": "GPIO15"
+        }
+      ],
+      "configuration": {}
+    },
+    "spi.vspi": {
+      "id": "spi.vspi",
+      "type": "spi",
+      "instance": "vspi",
+      "available": true,
+      "assignments": [
+        {
+          "role": "sck",
+          "pin": "GPIO18"
+        },
+        {
+          "role": "mosi",
+          "pin": "GPIO23"
+        },
+        {
+          "role": "miso",
+          "pin": "GPIO19"
+        },
+        {
+          "role": "cs",
+          "pin": "GPIO5"
+        }
+      ],
+      "configuration": {}
+    },
+    "i2c.i2c0": {
+      "id": "i2c.i2c0",
+      "type": "i2c",
+      "instance": "i2c0",
+      "available": true,
+      "assignments": [
+        {
+          "role": "scl",
+          "pin": "GPIO22"
+        },
+        {
+          "role": "sda",
+          "pin": "GPIO21"
+        }
+      ],
+      "configuration": {}
+    },
+    "uart.uart0": {
+      "id": "uart.uart0",
+      "type": "uart",
+      "instance": "uart0",
+      "available": true,
+      "assignments": [
+        {
+          "role": "tx",
+          "pin": "GPIO1"
+        },
+        {
+          "role": "rx",
+          "pin": "GPIO3"
+        }
+      ],
+      "configuration": {}
+    },
+    "uart.uart1": {
+      "id": "uart.uart1",
+      "type": "uart",
+      "instance": "uart1",
+      "available": true,
+      "assignments": [
+        {
+          "role": "tx",
+          "pin": "GPIO10"
+        },
+        {
+          "role": "rx",
+          "pin": "GPIO9"
+        }
+      ],
+      "configuration": {}
+    },
+    "uart.uart2": {
+      "id": "uart.uart2",
+      "type": "uart",
+      "instance": "uart2",
+      "available": true,
+      "assignments": [
+        {
+          "role": "tx",
+          "pin": "GPIO17"
+        },
+        {
+          "role": "rx",
+          "pin": "GPIO16"
+        }
+      ],
+      "configuration": {}
+    },
+    "pwm.GPIO25": {
+      "id": "pwm.GPIO25",
+      "type": "pwm",
+      "instance": "GPIO25",
+      "available": true,
+      "assignments": [
+        {
+          "role": "output",
+          "pin": "GPIO25"
+        }
+      ],
+      "configuration": {}
+    },
+    "pwm.GPIO26": {
+      "id": "pwm.GPIO26",
+      "type": "pwm",
+      "instance": "GPIO26",
+      "available": true,
+      "assignments": [
+        {
+          "role": "output",
+          "pin": "GPIO26"
+        }
+      ],
+      "configuration": {}
+    },
+    "pwm.GPIO27": {
+      "id": "pwm.GPIO27",
+      "type": "pwm",
+      "instance": "GPIO27",
+      "available": true,
+      "assignments": [
+        {
+          "role": "output",
+          "pin": "GPIO27"
+        }
+      ],
+      "configuration": {}
+    },
+    "pwm.GPIO32": {
+      "id": "pwm.GPIO32",
+      "type": "pwm",
+      "instance": "GPIO32",
+      "available": true,
+      "assignments": [
+        {
+          "role": "output",
+          "pin": "GPIO32"
+        }
+      ],
+      "configuration": {}
+    },
+    "pwm.GPIO33": {
+      "id": "pwm.GPIO33",
+      "type": "pwm",
+      "instance": "GPIO33",
+      "available": true,
+      "assignments": [
+        {
+          "role": "output",
+          "pin": "GPIO33"
+        }
+      ],
+      "configuration": {}
+    },
+    "adc.GPIO32": {
+      "id": "adc.GPIO32",
+      "type": "adc",
+      "instance": "GPIO32",
+      "available": true,
+      "assignments": [
+        {
+          "role": "input",
+          "pin": "GPIO32"
+        }
+      ],
+      "configuration": {}
+    },
+    "adc.GPIO33": {
+      "id": "adc.GPIO33",
+      "type": "adc",
+      "instance": "GPIO33",
+      "available": true,
+      "assignments": [
+        {
+          "role": "input",
+          "pin": "GPIO33"
+        }
+      ],
+      "configuration": {}
+    },
+    "adc.GPIO34": {
+      "id": "adc.GPIO34",
+      "type": "adc",
+      "instance": "GPIO34",
+      "available": true,
+      "assignments": [
+        {
+          "role": "input",
+          "pin": "GPIO34"
+        }
+      ],
+      "configuration": {}
+    },
+    "adc.GPIO35": {
+      "id": "adc.GPIO35",
+      "type": "adc",
+      "instance": "GPIO35",
+      "available": true,
+      "assignments": [
+        {
+          "role": "input",
+          "pin": "GPIO35"
+        }
+      ],
+      "configuration": {}
+    },
+    "adc.GPIO36": {
+      "id": "adc.GPIO36",
+      "type": "adc",
+      "instance": "GPIO36",
+      "available": true,
+      "assignments": [
+        {
+          "role": "input",
+          "pin": "GPIO36"
+        }
+      ],
+      "configuration": {}
+    },
+    "adc.GPIO39": {
+      "id": "adc.GPIO39",
+      "type": "adc",
+      "instance": "GPIO39",
+      "available": true,
+      "assignments": [
+        {
+          "role": "input",
+          "pin": "GPIO39"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO0": {
+      "id": "gpio.GPIO0",
+      "type": "gpio",
+      "instance": "GPIO0",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO0"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO1": {
+      "id": "gpio.GPIO1",
+      "type": "gpio",
+      "instance": "GPIO1",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO1"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO2": {
+      "id": "gpio.GPIO2",
+      "type": "gpio",
+      "instance": "GPIO2",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO2"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO3": {
+      "id": "gpio.GPIO3",
+      "type": "gpio",
+      "instance": "GPIO3",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO3"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO4": {
+      "id": "gpio.GPIO4",
+      "type": "gpio",
+      "instance": "GPIO4",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO4"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO5": {
+      "id": "gpio.GPIO5",
+      "type": "gpio",
+      "instance": "GPIO5",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO5"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO12": {
+      "id": "gpio.GPIO12",
+      "type": "gpio",
+      "instance": "GPIO12",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO12"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO13": {
+      "id": "gpio.GPIO13",
+      "type": "gpio",
+      "instance": "GPIO13",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO13"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO14": {
+      "id": "gpio.GPIO14",
+      "type": "gpio",
+      "instance": "GPIO14",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO14"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO15": {
+      "id": "gpio.GPIO15",
+      "type": "gpio",
+      "instance": "GPIO15",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO15"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO16": {
+      "id": "gpio.GPIO16",
+      "type": "gpio",
+      "instance": "GPIO16",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO16"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO17": {
+      "id": "gpio.GPIO17",
+      "type": "gpio",
+      "instance": "GPIO17",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO17"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO18": {
+      "id": "gpio.GPIO18",
+      "type": "gpio",
+      "instance": "GPIO18",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO18"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO19": {
+      "id": "gpio.GPIO19",
+      "type": "gpio",
+      "instance": "GPIO19",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO19"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO21": {
+      "id": "gpio.GPIO21",
+      "type": "gpio",
+      "instance": "GPIO21",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO21"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO22": {
+      "id": "gpio.GPIO22",
+      "type": "gpio",
+      "instance": "GPIO22",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO22"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO23": {
+      "id": "gpio.GPIO23",
+      "type": "gpio",
+      "instance": "GPIO23",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO23"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO25": {
+      "id": "gpio.GPIO25",
+      "type": "gpio",
+      "instance": "GPIO25",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO25"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO26": {
+      "id": "gpio.GPIO26",
+      "type": "gpio",
+      "instance": "GPIO26",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO26"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO27": {
+      "id": "gpio.GPIO27",
+      "type": "gpio",
+      "instance": "GPIO27",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO27"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO32": {
+      "id": "gpio.GPIO32",
+      "type": "gpio",
+      "instance": "GPIO32",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO32"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO33": {
+      "id": "gpio.GPIO33",
+      "type": "gpio",
+      "instance": "GPIO33",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO33"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO34": {
+      "id": "gpio.GPIO34",
+      "type": "gpio",
+      "instance": "GPIO34",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO34"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO35": {
+      "id": "gpio.GPIO35",
+      "type": "gpio",
+      "instance": "GPIO35",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO35"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO36": {
+      "id": "gpio.GPIO36",
+      "type": "gpio",
+      "instance": "GPIO36",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO36"
+        }
+      ],
+      "configuration": {}
+    },
+    "gpio.GPIO39": {
+      "id": "gpio.GPIO39",
+      "type": "gpio",
+      "instance": "GPIO39",
+      "available": true,
+      "assignments": [
+        {
+          "role": "gpio",
+          "pin": "GPIO39"
+        }
+      ],
+      "configuration": {}
+    },
+    "accelerator.cordic": {
+      "id": "accelerator.cordic",
+      "type": "accelerator",
+      "instance": "cordic",
+      "available": true,
+      "assignments": [],
+      "configuration": {}
+    }
+  },
+  "assignments": [
+    {
+      "node": "SensorInput[1]",
+      "role": "mosi",
+      "pin": "GPIO13",
+      "resource": "spi.hspi"
+    },
+    {
+      "node": "SensorInput[1]",
+      "role": "miso",
+      "pin": "GPIO12",
+      "resource": "spi.hspi"
+    },
+    {
+      "node": "SensorInput[1]",
+      "role": "sck",
+      "pin": "GPIO14",
+      "resource": "spi.hspi"
+    },
+    {
+      "node": "SensorInput[1]",
+      "role": "cs",
+      "pin": "GPIO15",
+      "resource": "spi.hspi"
+    },
+    {
+      "node": "SensorInput[1]",
+      "role": "gpio",
+      "pin": "GPIO4",
+      "resource": "gpio.GPIO4"
+    }
+  ],
+  "devices": []
+}

@@ -2,26 +2,45 @@
 node_modules/
 **/node_modules/
 
+# Python environments
+.venv/
+.venv-platformio/
+__pycache__/
+*.pyc
+
 # Build directories & Verilator output
 build/
 **/build/
 obj_dir/
 **/obj_dir/
-
-# ESP32 live-reflash build output (MBD-T9)
-mbd/esp32/.pio/
-mbd/esp32/generated/
-.hypraccel/
-.venv-platformio/
-
-# Compiled object files & binaries
 *.o
 *.a
 *.so
 *.dylib
 
+# Generated PlatformIO files in workspace
+.pio/
+**/.pio/
+
+# ESP32 live-reflash build output (MBD-T9)
+mbd/esp32/.pio/
+mbd/esp32/generated/
+
+# .hypraccel environment
+# Keep hardware.json and example projects, but ignore generated artifacts
+.hypraccel/projects/**/.pio/
+.hypraccel/projects/**/generated/
+.hypraccel/projects/**/build.log
+
 # Temporary test outputs
 stimulus.csv
 
-# npm lock files (not tracking in this repo)
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# npm lock files (if not tracking in this repo)
 package-lock.json

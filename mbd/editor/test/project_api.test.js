@@ -58,29 +58,52 @@ async function run() {
         });
         assert.equal(response.status, 201);
         assert.equal(response.body.project.board, 'esp32');
-        assert.equal(response.body.project.graphId, 'workspace_graph');
+        assert.equal(response.body.project.activeGraphId, 'workspace_graph');
 
         const projectDir = path.join(process.env.HYPRACCEL_PROJECTS_ROOT, 'workspace_demo');
         const manifest = JSON.parse(fs.readFileSync(path.join(projectDir, 'project.json'), 'utf8'));
         assert.equal(manifest.hardware.path, 'hardware/hardware.json');
-        assert.equal(manifest.graph.path, 'graph/graph.json');
+        assert.equal(manifest.graphs.path, 'graphs');
         assert.equal(Object.hasOwn(manifest, 'board'), false, 'board must remain canonical in hardware.json');
-        assert.equal(Object.hasOwn(manifest, 'graphId'), false, 'graph id must remain canonical in graph.json');
+        assert.equal(manifest.activeGraphId, 'workspace_graph');
         assert.equal(JSON.parse(fs.readFileSync(path.join(projectDir, 'hardware', 'hardware.json'), 'utf8')).board, 'esp32');
-        assert.equal(JSON.parse(fs.readFileSync(path.join(projectDir, 'graph', 'graph.json'), 'utf8')).id, 'workspace_graph');
+        assert.equal(JSON.parse(fs.readFileSync(path.join(projectDir, 'graphs', 'workspace_graph.json'), 'utf8')).id, 'workspace_graph');
 
         response = await request(server, 'GET', '/api/projects/workspace_demo');
         assert.equal(response.status, 200);
         assert.equal(response.body.name, 'Workspace Demo');
         assert.equal(response.body.hardware.board, 'esp32');
         assert.equal(response.body.graph.id, 'workspace_graph');
+        assert.deepEqual(response.body.graphs.map(item => item.filename), ['workspace_graph.json']);
 
         response = await request(server, 'PUT', '/api/projects/workspace_demo/hardware', hardware);
         assert.equal(response.status, 200);
         assert.equal(response.body.hardware.board, 'esp32');
-        response = await request(server, 'PUT', '/api/projects/workspace_demo/graph', graph);
+        response = await request(server, 'PUT', '/api/projects/workspace_demo/graphs/workspace_graph', graph);
         assert.equal(response.status, 200);
         assert.equal(response.body.graph.id, 'workspace_graph');
+
+        const secondGraph = { ...graph, id: 'sensor_test', name: 'Sensor Test', nodes: [{ id: 'constant', type: 'Constant', params: { value: 7 }, position: { x: 0, y: 0 } }] };
+        response = await request(server, 'POST', '/api/projects/workspace_demo/graphs', { graphId: 'sensor_test', name: 'Sensor Test', graph: secondGraph });
+        assert.equal(response.status, 201);
+        response = await request(server, 'GET', '/api/projects/workspace_demo/graphs');
+        assert.equal(response.status, 200);
+        assert.deepEqual(response.body.graphs.map(item => item.id), ['sensor_test', 'workspace_graph']);
+        response = await request(server, 'GET', '/api/projects/workspace_demo/graphs/sensor_test');
+        assert.equal(response.body.nodes[0].params.value, 7);
+        response = await request(server, 'PUT', '/api/projects/workspace_demo/graphs/sensor_test/rename', { graphId: 'sensor_renamed', name: 'Sensor Renamed' });
+        assert.equal(response.status, 200);
+        assert.equal(response.body.graph.id, 'sensor_renamed');
+        assert.equal(fs.existsSync(path.join(projectDir, 'graphs', 'sensor_test.json')), false);
+        response = await request(server, 'DELETE', '/api/projects/workspace_demo/graphs/sensor_renamed');
+        assert.equal(response.status, 200);
+        response = await request(server, 'DELETE', '/api/projects/workspace_demo/graphs/workspace_graph');
+        assert.equal(response.status, 409, 'a project must retain one graph');
+
+        for (const invalidPath of ['..', '%2e%2e', '%2Ftmp', 'bad.id']) {
+            response = await request(server, 'GET', `/api/projects/workspace_demo/graphs/${invalidPath}`);
+            assert.equal(response.status, 400, `invalid graph id ${invalidPath} must be rejected`);
+        }
 
         response = await request(server, 'GET', '/api/projects/workspace_demo/status');
         assert.equal(response.status, 200);
@@ -108,7 +131,7 @@ async function run() {
         assert.equal(response.status, 200, 'existing graph generation remains available');
         assert.match(response.body.source, /hyp_graph_workspace_graph_step/);
 
-        response = await request(server, 'GET', '/api/projects/workspace_demo/source?path=graph/graph.json');
+        response = await request(server, 'GET', '/api/projects/workspace_demo/source?path=graphs/workspace_graph.json');
         assert.equal(response.status, 200);
         assert.match(response.body.content, /workspace_graph/);
 

@@ -1,0 +1,245 @@
+{
+  "format": "hypraccel.mbd.graph",
+  "version": 1,
+  "id": "cordic_sine_test",
+  "name": "cordic_sine_test",
+  "nodes": [
+    {
+      "id": "time_1",
+      "type": "Time",
+      "label": "Time",
+      "params": {},
+      "position": {
+        "x": 50,
+        "y": 100
+      }
+    },
+    {
+      "id": "const_1",
+      "type": "Constant",
+      "label": "Scale 1.0",
+      "params": {
+        "value": 1
+      },
+      "position": {
+        "x": 50,
+        "y": 200
+      }
+    },
+    {
+      "id": "mult_1",
+      "type": "Multiply",
+      "label": "Time x Scale",
+      "params": {},
+      "position": {
+        "x": 250,
+        "y": 150
+      }
+    },
+    {
+      "id": "cordic_1",
+      "type": "CordicOp",
+      "label": "CORDIC Sin",
+      "params": {
+        "operation": "sin",
+        "implementation": "auto",
+        "iterations": 16
+      },
+      "position": {
+        "x": 450,
+        "y": 150
+      }
+    },
+    {
+      "id": "const_90_a",
+      "type": "Constant",
+      "label": "Amplitude 90",
+      "params": {
+        "value": 90
+      },
+      "position": {
+        "x": 450,
+        "y": 270
+      }
+    },
+    {
+      "id": "mult_2",
+      "type": "Multiply",
+      "label": "Sin x 90",
+      "params": {},
+      "position": {
+        "x": 650,
+        "y": 180
+      }
+    },
+    {
+      "id": "const_90_b",
+      "type": "Constant",
+      "label": "Offset 90",
+      "params": {
+        "value": 90
+      },
+      "position": {
+        "x": 650,
+        "y": 300
+      }
+    },
+    {
+      "id": "add_1",
+      "type": "Add",
+      "label": "Add Offset",
+      "params": {},
+      "position": {
+        "x": 850,
+        "y": 210
+      }
+    },
+    {
+      "id": "sat_1",
+      "type": "Saturation",
+      "label": "Clamp [0, 180]",
+      "params": {
+        "min": 0,
+        "max": 180
+      },
+      "position": {
+        "x": 1050,
+        "y": 210
+      }
+    },
+    {
+      "id": "pub_1",
+      "type": "Publish",
+      "label": "Publish Telemetry",
+      "params": {
+        "topic": "telemetry/value",
+        "transport": "telemetry",
+        "retain": false
+      },
+      "position": {
+        "x": 1250,
+        "y": 210
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "time_1",
+        "port": "value"
+      },
+      "to": {
+        "node": "mult_1",
+        "port": "a"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "const_1",
+        "port": "value"
+      },
+      "to": {
+        "node": "mult_1",
+        "port": "b"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "mult_1",
+        "port": "value"
+      },
+      "to": {
+        "node": "cordic_1",
+        "port": "angle_rad"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "cordic_1",
+        "port": "value"
+      },
+      "to": {
+        "node": "mult_2",
+        "port": "a"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "const_90_a",
+        "port": "value"
+      },
+      "to": {
+        "node": "mult_2",
+        "port": "b"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "mult_2",
+        "port": "value"
+      },
+      "to": {
+        "node": "add_1",
+        "port": "a"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "const_90_b",
+        "port": "value"
+      },
+      "to": {
+        "node": "add_1",
+        "port": "b"
+      }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "add_1",
+        "port": "value"
+      },
+      "to": {
+        "node": "sat_1",
+        "port": "input"
+      }
+    },
+    {
+      "id": "e9",
+      "from": {
+        "node": "sat_1",
+        "port": "value"
+      },
+      "to": {
+        "node": "pub_1",
+        "port": "value"
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "name": "angle_rad",
+      "type": "number",
+      "unit": "rad"
+    }
+  ],
+  "metadata": {
+    "targetBoard": "esp32",
+    "externalBindings": [
+      {
+        "input": "angle_rad",
+        "to": {
+          "node": "cordic_1",
+          "port": "angle_rad"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "format": "hypraccel.mbd.graph",
+  "version": 1,
+  "id": "gen_test_graph",
+  "name": "gen_test_graph",
+  "nodes": [
+    {
+      "id": "c1",
+      "type": "Constant",
+      "label": "Constant c1",
+      "params": {
+        "value": 3.14
+      },
+      "position": {
+        "x": 101.5,
+        "y": 57.5
+      }
+    },
+    {
+      "id": "pub1",
+      "type": "Publish",
+      "label": "Publish pub1",
+      "params": {
+        "topic": "test_output"
+      },
+      "position": {
+        "x": 400,
+        "y": 100
+      }
+    },
+    {
+      "id": "adcinput_1",
+      "type": "ADCInput",
+      "label": "ADCInput adcinput_1",
+      "params": {
+        "samplePeriodUs": 1000,
+        "unit": "V",
+        "minValue": 0,
+        "maxValue": 3.3
+      },
+      "position": {
+        "x": 331.5,
+        "y": 15
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "c1",
+        "port": "value"
+      },
+      "to": {
+        "node": "pub1",
+        "port": "value"
+      }
+    }
+  ],
+  "inputs": [],
+  "metadata": {
+    "targetBoard": "esp32"
+  }
+}

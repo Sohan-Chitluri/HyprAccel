@@ -64,11 +64,11 @@ async function run() {
     try {
         let response = await request(server, 'POST', '/api/projects', { id: 'roundtrip_project', name: 'Round Trip', hardware });
         assert.equal(response.status, 201);
-        response = await request(server, 'PUT', '/api/projects/roundtrip_project/graph', graph);
-        assert.equal(response.status, 200, JSON.stringify(response.body));
+        response = await request(server, 'POST', '/api/projects/roundtrip_project/graphs', { graphId: 'roundtrip_graph', graph });
+        assert.equal(response.status, 201, JSON.stringify(response.body));
         assert.deepEqual(response.body.graph, graph);
 
-        response = await request(server, 'GET', '/api/projects/roundtrip_project/graph');
+        response = await request(server, 'GET', '/api/projects/roundtrip_project/graphs/roundtrip_graph');
         assert.equal(response.status, 200);
         assert.deepEqual(response.body, graph);
         assert.deepEqual(response.body.nodes, graph.nodes);
@@ -78,14 +78,43 @@ async function run() {
         assert.deepEqual(response.body.nodes.find(node => node.type === 'CustomCode').params, graph.nodes[4].params);
         assert.deepEqual(response.body.nodes.find(node => node.type === 'CordicOp').params, graph.nodes[2].params);
 
-        response = await request(server, 'POST', '/api/projects/roundtrip_project/generate');
+        response = await request(server, 'POST', '/api/projects/roundtrip_project/graphs/roundtrip_graph/generate');
         assert.equal(response.status, 200, JSON.stringify(response.body));
         const graphPath = path.join(process.env.HYPRACCEL_PROJECTS_ROOT, 'roundtrip_project', 'generated', 'graph.c');
         const firstSource = fs.readFileSync(graphPath, 'utf8');
-        response = await request(server, 'POST', '/api/projects/roundtrip_project/generate');
+        response = await request(server, 'POST', '/api/projects/roundtrip_project/graphs/roundtrip_graph/generate');
         assert.equal(response.status, 200);
         assert.equal(fs.readFileSync(graphPath, 'utf8'), firstSource, 'generation after reload must be deterministic');
         assert.match(firstSource, /hyp_graph_roundtrip_graph_step/);
+
+        const other = { ...graph, id: 'independent_graph', name: 'Independent Graph', nodes: graph.nodes.map(node => node.id === 'constant_1' ? { ...node, params: { value: 99 } } : node) };
+        response = await request(server, 'POST', '/api/projects/roundtrip_project/graphs', { graphId: 'independent_graph', graph: other });
+        assert.equal(response.status, 201);
+        response = await request(server, 'PUT', '/api/projects/roundtrip_project/graphs/independent_graph', { ...other, name: 'Independent Saved' });
+        assert.equal(response.status, 200);
+        response = await request(server, 'GET', '/api/projects/roundtrip_project/graphs/roundtrip_graph');
+        assert.equal(response.status, 200);
+        assert.deepEqual(response.body.nodes, graph.nodes, 'saving another graph must not change the original');
+        response = await request(server, 'POST', '/api/projects/roundtrip_project/graphs/independent_graph/generate');
+        assert.equal(response.status, 200);
+        assert.match(fs.readFileSync(graphPath, 'utf8'), /hyp_graph_independent_graph_step/, 'generation must use selected graph');
+
+        // Lazy legacy migration preserves the old singleton file and creates
+        // the deterministic graph-file equivalent on first project access.
+        const legacyDir = path.join(process.env.HYPRACCEL_PROJECTS_ROOT, 'legacy_project');
+        fs.mkdirSync(path.join(legacyDir, 'graph'), { recursive: true });
+        fs.mkdirSync(path.join(legacyDir, 'hardware'), { recursive: true });
+        fs.writeFileSync(path.join(legacyDir, 'project.json'), JSON.stringify({
+            format: 'hypraccel.project', version: 1, id: 'legacy_project', name: 'Legacy Project',
+            hardware: { path: 'hardware/hardware.json' }, graph: { path: 'graph/graph.json' }, createdAt: '2020-01-01T00:00:00.000Z', updatedAt: '2020-01-01T00:00:00.000Z'
+        }));
+        fs.writeFileSync(path.join(legacyDir, 'hardware', 'hardware.json'), JSON.stringify(hardware));
+        fs.writeFileSync(path.join(legacyDir, 'graph', 'graph.json'), JSON.stringify(graph));
+        response = await request(server, 'GET', '/api/projects/legacy_project/graphs');
+        assert.equal(response.status, 200);
+        assert.deepEqual(response.body.graphs.map(item => item.id), ['roundtrip_graph']);
+        assert.equal(fs.existsSync(path.join(legacyDir, 'graph', 'graph.json')), true, 'legacy graph must not be removed');
+        assert.deepEqual(JSON.parse(fs.readFileSync(path.join(legacyDir, 'graphs', 'roundtrip_graph.json'), 'utf8')), graph);
     } finally {
         await new Promise(resolve => server.close(resolve));
         fs.rmSync(testRoot, { recursive: true, force: true });

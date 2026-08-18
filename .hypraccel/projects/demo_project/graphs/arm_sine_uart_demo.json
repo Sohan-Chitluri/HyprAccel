@@ -1,0 +1,889 @@
+{
+  "format": "hypraccel.mbd.graph",
+  "version": 1,
+  "id": "arm_sine_uart_demo",
+  "name": "arm_sine_uart_demo",
+  "inputs": [
+    {
+      "name": "angle_rad",
+      "type": "number",
+      "unit": "rad"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "time_1",
+      "type": "Time",
+      "label": "Time",
+      "params": {},
+      "position": {
+        "x": 50,
+        "y": 300
+      }
+    },
+    {
+      "id": "c_mult_base",
+      "type": "Constant",
+      "label": "1.0",
+      "params": {
+        "value": 1
+      },
+      "position": {
+        "x": 200,
+        "y": 100
+      }
+    },
+    {
+      "id": "mult_base",
+      "type": "Multiply",
+      "label": "1.0 * t",
+      "params": {},
+      "position": {
+        "x": 350,
+        "y": 100
+      }
+    },
+    {
+      "id": "cordic_base",
+      "type": "CordicOp",
+      "label": "Sin Base",
+      "params": {
+        "operation": "sin",
+        "implementation": "auto",
+        "iterations": 16
+      },
+      "position": {
+        "x": 500,
+        "y": 100
+      }
+    },
+    {
+      "id": "c_amp_base",
+      "type": "Constant",
+      "label": "90.0",
+      "params": {
+        "value": 90
+      },
+      "position": {
+        "x": 500,
+        "y": 180
+      }
+    },
+    {
+      "id": "mult_amp_base",
+      "type": "Multiply",
+      "label": "90 * sin",
+      "params": {},
+      "position": {
+        "x": 650,
+        "y": 100
+      }
+    },
+    {
+      "id": "c_off_base",
+      "type": "Constant",
+      "label": "90.0",
+      "params": {
+        "value": 90
+      },
+      "position": {
+        "x": 650,
+        "y": 180
+      }
+    },
+    {
+      "id": "add_base",
+      "type": "Add",
+      "label": "90 + ...",
+      "params": {},
+      "position": {
+        "x": 800,
+        "y": 100
+      }
+    },
+    {
+      "id": "sat_base",
+      "type": "Saturation",
+      "label": "Clamp Base",
+      "params": {
+        "min": 0,
+        "max": 180
+      },
+      "position": {
+        "x": 950,
+        "y": 100
+      }
+    },
+    {
+      "id": "c_mult_sh",
+      "type": "Constant",
+      "label": "0.5",
+      "params": {
+        "value": 0.5
+      },
+      "position": {
+        "x": 200,
+        "y": 250
+      }
+    },
+    {
+      "id": "mult_sh",
+      "type": "Multiply",
+      "label": "0.5 * t",
+      "params": {},
+      "position": {
+        "x": 350,
+        "y": 250
+      }
+    },
+    {
+      "id": "cordic_sh",
+      "type": "CordicOp",
+      "label": "Sin Shoulder",
+      "params": {
+        "operation": "sin",
+        "implementation": "auto",
+        "iterations": 16
+      },
+      "position": {
+        "x": 500,
+        "y": 250
+      }
+    },
+    {
+      "id": "c_amp_sh",
+      "type": "Constant",
+      "label": "45.0",
+      "params": {
+        "value": 45
+      },
+      "position": {
+        "x": 500,
+        "y": 330
+      }
+    },
+    {
+      "id": "mult_amp_sh",
+      "type": "Multiply",
+      "label": "45 * sin",
+      "params": {},
+      "position": {
+        "x": 650,
+        "y": 250
+      }
+    },
+    {
+      "id": "c_off_sh",
+      "type": "Constant",
+      "label": "90.0",
+      "params": {
+        "value": 90
+      },
+      "position": {
+        "x": 650,
+        "y": 330
+      }
+    },
+    {
+      "id": "add_sh",
+      "type": "Add",
+      "label": "90 + ...",
+      "params": {},
+      "position": {
+        "x": 800,
+        "y": 250
+      }
+    },
+    {
+      "id": "sat_sh",
+      "type": "Saturation",
+      "label": "Clamp Shoulder",
+      "params": {
+        "min": 0,
+        "max": 180
+      },
+      "position": {
+        "x": 950,
+        "y": 250
+      }
+    },
+    {
+      "id": "c_mult_el",
+      "type": "Constant",
+      "label": "0.8",
+      "params": {
+        "value": 0.8
+      },
+      "position": {
+        "x": 200,
+        "y": 400
+      }
+    },
+    {
+      "id": "mult_el",
+      "type": "Multiply",
+      "label": "0.8 * t",
+      "params": {},
+      "position": {
+        "x": 350,
+        "y": 400
+      }
+    },
+    {
+      "id": "c_phase_el",
+      "type": "Constant",
+      "label": "1.0",
+      "params": {
+        "value": 1
+      },
+      "position": {
+        "x": 350,
+        "y": 480
+      }
+    },
+    {
+      "id": "add_phase_el",
+      "type": "Add",
+      "label": "0.8t + 1.0",
+      "params": {},
+      "position": {
+        "x": 480,
+        "y": 400
+      }
+    },
+    {
+      "id": "cordic_el",
+      "type": "CordicOp",
+      "label": "Sin Elbow",
+      "params": {
+        "operation": "sin",
+        "implementation": "auto",
+        "iterations": 16
+      },
+      "position": {
+        "x": 600,
+        "y": 400
+      }
+    },
+    {
+      "id": "c_amp_el",
+      "type": "Constant",
+      "label": "45.0",
+      "params": {
+        "value": 45
+      },
+      "position": {
+        "x": 600,
+        "y": 480
+      }
+    },
+    {
+      "id": "mult_amp_el",
+      "type": "Multiply",
+      "label": "45 * sin",
+      "params": {},
+      "position": {
+        "x": 730,
+        "y": 400
+      }
+    },
+    {
+      "id": "c_off_el",
+      "type": "Constant",
+      "label": "90.0",
+      "params": {
+        "value": 90
+      },
+      "position": {
+        "x": 730,
+        "y": 480
+      }
+    },
+    {
+      "id": "add_el",
+      "type": "Add",
+      "label": "90 + ...",
+      "params": {},
+      "position": {
+        "x": 860,
+        "y": 400
+      }
+    },
+    {
+      "id": "sat_el",
+      "type": "Saturation",
+      "label": "Clamp Elbow",
+      "params": {
+        "min": 0,
+        "max": 180
+      },
+      "position": {
+        "x": 980,
+        "y": 400
+      }
+    },
+    {
+      "id": "c_mult_wr",
+      "type": "Constant",
+      "label": "1.5",
+      "params": {
+        "value": 1.5
+      },
+      "position": {
+        "x": 200,
+        "y": 550
+      }
+    },
+    {
+      "id": "mult_wr",
+      "type": "Multiply",
+      "label": "1.5 * t",
+      "params": {},
+      "position": {
+        "x": 350,
+        "y": 550
+      }
+    },
+    {
+      "id": "cordic_wr",
+      "type": "CordicOp",
+      "label": "Sin Wrist",
+      "params": {
+        "operation": "sin",
+        "implementation": "auto",
+        "iterations": 16
+      },
+      "position": {
+        "x": 500,
+        "y": 550
+      }
+    },
+    {
+      "id": "c_amp_wr",
+      "type": "Constant",
+      "label": "90.0",
+      "params": {
+        "value": 90
+      },
+      "position": {
+        "x": 500,
+        "y": 630
+      }
+    },
+    {
+      "id": "mult_amp_wr",
+      "type": "Multiply",
+      "label": "90 * sin",
+      "params": {},
+      "position": {
+        "x": 650,
+        "y": 550
+      }
+    },
+    {
+      "id": "c_off_wr",
+      "type": "Constant",
+      "label": "90.0",
+      "params": {
+        "value": 90
+      },
+      "position": {
+        "x": 650,
+        "y": 630
+      }
+    },
+    {
+      "id": "add_wr",
+      "type": "Add",
+      "label": "90 + ...",
+      "params": {},
+      "position": {
+        "x": 800,
+        "y": 550
+      }
+    },
+    {
+      "id": "sat_wr",
+      "type": "Saturation",
+      "label": "Clamp Wrist",
+      "params": {
+        "min": 0,
+        "max": 180
+      },
+      "position": {
+        "x": 950,
+        "y": 550
+      }
+    },
+    {
+      "id": "custom_uart_fmt",
+      "type": "CustomCode",
+      "label": "Format CSV & UART Transmit",
+      "params": {
+        "inputs": [
+          "base",
+          "shoulder",
+          "elbow",
+          "wrist"
+        ],
+        "code": "char buf[128];\nint len = snprintf(buf, sizeof(buf), \"%.2f,%.2f,%.2f,%.2f\n\", base, shoulder, elbow, wrist);\nhyp_actuator_write(\"uart.uart0\", buf, len);"
+      },
+      "position": {
+        "x": 1150,
+        "y": 320
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_base_1",
+      "from": {
+        "node": "time_1",
+        "port": "value"
+      },
+      "to": {
+        "node": "mult_base",
+        "port": "a"
+      }
+    },
+    {
+      "id": "e_base_2",
+      "from": {
+        "node": "c_mult_base",
+        "port": "value"
+      },
+      "to": {
+        "node": "mult_base",
+        "port": "b"
+      }
+    },
+    {
+      "id": "e_base_3",
+      "from": {
+        "node": "mult_base",
+        "port": "value"
+      },
+      "to": {
+        "node": "cordic_base",
+        "port": "angle_rad"
+      }
+    },
+    {
+      "id": "e_base_4",
+      "from": {
+        "node": "cordic_base",
+        "port": "value"
+      },
+      "to": {
+        "node": "mult_amp_base",
+        "port": "a"
+      }
+    },
+    {
+      "id": "e_base_5",
+      "from": {
+        "node": "c_amp_base",
+        "port": "value"
+      },
+      "to": {
+        "node": "mult_amp_base",
+        "port": "b"
+      }
+    },
+    {
+      "id": "e_base_6",
+      "from": {
+        "node": "mult_amp_base",
+        "port": "value"
+      },
+      "to": {
+        "node": "add_base",
+        "port": "a"
+      }
+    },
+    {
+      "id": "e_base_7",
+      "from": {
+        "node": "c_off_base",
+        "port": "value"
+      },
+      "to": {
+        "node": "add_base",
+        "port": "b"
+      }
+    },
+    {
+      "id": "e_base_8",
+      "from": {
+        "node": "add_base",
+        "port": "value"
+      },
+      "to": {
+        "node": "sat_base",
+        "port": "input"
+      }
+    },
+    {
+      "id": "e_base_9",
+      "from": {
+        "node": "sat_base",
+        "port": "value"
+      },
+      "to": {
+        "node": "custom_uart_fmt",
+        "port": "base"
+      }
+    },
+    {
+      "id": "e_sh_1",
+      "from": {
+        "node": "time_1",
+        "port": "value"
+      },
+      "to": {
+        "node": "mult_sh",
+        "port": "a"
+      }
+    },
+    {
+      "id": "e_sh_2",
+      "from": {
+        "node": "c_mult_sh",
+        "port": "value"
+      },
+      "to": {
+        "node": "mult_sh",
+        "port": "b"
+      }
+    },
+    {
+      "id": "e_sh_3",
+      "from": {
+        "node": "mult_sh",
+        "port": "value"
+      },
+      "to": {
+        "node": "cordic_sh",
+        "port": "angle_rad"
+      }
+    },
+    {
+      "id": "e_sh_4",
+      "from": {
+        "node": "cordic_sh",
+        "port": "value"
+      },
+      "to": {
+        "node": "mult_amp_sh",
+        "port": "a"
+      }
+    },
+    {
+      "id": "e_sh_5",
+      "from": {
+        "node": "c_amp_sh",
+        "port": "value"
+      },
+      "to": {
+        "node": "mult_amp_sh",
+        "port": "b"
+      }
+    },
+    {
+      "id": "e_sh_6",
+      "from": {
+        "node": "mult_amp_sh",
+        "port": "value"
+      },
+      "to": {
+        "node": "add_sh",
+        "port": "a"
+      }
+    },
+    {
+      "id": "e_sh_7",
+      "from": {
+        "node": "c_off_sh",
+        "port": "value"
+      },
+      "to": {
+        "node": "add_sh",
+        "port": "b"
+      }
+    },
+    {
+      "id": "e_sh_8",
+      "from": {
+        "node": "add_sh",
+        "port": "value"
+      },
+      "to": {
+        "node": "sat_sh",
+        "port": "input"
+      }
+    },
+    {
+      "id": "e_sh_9",
+      "from": {
+        "node": "sat_sh",
+        "port": "value"
+      },
+      "to": {
+        "node": "custom_uart_fmt",
+        "port": "shoulder"
+      }
+    },
+    {
+      "id": "e_el_1",
+      "from": {
+        "node": "time_1",
+        "port": "value"
+      },
+      "to": {
+        "node": "mult_el",
+        "port": "a"
+      }
+    },
+    {
+      "id": "e_el_2",
+      "from": {
+        "node": "c_mult_el",
+        "port": "value"
+      },
+      "to": {
+        "node": "mult_el",
+        "port": "b"
+      }
+    },
+    {
+      "id": "e_el_3",
+      "from": {
+        "node": "mult_el",
+        "port": "value"
+      },
+      "to": {
+        "node": "add_phase_el",
+        "port": "a"
+      }
+    },
+    {
+      "id": "e_el_4",
+      "from": {
+        "node": "c_phase_el",
+        "port": "value"
+      },
+      "to": {
+        "node": "add_phase_el",
+        "port": "b"
+      }
+    },
+    {
+      "id": "e_el_5",
+      "from": {
+        "node": "add_phase_el",
+        "port": "value"
+      },
+      "to": {
+        "node": "cordic_el",
+        "port": "angle_rad"
+      }
+    },
+    {
+      "id": "e_el_6",
+      "from": {
+        "node": "cordic_el",
+        "port": "value"
+      },
+      "to": {
+        "node": "mult_amp_el",
+        "port": "a"
+      }
+    },
+    {
+      "id": "e_el_7",
+      "from": {
+        "node": "c_amp_el",
+        "port": "value"
+      },
+      "to": {
+        "node": "mult_amp_el",
+        "port": "b"
+      }
+    },
+    {
+      "id": "e_el_8",
+      "from": {
+        "node": "mult_amp_el",
+        "port": "value"
+      },
+      "to": {
+        "node": "add_el",
+        "port": "a"
+      }
+    },
+    {
+      "id": "e_el_9",
+      "from": {
+        "node": "c_off_el",
+        "port": "value"
+      },
+      "to": {
+        "node": "add_el",
+        "port": "b"
+      }
+    },
+    {
+      "id": "e_el_10",
+      "from": {
+        "node": "add_el",
+        "port": "value"
+      },
+      "to": {
+        "node": "sat_el",
+        "port": "input"
+      }
+    },
+    {
+      "id": "e_el_11",
+      "from": {
+        "node": "sat_el",
+        "port": "value"
+      },
+      "to": {
+        "node": "custom_uart_fmt",
+        "port": "elbow"
+      }
+    },
+    {
+      "id": "e_wr_1",
+      "from": {
+        "node": "time_1",
+        "port": "value"
+      },
+      "to": {
+        "node": "mult_wr",
+        "port": "a"
+      }
+    },
+    {
+      "id": "e_wr_2",
+      "from": {
+        "node": "c_mult_wr",
+        "port": "value"
+      },
+      "to": {
+        "node": "mult_wr",
+        "port": "b"
+      }
+    },
+    {
+      "id": "e_wr_3",
+      "from": {
+        "node": "mult_wr",
+        "port": "value"
+      },
+      "to": {
+        "node": "cordic_wr",
+        "port": "angle_rad"
+      }
+    },
+    {
+      "id": "e_wr_4",
+      "from": {
+        "node": "cordic_wr",
+        "port": "value"
+      },
+      "to": {
+        "node": "mult_amp_wr",
+        "port": "a"
+      }
+    },
+    {
+      "id": "e_wr_5",
+      "from": {
+        "node": "c_amp_wr",
+        "port": "value"
+      },
+      "to": {
+        "node": "mult_amp_wr",
+        "port": "b"
+      }
+    },
+    {
+      "id": "e_wr_6",
+      "from": {
+        "node": "mult_amp_wr",
+        "port": "value"
+      },
+      "to": {
+        "node": "add_wr",
+        "port": "a"
+      }
+    },
+    {
+      "id": "e_wr_7",
+      "from": {
+        "node": "c_off_wr",
+        "port": "value"
+      },
+      "to": {
+        "node": "add_wr",
+        "port": "b"
+      }
+    },
+    {
+      "id": "e_wr_8",
+      "from": {
+        "node": "add_wr",
+        "port": "value"
+      },
+      "to": {
+        "node": "sat_wr",
+        "port": "input"
+      }
+    },
+    {
+      "id": "e_wr_9",
+      "from": {
+        "node": "sat_wr",
+        "port": "value"
+      },
+      "to": {
+        "node": "custom_uart_fmt",
+        "port": "wrist"
+      }
+    }
+  ],
+  "metadata": {
+    "externalBindings": [
+      {
+        "input": "angle_rad",
+        "to": {
+          "node": "cordic_base",
+          "port": "angle_rad"
+        }
+      },
+      {
+        "input": "angle_rad",
+        "to": {
+          "node": "cordic_sh",
+          "port": "angle_rad"
+        }
+      },
+      {
+        "input": "angle_rad",
+        "to": {
+          "node": "cordic_el",
+          "port": "angle_rad"
+        }
+      },
+      {
+        "input": "angle_rad",
+        "to": {
+          "node": "cordic_wr",
+          "port": "angle_rad"
+        }
+      }
+    ]
+  }
+}

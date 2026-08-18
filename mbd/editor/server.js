@@ -34,6 +34,9 @@ const HYPRACCEL_DIR = path.join(REPO_ROOT, '.hypraccel');
 const PROJECTS_ROOT = process.env.HYPRACCEL_PROJECTS_ROOT || path.join(HYPRACCEL_DIR, 'projects');
 const HARDWARE_CONFIG = process.env.HYPRACCEL_HARDWARE_CONFIG || path.join(HYPRACCEL_DIR, 'hardware.json');
 const PROJECT_ID = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
+// Graph identifiers deliberately use the same conservative grammar as project
+// identifiers.  They are filename stems, never browser-supplied paths.
+const GRAPH_ID = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 const RESOURCE_SIGNAL_ROLES = Object.freeze({
     spi: new Set(['sck', 'mosi', 'miso', 'cs']),
     uart: new Set(['tx', 'rx']),
@@ -60,6 +63,10 @@ app.get('/', (req, res) => {
 });
 
 app.get('/graph', (req, res) => {
+    res.sendFile(path.join(__dirname, 'src/graph_editor.html'));
+});
+
+app.get('/graph_editor', (req, res) => {
     res.sendFile(path.join(__dirname, 'src/graph_editor.html'));
 });
 
@@ -263,6 +270,21 @@ function assertProjectId(id) {
     return id;
 }
 
+function assertGraphId(id) {
+    if (typeof id !== 'string' || !GRAPH_ID.test(id)) {
+        throw new Error('Graph id must start with a letter and contain only letters, numbers, hyphens, or underscores.');
+    }
+    return id;
+}
+
+function graphDisplayName(name, fallback) {
+    if (name == null || name === '') return fallback;
+    if (typeof name !== 'string' || !name.trim() || name.trim().length > 120) {
+        throw new Error('Graph name must be a non-empty string no longer than 120 characters.');
+    }
+    return name.trim();
+}
+
 function projectPaths(id) {
     id = assertProjectId(id);
     const projectDir = path.resolve(PROJECTS_ROOT, id);
@@ -272,12 +294,28 @@ function projectPaths(id) {
         projectDir,
         manifest: path.join(projectDir, 'project.json'),
         hardware: path.join(projectDir, 'hardware', 'hardware.json'),
-        graph: path.join(projectDir, 'graph', 'graph.json'),
+        // legacyGraph is kept solely for lazy, non-destructive migration.
+        legacyGraph: path.join(projectDir, 'graph', 'graph.json'),
+        graphsDir: path.join(projectDir, 'graphs'),
         generated: path.join(projectDir, 'generated'),
         platformio: path.join(projectDir, 'platformio.ini'),
         buildDir: path.join(projectDir, 'build'),
         buildLog: path.join(projectDir, 'build', 'build.log')
     };
+}
+
+function projectGraphPath(id, graphId) {
+    const paths = projectPaths(id);
+    graphId = assertGraphId(graphId);
+    const projectReal = fs.realpathSync(paths.projectDir);
+    if (fs.existsSync(paths.graphsDir)) {
+        const graphsReal = fs.realpathSync(paths.graphsDir);
+        if (!graphsReal.startsWith(projectReal + path.sep)) throw new Error('Invalid graph directory.');
+    }
+    const graphPath = path.resolve(paths.graphsDir, `${graphId}.json`);
+    if (!graphPath.startsWith(paths.graphsDir + path.sep)) throw new Error('Invalid graph path.');
+    if (fs.existsSync(graphPath) && fs.lstatSync(graphPath).isSymbolicLink()) throw new Error('Graph files may not be symbolic links.');
+    return graphPath;
 }
 
 function readJson(file, label) {
@@ -298,6 +336,11 @@ function requestedProjectId(req) {
     const candidate = req.query && (req.query.projectId || req.query.project)
         || req.body && req.body.projectId;
     return candidate == null || candidate === '' ? null : assertProjectId(candidate);
+}
+
+function requestedGraphId(req) {
+    const candidate = req.query && req.query.graphId || req.body && req.body.graphId;
+    return candidate == null || candidate === '' ? null : assertGraphId(candidate);
 }
 
 function hardwareConfigPath(projectId) {
@@ -388,8 +431,9 @@ function projectHardware(boardKey, assignments, configurations = {}, devices = [
  * Persistent project store
  *
  * project.json is a manifest, not another copy of hardware or graph state.
- * The board lives only in hardware/hardware.json and the graph id lives only
- * in graph/graph.json.  API responses derive those convenient summary fields.
+ * Hardware lives only in hardware/hardware.json.  Graph documents are
+ * canonical files in graphs/<graphId>.json; the manifest stores only the
+ * active/artifact graph references needed to describe project state.
  * ----------------------------------------------------------------------- */
 function canonicalHardware(payload) {
     if (!payload || typeof payload !== 'object' || !payload.board) {
@@ -420,19 +464,113 @@ function readProjectManifest(id) {
     if (manifest.id !== id || manifest.format !== 'hypraccel.project' || manifest.version !== 1) {
         throw new Error(`Project '${id}' has an invalid manifest.`);
     }
+    return migrateLegacyProjectGraph(id, manifest);
+}
+
+/* Legacy projects had a sole graph at graph/graph.json.  Migration is lazy:
+ * the first project operation copies that valid document into the graph-file
+ * store, updates only manifest references, and deliberately leaves the legacy
+ * file untouched as a recoverable compatibility copy. */
+function migrateLegacyProjectGraph(id, manifest) {
+    const paths = projectPaths(id);
+    if (manifest.graphs && manifest.graphs.path === 'graphs') return manifest;
+    const legacy = readJson(paths.legacyGraph, 'legacy project graph');
+    if (legacy) {
+        const graph = assertGraphDocument(legacy);
+        const graphId = assertGraphId(graph.id);
+        const destination = projectGraphPath(id, graphId);
+        if (!fs.existsSync(destination)) writeJson(destination, graph);
+        manifest.activeGraphId = manifest.activeGraphId || graphId;
+    }
+    delete manifest.graph;
+    manifest.graphs = { path: 'graphs' };
+    manifest.updatedAt = manifest.updatedAt || new Date().toISOString();
+    writeJson(paths.manifest, manifest);
     return manifest;
+}
+
+function listProjectGraphs(id) {
+    const paths = projectPaths(id);
+    readProjectManifest(id);
+    try {
+        return fs.readdirSync(paths.graphsDir, { withFileTypes: true })
+            .filter(entry => entry.isFile() && entry.name.endsWith('.json'))
+            .map(entry => {
+                const graphId = entry.name.slice(0, -'.json'.length);
+                if (!GRAPH_ID.test(graphId)) return null;
+                const graph = readJson(path.join(paths.graphsDir, entry.name), `graph '${graphId}'`);
+                if (!graph) return null;
+                assertGraphDocument(graph);
+                if (graph.id !== graphId) throw new Error(`Graph file '${entry.name}' has an id that does not match its filename.`);
+                return { id: graphId, name: graphDisplayName(graph.name, graphId), filename: entry.name };
+            })
+            .filter(Boolean)
+            .sort((a, b) => a.filename.localeCompare(b.filename));
+    } catch (err) {
+        if (err.code === 'ENOENT') return [];
+        throw err;
+    }
+}
+
+function readProjectGraph(id, graphId) {
+    readProjectManifest(id);
+    const graph = readJson(projectGraphPath(id, graphId), `project graph '${graphId}'`);
+    if (!graph) {
+        const err = new Error(`Graph '${graphId}' was not found in project '${id}'.`);
+        err.code = 'ENOENT';
+        throw err;
+    }
+    assertGraphDocument(graph);
+    if (graph.id !== graphId) throw new Error(`Graph '${graphId}' has an inconsistent document id.`);
+    return graph;
+}
+
+function resolveProjectGraphId(id, graphId = null) {
+    const manifest = readProjectManifest(id);
+    if (graphId != null && graphId !== '') return assertGraphId(graphId);
+    if (manifest.activeGraphId) return assertGraphId(manifest.activeGraphId);
+    const graphs = listProjectGraphs(id);
+    if (graphs.length) return graphs[0].id;
+    const err = new Error(`Project '${id}' has no graph files.`);
+    err.code = 'ENOENT';
+    throw err;
+}
+
+function updateProjectGraphReferences(id, changes) {
+    const paths = projectPaths(id);
+    const manifest = readProjectManifest(id);
+    Object.assign(manifest, changes, { updatedAt: new Date().toISOString() });
+    writeJson(paths.manifest, manifest);
+    return manifest;
+}
+
+function invalidateProjectArtifactsForGraph(id, graphId) {
+    const paths = projectPaths(id);
+    const manifest = readProjectManifest(id);
+    if (manifest.generatedGraphId !== graphId && manifest.buildGraphId !== graphId) return;
+    fs.rmSync(paths.generated, { recursive: true, force: true });
+    fs.rmSync(paths.buildDir, { recursive: true, force: true });
+    if (manifest.generatedGraphId === graphId) manifest.generatedGraphId = null;
+    if (manifest.buildGraphId === graphId) manifest.buildGraphId = null;
+    manifest.updatedAt = new Date().toISOString();
+    writeJson(paths.manifest, manifest);
 }
 
 function projectResponse(id, includeComponents = true) {
     const manifest = readProjectManifest(id);
     const paths = projectPaths(id);
     const hardware = readJson(paths.hardware, 'project hardware');
-    const graph = readJson(paths.graph, 'project graph');
+    const graphs = listProjectGraphs(id);
+    const activeGraphId = manifest.activeGraphId && graphs.some(graph => graph.id === manifest.activeGraphId)
+        ? manifest.activeGraphId : (graphs[0] && graphs[0].id || null);
+    const graph = activeGraphId ? readProjectGraph(id, activeGraphId) : null;
     const response = {
         ...manifest,
         board: hardware && hardware.board || null,
-        graphId: graph && graph.id || null,
-        components: { hardware: Boolean(hardware), graph: Boolean(graph) }
+        activeGraphId,
+        graphId: activeGraphId, // temporary response compatibility for existing project clients
+        graphs,
+        components: { hardware: Boolean(hardware), graph: Boolean(graph), graphs: graphs.length > 0 }
     };
     if (includeComponents) {
         response.hardware = hardware;
@@ -452,14 +590,19 @@ function createProject(input) {
     const manifest = {
         format: 'hypraccel.project', version: 1, id, name: input.name.trim(),
         hardware: { path: 'hardware/hardware.json' },
-        graph: { path: 'graph/graph.json' },
+        graphs: { path: 'graphs' },
         createdAt: now, updatedAt: now
     };
     fs.mkdirSync(paths.projectDir, { recursive: true });
     try {
         writeJson(paths.manifest, manifest);
         if (input.hardware != null) writeHardwareConfig(canonicalHardware(input.hardware), id);
-        if (input.graph != null) writeJson(paths.graph, assertGraphDocument(input.graph));
+        if (input.graph != null) {
+            const graph = assertGraphDocument(input.graph);
+            writeJson(projectGraphPath(id, graph.id), graph);
+            manifest.activeGraphId = graph.id;
+            writeJson(paths.manifest, manifest);
+        }
         return projectResponse(id);
     } catch (err) {
         fs.rmSync(paths.projectDir, { recursive: true, force: true });
@@ -481,20 +624,31 @@ function updateProject(id, input) {
         manifest.name = input.name.trim();
     }
     if (input.hardware != null) writeHardwareConfig(canonicalHardware(input.hardware), id);
-    if (input.graph != null) writeJson(paths.graph, assertGraphDocument(input.graph));
+    if (input.graph != null) {
+        const graph = assertGraphDocument(input.graph);
+        writeProjectGraph(id, graph.id, graph, { create: !fs.existsSync(projectGraphPath(id, graph.id)) });
+    }
     manifest.updatedAt = new Date().toISOString();
     writeJson(paths.manifest, manifest);
     return projectResponse(id);
 }
 
-function writeProjectGraph(id, graph) {
+function writeProjectGraph(id, graphId, graph, options = {}) {
     readProjectManifest(id);
-    const paths = projectPaths(id);
-    writeJson(paths.graph, assertGraphDocument(graph));
-    const manifest = readProjectManifest(id);
-    manifest.updatedAt = new Date().toISOString();
-    writeJson(paths.manifest, manifest);
-    return projectResponse(id);
+    graphId = assertGraphId(graphId);
+    graph = assertGraphDocument(graph);
+    if (graph.id !== graphId) throw new Error('Graph document id must match the graph file id.');
+    graph.name = graphDisplayName(graph.name, graphId);
+    const graphPath = projectGraphPath(id, graphId);
+    if (options.create && fs.existsSync(graphPath)) {
+        const err = new Error(`Graph '${graphId}' already exists.`);
+        err.code = 'EEXIST';
+        throw err;
+    }
+    writeJson(graphPath, graph);
+    invalidateProjectArtifactsForGraph(id, graphId);
+    updateProjectGraphReferences(id, { activeGraphId: graphId });
+    return { graph, project: projectResponse(id) };
 }
 
 function writeProjectBuildLog(id, content) {
@@ -578,14 +732,14 @@ function injectHardwareHeader(headerPath, hardware) {
     fs.writeFileSync(headerPath, headerText, 'utf8');
 }
 
-function loadProjectInputs(projectId) {
+function loadProjectInputs(projectId, graphId = null) {
     const paths = projectPaths(projectId);
     readProjectManifest(projectId);
     const hardware = readJson(paths.hardware, 'project hardware');
-    const graph = readJson(paths.graph, 'project graph');
+    const selectedGraphId = resolveProjectGraphId(projectId, graphId);
+    const graph = readProjectGraph(projectId, selectedGraphId);
     if (!hardware) throw new Error(`Project '${projectId}' has no hardware configuration.`);
-    if (!graph) throw new Error(`Project '${projectId}' has no graph configuration.`);
-    return { paths, hardware, graph: assertGraphDocument(graph) };
+    return { paths, hardware, graphId: selectedGraphId, graph: assertGraphDocument(graph) };
 }
 
 app.get('/api/hardware', (req, res) => {
@@ -633,6 +787,7 @@ function validateGraphHardwareResources(graph, projectId = null, hardwareOverrid
 
 function sendProjectError(res, err) {
     if (err && err.code === 'ENOENT') return res.status(404).json({ error: err.message });
+    if (err && (err.code === 'EEXIST' || err.code === 'EINVARIANT')) return res.status(409).json({ error: err.message });
     return res.status(400).json({ error: err.message || 'Project operation failed.' });
 }
 
@@ -690,6 +845,11 @@ app.get('/api/projects/:id/status', (req, res) => {
         const paths = projectPaths(id);
         res.json({
             project,
+            graphArtifacts: {
+                activeGraphId: project.activeGraphId,
+                generatedGraphId: project.generatedGraphId || null,
+                buildGraphId: project.buildGraphId || null
+            },
             generated: listProjectFiles(paths.generated),
             build: {
                 log: fs.existsSync(paths.buildLog) ? 'build/build.log' : null,
@@ -753,21 +913,140 @@ app.put('/api/projects/:id/hardware', (req, res) => {
     } catch (err) { sendProjectError(res, err); }
 });
 
+/* Project-local graph file API.  graphId is always an identifier, never a
+ * relative filename or path supplied by the browser. */
+app.get('/api/projects/:id/graphs', (req, res) => {
+    try {
+        const id = assertProjectId(req.params.id);
+        const manifest = readProjectManifest(id);
+        res.json({ graphs: listProjectGraphs(id), activeGraphId: manifest.activeGraphId || null });
+    } catch (err) { sendProjectError(res, err); }
+});
+
+app.get('/api/projects/:id/graphs/:graphId', (req, res) => {
+    try {
+        const id = assertProjectId(req.params.id);
+        const graphId = assertGraphId(req.params.graphId);
+        res.json(readProjectGraph(id, graphId));
+    } catch (err) { sendProjectError(res, err); }
+});
+
+app.post('/api/projects/:id/graphs', (req, res) => {
+    try {
+        const id = assertProjectId(req.params.id);
+        const body = req.body || {};
+        const graph = body.graph || body;
+        const graphId = assertGraphId(body.graphId || graph.id);
+        graph.id = graphId;
+        graph.name = graphDisplayName(body.name || graph.name, graphId);
+        const saved = writeProjectGraph(id, graphId, graph, { create: true });
+        res.status(201).json({ success: true, graph: saved.graph, project: saved.project });
+    } catch (err) { sendProjectError(res, err); }
+});
+
+app.put('/api/projects/:id/graphs/:graphId', (req, res) => {
+    try {
+        const id = assertProjectId(req.params.id);
+        const graphId = assertGraphId(req.params.graphId);
+        const body = req.body || {};
+        const graph = body.graph || body;
+        graph.id = graphId;
+        if (body.name != null) graph.name = graphDisplayName(body.name, graphId);
+        const saved = writeProjectGraph(id, graphId, graph);
+        res.json({ success: true, graph: saved.graph, project: saved.project });
+    } catch (err) { sendProjectError(res, err); }
+});
+
+app.post('/api/projects/:id/graphs/:graphId/activate', (req, res) => {
+    try {
+        const id = assertProjectId(req.params.id);
+        const graphId = assertGraphId(req.params.graphId);
+        readProjectGraph(id, graphId);
+        updateProjectGraphReferences(id, { activeGraphId: graphId });
+        res.json({ success: true, activeGraphId: graphId });
+    } catch (err) { sendProjectError(res, err); }
+});
+
+app.put('/api/projects/:id/graphs/:graphId/rename', (req, res) => {
+    try {
+        const id = assertProjectId(req.params.id);
+        const oldGraphId = assertGraphId(req.params.graphId);
+        const newGraphId = assertGraphId(req.body && req.body.graphId);
+        if (newGraphId === oldGraphId) return res.json({ success: true, graph: readProjectGraph(id, oldGraphId), project: projectResponse(id) });
+        const oldPath = projectGraphPath(id, oldGraphId);
+        const newPath = projectGraphPath(id, newGraphId);
+        const graph = readProjectGraph(id, oldGraphId);
+        if (fs.existsSync(newPath)) {
+            const err = new Error(`Graph '${newGraphId}' already exists.`);
+            err.code = 'EEXIST';
+            throw err;
+        }
+        graph.id = newGraphId;
+        graph.name = graphDisplayName(req.body && req.body.name, graph.name || newGraphId);
+        writeJson(newPath, graph);
+        fs.unlinkSync(oldPath);
+        const manifest = readProjectManifest(id);
+        const changes = {};
+        for (const key of ['activeGraphId', 'generatedGraphId', 'buildGraphId']) {
+            if (manifest[key] === oldGraphId) changes[key] = key === 'activeGraphId' ? newGraphId : null;
+        }
+        if (manifest.generatedGraphId === oldGraphId || manifest.buildGraphId === oldGraphId) {
+            fs.rmSync(projectPaths(id).generated, { recursive: true, force: true });
+            fs.rmSync(projectPaths(id).buildDir, { recursive: true, force: true });
+        }
+        updateProjectGraphReferences(id, changes);
+        res.json({ success: true, graph, project: projectResponse(id) });
+    } catch (err) { sendProjectError(res, err); }
+});
+
+app.delete('/api/projects/:id/graphs/:graphId', (req, res) => {
+    try {
+        const id = assertProjectId(req.params.id);
+        const graphId = assertGraphId(req.params.graphId);
+        const graphs = listProjectGraphs(id);
+        if (!graphs.some(graph => graph.id === graphId)) {
+            const err = new Error(`Graph '${graphId}' was not found in project '${id}'.`);
+            err.code = 'ENOENT';
+            throw err;
+        }
+        if (graphs.length <= 1) {
+            const err = new Error('A project must retain at least one graph file. Create another graph before deleting this one.');
+            err.code = 'EINVARIANT';
+            throw err;
+        }
+        fs.unlinkSync(projectGraphPath(id, graphId));
+        const manifest = readProjectManifest(id);
+        const nextGraphId = graphs.find(graph => graph.id !== graphId).id;
+        const changes = {};
+        if (manifest.activeGraphId === graphId) changes.activeGraphId = nextGraphId;
+        if (manifest.generatedGraphId === graphId || manifest.buildGraphId === graphId) {
+            fs.rmSync(projectPaths(id).generated, { recursive: true, force: true });
+            fs.rmSync(projectPaths(id).buildDir, { recursive: true, force: true });
+            changes.generatedGraphId = null;
+            changes.buildGraphId = null;
+        }
+        updateProjectGraphReferences(id, changes);
+        res.json({ success: true, activeGraphId: projectResponse(id, false).activeGraphId });
+    } catch (err) { sendProjectError(res, err); }
+});
+
+/* Compatibility aliases select the manifest's explicit active graph; all
+ * first-party UI flows use the file API above and pass graphId explicitly. */
 app.get('/api/projects/:id/graph', (req, res) => {
     try {
         const id = assertProjectId(req.params.id);
-        readProjectManifest(id);
-        const graph = readJson(projectPaths(id).graph, 'project graph');
-        if (!graph) return res.status(404).json({ error: 'Project graph has not been configured.' });
-        res.json(assertGraphDocument(graph));
+        res.json(readProjectGraph(id, resolveProjectGraphId(id)));
     } catch (err) { sendProjectError(res, err); }
 });
 
 app.put('/api/projects/:id/graph', (req, res) => {
     try {
         const id = assertProjectId(req.params.id);
-        const project = writeProjectGraph(id, req.body);
-        res.json({ success: true, graph: project.graph, project });
+        const graph = req.body || {};
+        const graphId = resolveProjectGraphId(id, graph.id);
+        graph.id = graphId;
+        const saved = writeProjectGraph(id, graphId, graph);
+        res.json({ success: true, graph: saved.graph, project: saved.project });
     } catch (err) { sendProjectError(res, err); }
 });
 
@@ -802,7 +1081,8 @@ app.delete('/api/projects/:id', (req, res) => {
 app.post('/api/generate', (req, res) => {
     try {
         const projectId = requestedProjectId(req);
-        const projectInputs = projectId ? loadProjectInputs(projectId) : null;
+        // Hardware generation is project-scoped but graph-independent.
+        const projectInputs = projectId ? { hardware: readHardwareConfig(projectId) } : null;
         const { board, assignments, configurations, devices } = projectInputs
             ? { board: projectInputs.hardware.board, assignments: projectInputs.hardware.assignments,
                 configurations: Object.fromEntries(Object.entries(projectInputs.hardware.resources || {})
@@ -878,10 +1158,12 @@ app.post('/api/generate', (req, res) => {
  * ----------------------------------------------------------------------- */
 app.post('/api/build', (req, res) => {
     let projectId = null;
+    let graphId = null;
     let graph = req.body && req.body.graph ? req.body.graph : req.body;
     try {
         projectId = requestedProjectId(req);
-        if (projectId) graph = loadProjectInputs(projectId).graph;
+        graphId = requestedGraphId(req);
+        if (projectId) graph = loadProjectInputs(projectId, graphId).graph;
     } catch (err) { return sendProjectError(res, err); }
     if (!graph || typeof graph !== 'object' || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
         return res.status(400).json({ error: 'Body must be a graph with nodes and edges arrays.' });
@@ -896,7 +1178,6 @@ app.post('/api/build', (req, res) => {
         fs.writeFileSync(graphPath, JSON.stringify(graph, null, 2), 'utf8');
         execFileSync(process.execPath, [GRAPH_CODEGEN, graphPath, outputPath], { encoding: 'utf8', stdio: 'pipe' });
         const source = fs.readFileSync(outputPath, 'utf8');
-        if (projectId) writeProjectGraph(projectId, graph);
         res.json({ success: true, graph, source });
     } catch (err) {
         const detail = err.stderr ? String(err.stderr).trim() : err.message;
@@ -979,10 +1260,10 @@ function graphStepSymbol(graph) {
     return `hyp_graph_${graph.id.replace(/-/g, '_')}_step`;
 }
 
-function materializeEsp32(graph, projectId = null) {
+function materializeEsp32(graph, projectId = null, graphId = null) {
     let projectInputs = null;
     if (projectId) {
-        projectInputs = loadProjectInputs(projectId);
+        projectInputs = loadProjectInputs(projectId, graphId);
         graph = projectInputs.graph;
     }
     const hardware = projectInputs ? projectInputs.hardware : readHardwareConfig();
@@ -1065,9 +1346,18 @@ void loop()
 `, 'utf8');
         if (projectId) {
             fs.writeFileSync(projectInputs.paths.platformio, projectPlatformioIni(hardware.board), 'utf8');
+            const manifest = readProjectManifest(projectId);
+            if (manifest.generatedGraphId && manifest.generatedGraphId !== projectInputs.graphId) {
+                fs.rmSync(projectInputs.paths.buildDir, { recursive: true, force: true });
+                manifest.buildGraphId = null;
+            }
+            manifest.generatedGraphId = projectInputs.graphId;
+            manifest.updatedAt = new Date().toISOString();
+            writeJson(projectInputs.paths.manifest, manifest);
         }
         return {
             source,
+            graphId: projectInputs ? projectInputs.graphId : graph.id,
             generatedDir: targetGenerated,
             platformio: projectId ? projectInputs.paths.platformio : path.join(ESP32_PROJECT, 'platformio.ini'),
             environment: platformioEnvironment(boardKey),
@@ -1087,10 +1377,10 @@ function validGraphBody(req, res) {
     return graph;
 }
 
-function captureProjectBuildArtifacts(projectId, log) {
+function captureProjectBuildArtifacts(projectId, graphId, log) {
     if (!projectId) return;
     writeProjectBuildLog(projectId, log);
-    const projectInputs = loadProjectInputs(projectId);
+    const projectInputs = loadProjectInputs(projectId, graphId);
     const environment = platformioEnvironment(projectInputs.hardware.board);
     const firmware = path.join(projectInputs.paths.projectDir, '.pio', 'build', environment, 'firmware.bin');
     if (fs.existsSync(firmware)) {
@@ -1098,22 +1388,22 @@ function captureProjectBuildArtifacts(projectId, log) {
         fs.mkdirSync(path.dirname(destination), { recursive: true });
         fs.copyFileSync(firmware, destination);
     }
+    updateProjectGraphReferences(projectId, { buildGraphId: projectInputs.graphId });
 }
 
-function compileProject(projectId) {
-    const inputs = loadProjectInputs(projectId);
-    const generated = materializeEsp32(inputs.graph, projectId);
+function compileProject(projectId, graphId = null) {
+    const inputs = loadProjectInputs(projectId, graphId);
+    const generated = materializeEsp32(inputs.graph, projectId, inputs.graphId);
     const result = commandResult(platformioCommand(), ['run', '--project-dir', inputs.paths.projectDir]);
-    captureProjectBuildArtifacts(projectId, result.output);
-    touchProject(projectId);
+    captureProjectBuildArtifacts(projectId, inputs.graphId, result.output);
     return { inputs, generated, result };
 }
 
 app.post('/api/projects/:id/generate', (req, res) => {
     try {
         const id = assertProjectId(req.params.id);
-        const inputs = loadProjectInputs(id);
-        const generated = materializeEsp32(inputs.graph, id);
+        const inputs = loadProjectInputs(id, requestedGraphId(req));
+        const generated = materializeEsp32(inputs.graph, id, inputs.graphId);
         res.json({ success: true, project: projectResponse(id), generated });
     } catch (err) { sendProjectError(res, err); }
 });
@@ -1121,7 +1411,30 @@ app.post('/api/projects/:id/generate', (req, res) => {
 app.post('/api/projects/:id/compile', (req, res) => {
     try {
         const id = assertProjectId(req.params.id);
-        const build = compileProject(id);
+        const build = compileProject(id, requestedGraphId(req));
+        res.status(build.result.ok ? 200 : 422).json({
+            success: build.result.ok, stage: 'Compiling', project: projectResponse(id, false),
+            generated: build.generated, log: build.result.output
+        });
+    } catch (err) { sendProjectError(res, err); }
+});
+
+/* Explicit graph-scoped generation/build routes used by the editor and
+ * workspace.  The project-only variants above remain compatibility aliases. */
+app.post('/api/projects/:id/graphs/:graphId/generate', (req, res) => {
+    try {
+        const id = assertProjectId(req.params.id);
+        const graphId = assertGraphId(req.params.graphId);
+        const inputs = loadProjectInputs(id, graphId);
+        const generated = materializeEsp32(inputs.graph, id, graphId);
+        res.json({ success: true, project: projectResponse(id), generated });
+    } catch (err) { sendProjectError(res, err); }
+});
+
+app.post('/api/projects/:id/graphs/:graphId/compile', (req, res) => {
+    try {
+        const id = assertProjectId(req.params.id);
+        const build = compileProject(id, assertGraphId(req.params.graphId));
         res.status(build.result.ok ? 200 : 422).json({
             success: build.result.ok, stage: 'Compiling', project: projectResponse(id, false),
             generated: build.generated, log: build.result.output
@@ -1139,7 +1452,7 @@ app.post('/api/compile', (req, res) => {
     })();
     if (requestedId) {
         try {
-            const build = compileProject(requestedId);
+            const build = compileProject(requestedId, requestedGraphId(req));
             return res.status(build.result.ok ? 200 : 422).json({
                 success: build.result.ok, stage: 'Compiling', project: projectResponse(requestedId, false),
                 generated: build.generated, log: build.result.output
@@ -1162,16 +1475,17 @@ app.post('/api/compile', (req, res) => {
 
 app.post('/api/flash', (req, res) => {
     let requestedId;
-    try { requestedId = requestedProjectId(req); } catch (err) { return res.status(400).json({ error: err.message }); }
+    let requestedGraph;
+    try { requestedId = requestedProjectId(req); requestedGraph = requestedGraphId(req); } catch (err) { return res.status(400).json({ error: err.message }); }
     if (requestedId) {
         try {
-            const build = compileProject(requestedId);
+            const build = compileProject(requestedId, requestedGraph);
             if (!build.result.ok) return res.status(422).json({ success: false, stage: 'Compiling', log: build.result.output });
             const selection = selectedSerialPort(req.body.port);
             if (selection.error) return res.status(422).json({ success: false, stage: 'Flashing', log: `${build.result.output}\n${selection.error}` });
             const flash = commandResult(platformioCommand(), ['run', '--project-dir', build.inputs.paths.projectDir, '--target', 'upload', '--upload-port', selection.port]);
             const log = `${build.result.output}\n\n${flash.output}`;
-            captureProjectBuildArtifacts(requestedId, log);
+            captureProjectBuildArtifacts(requestedId, build.inputs.graphId, log);
             return res.status(flash.ok ? 200 : 422).json({ success: flash.ok, stage: flash.ok ? 'Flashed' : 'Flashing', project: projectResponse(requestedId, false), log });
         } catch (err) { return sendProjectError(res, err); }
     }
@@ -1207,7 +1521,7 @@ app.post('/api/verify', (req, res) => {
     let graph;
     try {
         projectId = requestedProjectId(req);
-        graph = projectId ? loadProjectInputs(projectId).graph : validGraphBody(req, res);
+        graph = projectId ? loadProjectInputs(projectId, requestedGraphId(req)).graph : validGraphBody(req, res);
     } catch (err) { return sendProjectError(res, err); }
     if (!graph) return;
     try {
@@ -1243,8 +1557,9 @@ app.post('/api/project/generate', (req, res) => {
         const projectId = requestedProjectId(req);
         if (!projectId) return res.status(400).json({ error: 'projectId is required; use /api/projects to create a project.' });
         const graph = req.body.graph || req.body;
-        writeProjectGraph(projectId, graph);
-        materializeEsp32(graph, projectId);
+        const graphId = requestedGraphId(req) || graph.id;
+        writeProjectGraph(projectId, graphId, graph, { create: !fs.existsSync(projectGraphPath(projectId, graphId)) });
+        materializeEsp32(graph, projectId, graphId);
         res.json({ success: true, project: projectResponse(projectId) });
     } catch (err) { sendProjectError(res, err); }
 });

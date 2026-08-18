@@ -526,7 +526,7 @@
   </div>
   <nav class="nav-links">
     <a href="/" class="nav-btn">⚡ Hardware Setup</a>
-    <a href="/graph" class="nav-btn">📊 Graph Editor</a>
+    <a id="graphEditorLink" href="/graph" class="nav-btn">📊 Graph Editor</a>
     <a href="/workspace" class="nav-btn active">📁 Workspace</a>
   </nav>
 
@@ -653,6 +653,7 @@
    ──────────────────────────────────────────────────────────────────────── */
 let projectsList = [];
 let activeProjectId = null;
+let activeGraphId = null;
 let activeStatus = null;
 let activeSelectedPath = null;
 let consoleText = '';
@@ -677,6 +678,7 @@ async function apiFetch(url, options = {}) {
 async function initWorkspace() {
     const urlParams = new URLSearchParams(window.location.search);
     const paramProjectId = urlParams.get('projectId') || urlParams.get('project');
+    activeGraphId = urlParams.get('graphId') || null;
     const storedProjectId = localStorage.getItem('hypraccel_active_project_id');
     const preferredId = paramProjectId || storedProjectId;
 
@@ -746,6 +748,14 @@ async function loadProjectStatus(id) {
     try {
         const status = await apiFetch(`/api/projects/${encodeURIComponent(id)}/status`);
         activeStatus = status;
+        const graphs = (status.project && status.project.graphs) || [];
+        if (!activeGraphId || !graphs.some(graph => graph.id === activeGraphId)) activeGraphId = status.project && status.project.activeGraphId || (graphs[0] && graphs[0].id) || null;
+        const currentUrl = new URL(window.location);
+        if (activeGraphId) currentUrl.searchParams.set('graphId', activeGraphId); else currentUrl.searchParams.delete('graphId');
+        window.history.replaceState({}, '', currentUrl);
+        document.getElementById('graphEditorLink').href = activeGraphId
+            ? `/graph?projectId=${encodeURIComponent(activeProjectId)}&graphId=${encodeURIComponent(activeGraphId)}`
+            : `/graph?projectId=${encodeURIComponent(activeProjectId)}`;
         updateStatusStrip(status);
         renderProjectTree(status);
         
@@ -755,7 +765,8 @@ async function loadProjectStatus(id) {
         } else if (status.components && status.components.hardware) {
             loadSourceFile('hardware/hardware.json');
         } else {
-            loadSourceFile('graph/graph.json');
+            const graph = graphs.find(item => item.id === activeGraphId);
+            if (graph) loadSourceFile(`graphs/${graph.filename}`);
         }
 
         // Try loading build log into console if present
@@ -778,7 +789,7 @@ function updateStatusStrip(status) {
     const stGen = document.getElementById('stGenerated');
     const genCount = status.generated ? status.generated.length : 0;
     if (genCount > 0) {
-        stGen.textContent = `Generated (${genCount} files)`;
+        stGen.textContent = `Generated ${status.graphArtifacts && status.graphArtifacts.generatedGraphId ? `[${status.graphArtifacts.generatedGraphId}] ` : ''}(${genCount} files)`;
         stGen.className = 'status-badge badge-green';
     } else {
         stGen.textContent = 'Not Generated';
@@ -787,7 +798,7 @@ function updateStatusStrip(status) {
 
     const stBuild = document.getElementById('stBuild');
     if (status.build && status.build.log) {
-        stBuild.textContent = 'Build Log Available';
+        stBuild.textContent = `Build ${status.graphArtifacts && status.graphArtifacts.buildGraphId ? `[${status.graphArtifacts.buildGraphId}] ` : ''}available`;
         stBuild.className = 'status-badge badge-green';
     } else {
         stBuild.textContent = 'Idle / No Log';
@@ -827,12 +838,14 @@ function renderProjectTree(status) {
         fileCount++;
     }
 
-    // Graph folder
-    if (status.components && status.components.graph) {
-        addTreeFolder(container, 'graph/', [
-            { name: 'graph.json', path: 'graph/graph.json', icon: '📊' }
-        ]);
-        fileCount++;
+    // Graph files are canonical project-local documents. Selecting one opens
+    // that exact graph in the editor instead of creating another state model.
+    const graphFiles = ((status.project && status.project.graphs) || []).map(graph => ({
+        name: graph.filename, path: `graphs/${graph.filename}`, icon: '📊', graphId: graph.id
+    }));
+    if (graphFiles.length) {
+        addTreeFolder(container, 'graphs/', graphFiles);
+        fileCount += graphFiles.length;
     }
 
     // Generated folder
@@ -880,7 +893,10 @@ function addTreeFolder(parentEl, folderName, files) {
         fileEl.onclick = () => {
             document.querySelectorAll('.tree-file').forEach(el => el.classList.remove('active'));
             fileEl.classList.add('active');
-            if (file.isFirmware) {
+            if (file.graphId) {
+                activeGraphId = file.graphId;
+                window.open(`/graph?projectId=${encodeURIComponent(activeProjectId)}&graphId=${encodeURIComponent(file.graphId)}`, '_blank');
+            } else if (file.isFirmware) {
                 renderFirmwareArtifactView(file);
             } else {
                 loadSourceFile(file.path);
@@ -951,10 +967,10 @@ Binary Format: ESP32 Application Image (.bin)
    Actions (Generate, Compile, Flash, Verify)
    ──────────────────────────────────────────────────────────────────────── */
 async function runGenerate() {
-    if (!activeProjectId) return;
-    logConsole(`[ACTION] Starting generation for project '${activeProjectId}'...`, 'info');
+    if (!activeProjectId || !activeGraphId) return;
+    logConsole(`[ACTION] Starting generation for project '${activeProjectId}' graph '${activeGraphId}'...`, 'info');
     try {
-        const data = await apiFetch(`/api/projects/${encodeURIComponent(activeProjectId)}/generate`, { method: 'POST' });
+        const data = await apiFetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graphs/${encodeURIComponent(activeGraphId)}/generate`, { method: 'POST' });
         logConsole(`✓ Generation succeeded for '${activeProjectId}'. Materialized sources: ${data.generated ? (data.generated.environment || 'esp32') : 'ready'}.`, 'ok');
         await loadProjectStatus(activeProjectId);
         if (activeStatus && activeStatus.generated && activeStatus.generated.includes('graph.c')) {
@@ -966,10 +982,10 @@ async function runGenerate() {
 }
 
 async function runCompile() {
-    if (!activeProjectId) return;
+    if (!activeProjectId || !activeGraphId) return;
     logConsole(`[ACTION] Starting build/compile for project '${activeProjectId}'...`, 'info');
     try {
-        const data = await apiFetch(`/api/projects/${encodeURIComponent(activeProjectId)}/compile`, { method: 'POST' });
+        const data = await apiFetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graphs/${encodeURIComponent(activeGraphId)}/compile`, { method: 'POST' });
         if (data.log) setConsoleLog(data.log);
         logConsole(`✓ Build completed for '${activeProjectId}'. Status: ${data.success ? 'SUCCESS' : 'FAILED'}.`, data.success ? 'ok' : 'err');
         await loadProjectStatus(activeProjectId);
@@ -980,13 +996,13 @@ async function runCompile() {
 }
 
 async function runFlash() {
-    if (!activeProjectId) return;
+    if (!activeProjectId || !activeGraphId) return;
     logConsole(`[ACTION] Starting Flash for project '${activeProjectId}'...`, 'info');
     try {
         const data = await apiFetch('/api/flash', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ projectId: activeProjectId })
+            body: JSON.stringify({ projectId: activeProjectId, graphId: activeGraphId })
         });
         if (data.log) setConsoleLog(data.log);
         logConsole(`✓ Flash completed. Status: ${data.stage || 'OK'}.`, data.success ? 'ok' : 'err');
@@ -997,13 +1013,13 @@ async function runFlash() {
 }
 
 async function runVerify() {
-    if (!activeProjectId) return;
+    if (!activeProjectId || !activeGraphId) return;
     logConsole(`[ACTION] Starting Hardware Verification for project '${activeProjectId}'...`, 'info');
     try {
         const data = await apiFetch('/api/verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ projectId: activeProjectId })
+            body: JSON.stringify({ projectId: activeProjectId, graphId: activeGraphId })
         });
         if (data.log) setConsoleLog(data.log);
         const markersMsg = data.markers ? ` Verified markers: ${data.markers.join(', ')}` : '';
