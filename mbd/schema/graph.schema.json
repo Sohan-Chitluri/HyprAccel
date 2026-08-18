@@ -46,7 +46,7 @@
       "required": ["id", "type", "params"],
       "properties": {
         "id": { "$ref": "#/$defs/identifier" },
-        "type": { "enum": ["SensorInput", "CordicOp", "KinematicsSolve", "ControlLoop", "ActuatorOutput", "Publish", "Constant", "Add", "Subtract", "Multiply", "Gain", "Compare", "Saturation", "Switch", "GPIOInput", "ADCInput", "PWMOutput", "UARTInput", "UARTOutput", "EncoderInput", "MotorOutput", "WheelSpeed", "DifferentialDrive"] },
+        "type": { "enum": ["SensorInput", "CordicOp", "KinematicsSolve", "ControlLoop", "ActuatorOutput", "Publish", "Constant", "Add", "Subtract", "Multiply", "Gain", "Compare", "Saturation", "Switch", "Time", "CustomCode", "GPIOInput", "ADCInput", "PWMOutput", "UARTInput", "UARTOutput", "EncoderInput", "MotorOutput", "WheelSpeed", "DifferentialDrive"] },
         "label": { "type": "string", "minLength": 1 },
         "params": { "type": "object" },
         "position": {
@@ -72,6 +72,8 @@
         { "$ref": "#/$defs/compareNode" },
         { "$ref": "#/$defs/saturationNode" },
         { "$ref": "#/$defs/switchNode" },
+        { "$ref": "#/$defs/timeNode" },
+        { "$ref": "#/$defs/customCodeNode" },
         { "$ref": "#/$defs/gpioInputNode" },
         { "$ref": "#/$defs/adcInputNode" },
         { "$ref": "#/$defs/pwmOutputNode" },
@@ -124,6 +126,12 @@
     },
     "switchNode": {
       "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "Switch" }, "params": { "type": "object", "additionalProperties": false } } }]
+    },
+    "timeNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "Time" }, "params": { "type": "object", "additionalProperties": false } } }]
+    },
+    "customCodeNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "CustomCode" }, "params": { "type": "object", "additionalProperties": false, "required": ["inputs", "code"], "properties": { "inputs": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/identifier" } }, "code": { "type": "string" } } } } }]
     },
     "gpioInputNode": {
       "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "GPIOInput" }, "params": { "type": "object", "additionalProperties": false, "required": ["hardwareResource"], "properties": { "hardwareResource": { "type": "string", "pattern": "^gpio\\.[A-Za-z0-9_-]+$" }, "samplePeriodUs": { "type": "integer", "minimum": 1 }, "invert": { "type": "boolean" } } } } }]

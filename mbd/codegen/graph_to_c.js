@@ -7,9 +7,9 @@
  *
  * Usage: node graph_to_c.js <graph.json> <output.c>
  *
- * The current SDK surface supports CordicOp (sin, cos, and sincos) and
- * Publish. Other node types are deliberately rejected rather than producing
- * code that silently omits graph behaviour.
+ * CustomCode is deliberately a small, scoped C-body escape hatch. It does not
+ * add a second firmware/runtime API; user code may call the SDK primitives
+ * declared by hyprccel.h.
  */
 
 const fs = require('fs');
@@ -77,6 +77,8 @@ function nodeOutputNames(node) {
             return ['value', 'timestamp_us', 'valid'];
         case 'Constant':
             return ['value'];
+        case 'Time':
+            return ['value'];
         case 'Add':
         case 'Subtract':
         case 'Multiply':
@@ -106,6 +108,8 @@ function nodeOutputNames(node) {
             return ['speed'];
         case 'DifferentialDrive':
             return ['left_cmd', 'right_cmd'];
+        case 'CustomCode':
+            return [];
         default:
             return [];
     }
@@ -148,6 +152,8 @@ function nodeInputNames(node) {
             return ['encoder_count'];
         case 'DifferentialDrive':
             return ['linear_velocity', 'angular_velocity'];
+        case 'CustomCode':
+            return Array.isArray(node.params.inputs) ? node.params.inputs : [];
         default:
             return [];
     }
@@ -209,7 +215,7 @@ function generate(graph, sourceName) {
     if (!Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) fail('graph must contain nodes and edges arrays');
     const nodeById = new Map();
     const nodeSymbols = new Set();
-    const supportedTypes = ['CordicOp', 'Publish', 'SensorInput', 'ActuatorOutput', 'Constant', 'Add', 'Subtract', 'Multiply', 'Gain', 'Compare', 'Saturation', 'Switch', 'ControlLoop', 'GPIOInput', 'ADCInput', 'PWMOutput', 'UARTInput', 'UARTOutput', 'EncoderInput', 'MotorOutput', 'WheelSpeed', 'DifferentialDrive'];
+    const supportedTypes = ['CordicOp', 'Publish', 'SensorInput', 'ActuatorOutput', 'Constant', 'Add', 'Subtract', 'Multiply', 'Gain', 'Compare', 'Saturation', 'Switch', 'Time', 'CustomCode', 'ControlLoop', 'GPIOInput', 'ADCInput', 'PWMOutput', 'UARTInput', 'UARTOutput', 'EncoderInput', 'MotorOutput', 'WheelSpeed', 'DifferentialDrive'];
 
     for (const node of graph.nodes) {
         if (!node || typeof node.id !== 'string' || !node.params || nodeById.has(node.id)) {
@@ -229,6 +235,19 @@ function generate(graph, sourceName) {
         if (node.type === 'UARTOutput') hardwareResource(node, 'uart');
         if (node.type === 'EncoderInput') hardwareResource(node, 'encoder');
         if (node.type === 'MotorOutput') hardwareResource(node, 'motor');
+        if (node.type === 'CustomCode') {
+            if (!Array.isArray(node.params.inputs) || node.params.inputs.length < 1 || !node.params.inputs.every(input => typeof input === 'string')) {
+                fail(`CustomCode '${node.id}' requires a non-empty inputs array`);
+            }
+            const inputSymbols = new Set();
+            for (const input of node.params.inputs) {
+                const inputSymbol = cIdentifier(input, `CustomCode '${node.id}' input`);
+                if (inputSymbols.has(inputSymbol)) fail(`CustomCode '${node.id}' has duplicate input '${input}'`);
+                inputSymbols.add(inputSymbol);
+                if (inputSymbol === nodeSymbol) fail(`CustomCode '${node.id}' input '${input}' collides with its node symbol`);
+            }
+            if (typeof node.params.code !== 'string') fail(`CustomCode '${node.id}' requires a code string`);
+        }
         nodeById.set(node.id, node);
     }
 
@@ -243,6 +262,7 @@ function generate(graph, sourceName) {
         const sourceOutputs = source.type === 'CordicOp' ? nodeOutputNames(source) :
                               source.type === 'SensorInput' ? sensorOutputNames(source) :
                               source.type === 'Constant' ? ['value'] :
+                              source.type === 'Time' ? ['value'] :
                               source.type === 'Add' ? ['value'] :
                               source.type === 'Subtract' ? ['value'] :
                               source.type === 'Multiply' ? ['value'] :
@@ -309,6 +329,7 @@ function generate(graph, sourceName) {
         ' */',
         '',
         '#include "hyprccel.h"',
+        ...(graph.nodes.some(node => node.type === 'CustomCode') ? ['#include <stdio.h>'] : []),
         '',
         'int hyp_graph_init(void)',
         '{',
@@ -327,6 +348,7 @@ function generate(graph, sourceName) {
     }
 
     const usedOutputs = new Set([...inbound.values()].map(edge => `${edge.node.id}.${edge.port}`));
+    let timeSampleName = null;
 
     for (const node of ordered) {
         const nodeName = cIdentifier(node.id, 'node id');
@@ -472,6 +494,27 @@ function generate(graph, sourceName) {
                 lines.push(`    (void)${timestamp};`);
             }
             lines.push(`    hyp_publish(${cString(node.params.topic)}, &${value}, (uint32_t)sizeof(${value}));`);
+
+        } else if (node.type === 'Time') {
+            if (!timeSampleName) {
+                timeSampleName = `${nodeName}_value`;
+                lines.push(`    float ${timeSampleName} = (float)hyp_timestamp_us() / 1000000.0f;`);
+            } else {
+                lines.push(`    float ${nodeName}_value = ${timeSampleName};`);
+            }
+            if (!usedOutputs.has(`${node.id}.value`)) lines.push(`    (void)${nodeName}_value;`);
+
+        } else if (node.type === 'CustomCode') {
+            lines.push(`    {`);
+            for (const input of node.params.inputs) {
+                const inputEdge = inbound.get(`${node.id}.${input}`);
+                if (!inputEdge) fail(`CustomCode '${node.id}' requires an '${input}' input edge`);
+                const inputValue = `${cIdentifier(inputEdge.node.id, 'node id')}_${inputEdge.port}`;
+                lines.push(`        const float ${cIdentifier(input, `CustomCode '${node.id}' input`)} = ${inputValue};`);
+                lines.push(`        (void)${cIdentifier(input, `CustomCode '${node.id}' input`)};`);
+            }
+            for (const codeLine of node.params.code.split('\n')) lines.push(`        ${codeLine}`);
+            lines.push(`    }`);
 
         } else if (node.type === 'Constant') {
             const value = node.params.value;

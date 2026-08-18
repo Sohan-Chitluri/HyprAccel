@@ -127,6 +127,38 @@ Publishes a value to telemetry, logs, or a host-facing graph output.
 | `transport` | `telemetry` \| `log` \| `host` | yes | Destination category. |
 | `retain` | boolean | no | Retain the latest payload for newly attached consumers; defaults to `false`. |
 
+## `Time`
+
+Logical graph source for elapsed runtime time.
+
+| Direction | Port | Type | Description |
+| --- | --- | --- |
+| Output | `value` | `number` | Elapsed time in seconds for the current graph step. |
+
+`Time` has no hardware resource or pin assignment. Codegen samples the SDK
+`hyp_timestamp_us()` primitive once per graph-step invocation and shares the
+result with all consumers.
+
+## `CustomCode`
+
+Emits a small, scoped user-supplied C body. It is intended for application
+formatting at the graph boundary, not for replacing the firmware/runtime.
+
+| Direction | Port | Type | Description |
+| --- | --- | --- |
+| Input | each configured name in `params.inputs` | `number` | Stable C float variable made available to the body. |
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `inputs` | non-empty array of identifiers | yes | Input port names and generated C variable names. |
+| `code` | string | yes | C statements emitted inside a scoped graph-step block. |
+
+The body may use SDK declarations from `hyprccel.h`, including
+`hyp_actuator_write()` for an existing UART resource. The current UART graph
+node/runtime boundary does not provide a formatted-string API, so packet
+serialization and any raw UART write must be expressed in this body using the
+existing SDK primitive; this node does not add a transport protocol.
+
 ## Hardware I/O nodes
 
 Hardware I/O nodes reference configured canonical resources. They do not contain

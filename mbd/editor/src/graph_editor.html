@@ -868,6 +868,8 @@ const defaults = {
   Compare:{operation:'gt',threshold:0.0},
   Saturation:{min:-1.0,max:1.0},
   Switch:{},
+  Time:{},
+  CustomCode:{inputs:['value'],code:'/* Inputs are available by name, for example: printf("%d\\n", (int)value); */'},
   GPIOInput:{samplePeriodUs:1000,invert:false},
   ADCInput:{samplePeriodUs:1000,unit:'V',minValue:0,maxValue:3.3},
   PWMOutput:{min:0,max:255,unit:'%',safeValue:0},
@@ -894,6 +896,8 @@ const descriptions = {
   Compare:'Compare input against threshold',
   Saturation:'Clamp input between min/max',
   Switch:'Select between true/false values based on condition',
+  Time:'Elapsed runtime time in seconds',
+  CustomCode:'Scoped user-defined C body with configurable numeric inputs',
   GPIOInput:'Digital GPIO input with optional inversion',
   ADCInput:'Analog-to-digital converter input',
   PWMOutput:'Pulse-width modulation output',
@@ -918,9 +922,9 @@ const categories = [
   { name: 'Data / Telemetry', items: ['Publish'] },
   { name: 'Signal Processing', items: ['Constant', 'Add', 'Subtract', 'Multiply', 'Gain', 'Compare', 'Saturation', 'Switch'] },
   { name: 'Communication', items: [], placeholder: 'Future expansion' },
-  { name: 'Timing', items: [], placeholder: 'Future expansion' },
+  { name: 'Timing', items: ['Time'] },
   { name: 'Hardware', items: [], placeholder: 'Future expansion' },
-  { name: 'Custom', items: [], placeholder: 'Future expansion' }
+  { name: 'Custom', items: ['CustomCode'] }
 ];
 
 const portTypes = {
@@ -938,6 +942,7 @@ const portTypes = {
   Compare:{in:[['input','number']],out:[['result','boolean']]},
   Saturation:{in:[['input','number']],out:[['value','number']]},
   Switch:{in:[['condition','boolean'],['true_value','number'],['false_value','number']],out:[['value','number']]},
+  Time:{in:[],out:[['value','number']]},
   GPIOInput:{in:[],out:[['value','boolean']]},
   ADCInput:{in:[],out:[['value','number']]},
   PWMOutput:{in:[['value','number'],['enable','boolean']],out:[['applied','number'],['active','boolean']]},
@@ -953,6 +958,9 @@ function ports(type, params) {
   if (type === 'CordicOp') {
     if (params.operation === 'atan2') return {in:[['y','number'],['x','number']],out:[['angle_rad','number']]};
     if (params.operation === 'sincos') return {in:[['angle_rad','number']],out:[['sin','number'],['cos','number']]};
+  }
+  if (type === 'CustomCode') {
+    return {in:(params.inputs || []).map(name => [name, 'number']),out:[]};
   }
   return portTypes[type];
 }
@@ -1198,6 +1206,8 @@ function renderConfig() {
   } else if (t === 'Add' || t === 'Subtract' || t === 'Multiply') {
     // No parameters needed
     paramGroups = [];
+  } else if (t === 'CustomCode') {
+    paramGroups = [];
   } else if (t === 'Compare') {
     paramGroups = [
       { name: 'Comparison', fields: [['operation','select'],['threshold','number']] }
@@ -1260,6 +1270,24 @@ function renderConfig() {
     grpDiv.append(titleDiv, fieldsDiv);
     inspectorBody.appendChild(grpDiv);
   });
+
+  if (t === 'CustomCode') {
+    const customGroup = document.createElement('div');
+    customGroup.className = 'prop-group';
+    customGroup.innerHTML = '<div class="prop-group-title">Custom C Body</div><div class="prop-fields"><div class="embed-note">Inputs are comma-separated C identifiers and become scoped float variables. The body is emitted inside the graph step; use SDK calls from hyprccel.h for hardware operations.</div></div>';
+    inspectorBody.appendChild(customGroup);
+    const customFields = customGroup.querySelector('.prop-fields');
+    ReactDOM.render(hyprGraphH(React.Fragment, null,
+      hyprGraphH('div', {className:'field'}, hyprGraphH('label', null, 'Input identifiers'), hyprGraphH('input', {
+        type:'text', value:(p.inputs || []).join(', '),
+        onChange:e => updateParam('inputs', e.target.value.split(',').map(value => value.trim()).filter(Boolean))
+      })),
+      hyprGraphH('div', {className:'field'}, hyprGraphH('label', null, 'Generated C body'), hyprGraphH('textarea', {
+        value:p.code || '', rows:10, spellCheck:false,
+        onChange:e => updateParam('code', e.target.value)
+      }))
+    ), customFields);
+  }
 
   if (t === 'CordicOp') {
     const resourceGroup = document.createElement('div');
