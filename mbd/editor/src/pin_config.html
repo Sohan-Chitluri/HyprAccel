@@ -50,7 +50,7 @@
   /* pin items */
   .pin-item { display: flex; align-items: center; padding: 6px 12px 6px 28px; font-size: 12px; gap: 8px; cursor: grab; border-top: 1px solid var(--border); transition: background .12s; }
   .pin-item:hover { background: #1c2128; }
-  .pin-item.assigned { opacity: .45; cursor: not-allowed; }
+  .pin-item.assigned { opacity: .55; }
   .pin-name { font-family: 'JetBrains Mono', monospace; font-size: 11px; flex: 1; }
   .pin-role { font-size: 10px; color: var(--muted); }
   .drag-handle { color: var(--muted); font-size: 10px; }
@@ -110,11 +110,26 @@
   .preset-name { font-size: 11px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 5px; }
   .preset-type { font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 700; text-transform: uppercase; }
   .preset-desc { font-size: 10px; color: var(--muted); line-height: 1.3; }
+  .resource-config { padding: 10px; border-bottom: 1px solid var(--border); background:#12161f; }
+  .resource-config details { margin: 5px 0; border:1px solid var(--border); border-radius:6px; padding:6px 8px; font-size:11px; }
+  .resource-config summary { cursor:pointer; color:var(--accent); font-weight:600; }
+  .resource-config label { display:grid; grid-template-columns:1fr 90px; gap:6px; align-items:center; margin-top:6px; color:var(--muted); }
+  .resource-config input { width:100%; background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:4px; padding:4px; font-size:11px; }
 
   /* scroll */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+
+  /* ── Embedded / Mobile responsive layout ── */
+  body.embedded, @media (max-width: 900px) {
+    body { overflow-y: auto; height: auto; min-height: 100vh; }
+    header { flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
+    .graph-link { display: none !important; }
+    main { display: flex; flex-direction: column; overflow: visible; height: auto; }
+    .panel, .centre, .output-panel { border-right: none; border-bottom: 1px solid var(--border); }
+    .drop-grid { grid-template-columns: 1fr; }
+  }
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
@@ -129,7 +144,7 @@
     <label>Board:</label>
     <select id="boardSelect"><option value="">Loading…</option></select>
     <span id="boardMeta" style="font-size:11px;color:var(--muted)"></span>
-    <a href="/graph" style="margin-left:18px;color:var(--accent);font-size:12px;text-decoration:none">Open Graph Editor →</a>
+    <a href="/graph" class="graph-link" style="margin-left:18px;color:var(--accent);font-size:12px;text-decoration:none">Open Graph Editor →</a>
   </div>
 </header>
 
@@ -144,6 +159,7 @@
       <!-- Preset cards rendered by JS -->
     </div>
     <div class="panel-header">Available Peripherals</div>
+    <div class="resource-config" id="resourceConfig"><span style="font-size:11px;color:var(--muted)">Select a board to configure resources.</span></div>
     <div class="panel-body" id="peripheralTree">
       <div style="padding:20px;color:var(--muted);font-size:12px">Select a board to see its peripherals.</div>
     </div>
@@ -187,6 +203,10 @@ let currentBoard  = null;
 let nodes         = [];          // { id, type, slots: [{role, pin, peripheral}] }
 let assignments   = {};          // pinName → nodeId (conflict detection)
 let nodeCounter   = 0;
+let resourceConfigurations = {}; // project configuration keyed by generic resource identity
+let savedHardware = null;
+let persistTimer = null;
+const SEMANTIC_SIGNAL_ROLES = ['sck', 'mosi', 'miso', 'cs', 'tx', 'rx', 'sda', 'scl', 'output', 'input', 'gpio'];
 
 /* ────────────────────────────────────────────────────────────────────────
    Industrial Node Presets (MBD-T1c)
@@ -197,22 +217,22 @@ const PRESETS = [
         name: 'SPI Accelerometer',
         icon: '📡',
         nodeType: 'SensorInput',
-        description: 'SPI bus (MOSI/MISO, CS, CLK) for industrial IMU/accelerometer',
+        description: 'SPI (SCK, MOSI, MISO, CS) for industrial IMU/accelerometer',
         boardConfigs: {
             thejas32: {
                 slots: [
-                    { role: 'bus',  pin: 'SPI0MOSI', peripheral: 'spi.spi0' },
-                    { role: 'data', pin: 'SPI0MISO', peripheral: 'spi.spi0' },
+                    { role: 'mosi', pin: 'SPI0MOSI', peripheral: 'spi.spi0' },
+                    { role: 'miso', pin: 'SPI0MISO', peripheral: 'spi.spi0' },
                     { role: 'cs',   pin: 'SPI0CSN',  peripheral: 'spi.spi0' },
-                    { role: 'clk',  pin: 'SPI0CLK',  peripheral: 'spi.spi0' }
+                    { role: 'sck',  pin: 'SPI0CLK',  peripheral: 'spi.spi0' }
                 ]
             },
             esp32: {
                 slots: [
-                    { role: 'bus',  pin: 'GPIO13', peripheral: 'spi.hspi' },
-                    { role: 'data', pin: 'GPIO12', peripheral: 'spi.hspi' },
+                    { role: 'mosi', pin: 'GPIO13', peripheral: 'spi.hspi' },
+                    { role: 'miso', pin: 'GPIO12', peripheral: 'spi.hspi' },
                     { role: 'cs',   pin: 'GPIO15', peripheral: 'spi.hspi' },
-                    { role: 'clk',  pin: 'GPIO14', peripheral: 'spi.hspi' }
+                    { role: 'sck',  pin: 'GPIO14', peripheral: 'spi.hspi' }
                 ]
             }
         }
@@ -226,18 +246,16 @@ const PRESETS = [
         boardConfigs: {
             thejas32: {
                 slots: [
-                    { role: 'bus',  pin: 'URT0SOUT', peripheral: 'uart.uart0' },
-                    { role: 'data', pin: 'URT0SIN',  peripheral: 'uart.uart0' },
-                    { role: 'cs',   pin: 'GPIO0',    peripheral: 'gpio'       },
-                    { role: 'clk',  pin: 'GPIO1',    peripheral: 'gpio'       }
+                    { role: 'tx',   pin: 'URT0SOUT', peripheral: 'uart.uart0' },
+                    { role: 'rx',   pin: 'URT0SIN',  peripheral: 'uart.uart0' },
+                    { role: 'gpio', pin: 'GPIO0',    peripheral: 'gpio'       }
                 ]
             },
             esp32: {
                 slots: [
-                    { role: 'bus',  pin: 'GPIO17', peripheral: 'uart.uart2' },
-                    { role: 'data', pin: 'GPIO16', peripheral: 'uart.uart2' },
-                    { role: 'cs',   pin: 'GPIO4',  peripheral: 'gpio'       },
-                    { role: 'clk',  pin: 'GPIO5',  peripheral: 'gpio'       }
+                    { role: 'tx',   pin: 'GPIO17', peripheral: 'uart.uart2' },
+                    { role: 'rx',   pin: 'GPIO16', peripheral: 'uart.uart2' },
+                    { role: 'gpio', pin: 'GPIO4',  peripheral: 'gpio'       }
                 ]
             }
         }
@@ -250,30 +268,20 @@ const PRESETS = [
         description: 'Hardware PWM signal + control GPIO for servo motor actuator',
         boardConfigs: {
             thejas32: {
-                slots: [
-                    { role: 'bus',  pin: 'PWM0',  peripheral: 'pwm'  },
-                    { role: 'data', pin: 'PWM1',  peripheral: 'pwm'  },
-                    { role: 'cs',   pin: 'GPIO2', peripheral: 'gpio' },
-                    { role: 'clk',  pin: 'GPIO3', peripheral: 'gpio' }
-                ]
+                slots: []
             },
             esp32: {
-                slots: [
-                    { role: 'bus',  pin: 'PWM0',  peripheral: 'pwm'  },
-                    { role: 'data', pin: 'PWM1',  peripheral: 'pwm'  },
-                    { role: 'cs',   pin: 'GPIO2', peripheral: 'gpio' },
-                    { role: 'clk',  pin: 'GPIO3', peripheral: 'gpio' }
-                ]
+                slots: []
             }
         }
     },
     {
         id: 'cordic_fpga_link',
-        name: 'CORDIC FPGA Link (Pending RTL-T1)',
+        name: 'CORDIC FPGA Link',
         icon: '⚡',
         nodeType: 'SensorInput',
-        isStub: true,
-        description: 'Host-to-FPGA accelerator transport (STUB: pending RTL-T1 diagnosis & register contract)',
+        status: 'ready',
+        description: 'CORDIC accelerator and HW/SW routing are implemented; Verilator/simulation is available. Physical FPGA transport/deployment is deferred.',
         boardConfigs: null
     }
 ];
@@ -286,12 +294,12 @@ function renderPresets() {
     for (const p of PRESETS) {
         const card = document.createElement('div');
         card.className = 'preset-card';
-        if (p.isStub) card.style.opacity = '0.75';
+        if (p.status === 'deferred') card.style.opacity = '0.75';
         card.onclick = () => applyPreset(p.id);
 
-        const badgeClass = p.isStub ? '' : (p.nodeType === 'SensorInput' ? 'badge-sensor' : 'badge-actuator');
-        const badgeStyle = p.isStub ? 'style="background:#3c2a1a;color:#d29922"' : '';
-        const badgeText = p.isStub ? 'TODO / STUB' : (p.nodeType === 'SensorInput' ? 'IN' : 'OUT');
+        const badgeClass = p.status === 'ready' ? 'badge-sensor' : (p.nodeType === 'SensorInput' ? 'badge-sensor' : 'badge-actuator');
+        const badgeStyle = p.status === 'ready' ? 'style="background:#1a3c2c;color:#3fb950"' : '';
+        const badgeText = p.status === 'ready' ? 'READY' : (p.nodeType === 'SensorInput' ? 'IN' : 'OUT');
 
         card.innerHTML = `
             <div class="preset-hdr">
@@ -323,8 +331,8 @@ function applyPreset(presetId) {
     const preset = PRESETS.find(p => p.id === presetId);
     if (!preset) return;
 
-    if (preset.isStub) {
-        setStatus('warn', `⚠️ Preset "${preset.name}" is currently stubbed — pending RTL-T1 diagnosis & FPGA pinout contract resolution.`);
+    if (preset.status === 'ready') {
+        setStatus('ok', `⚡ ${preset.name}: accelerator, hardware/software routing, and Verilator simulation are available. Physical FPGA transport/deployment remains deferred.`);
         return;
     }
 
@@ -341,9 +349,34 @@ function applyPreset(presetId) {
         return;
     }
 
+    // Servo/PWM uses the board's declared PWM capability rather than a
+    // board-specific hard-coded pin. It never displaces an existing assignment.
+    let presetSlots = cfg.slots;
+    let presetNode = null;
+    if (preset.id === 'servo_pwm') {
+        const existingPwmNode = nodes.find(nd => nd.type === 'ActuatorOutput' &&
+            nd.slots.some(sl => sl.peripheral && sl.peripheral.startsWith('pwm.') && sl.pin));
+        if (existingPwmNode) {
+            setStatus('ok', `⚡ Preset "${preset.name}" already applied to ${existingPwmNode.label}.`);
+            return;
+        }
+
+        const pwmPins = Array.isArray(bd.pins && bd.pins.pwm) ? bd.pins.pwm : [];
+        const availablePwmPin = pwmPins.find(pin => !assignments[pin]);
+        if (!availablePwmPin) {
+            setStatus('err', `❌ Preset "${preset.name}" unavailable on ${bd.name || currentBoard}: no unassigned PWM-capable pin.`);
+            return;
+        }
+
+        // PWM resources are canonical IDs in the project model: pwm.<declared pin>.
+        // Resolve this from the selected board descriptor, never from a preset pin.
+        presetSlots = [{ role: 'output', pin: availablePwmPin, peripheral: `pwm.${availablePwmPin}` }];
+        presetNode = nodes.find(nd => nd.type === 'ActuatorOutput' && nd.slots.every(sl => !sl.pin)) || null;
+    }
+
     // 1. Validation: Verify all required pins exist on the current board
     const missingPins = [];
-    for (const slot of cfg.slots) {
+    for (const slot of presetSlots) {
         if (!boardHasPin(bd, slot.pin)) {
             missingPins.push(slot.pin);
         }
@@ -356,7 +389,7 @@ function applyPreset(presetId) {
 
     // 2. Conflict detection: Check for already assigned pins and reassign
     const conflictMsgs = [];
-    for (const slot of cfg.slots) {
+    for (const slot of presetSlots) {
         if (assignments[slot.pin]) {
             const prev = assignments[slot.pin];
             conflictMsgs.push(`${slot.pin} (reassigned from node ${prev.split('-')[0]})`);
@@ -374,28 +407,31 @@ function applyPreset(presetId) {
     }
 
     // 3. Create node and assign slots
-    const id = ++nodeCounter;
-    const newNode = {
-        id,
-        type: preset.nodeType,
-        label: `${preset.nodeType}[${id}]`,
-        slots: ['bus', 'data', 'cs', 'clk'].map(r => ({ role: r, pin: null, peripheral: null }))
-    };
+    const newNode = presetNode || (() => {
+        const id = ++nodeCounter;
+        return {
+            id,
+            type: preset.nodeType,
+            label: `${preset.nodeType}[${id}]`,
+            slots: SEMANTIC_SIGNAL_ROLES.map(role => ({ role, pin: null, peripheral: null }))
+        };
+    })();
 
-    for (const pSlot of cfg.slots) {
+    for (const pSlot of presetSlots) {
         const slot = newNode.slots.find(s => s.role === pSlot.role);
         if (slot) {
             slot.pin = pSlot.pin;
             slot.peripheral = pSlot.peripheral;
-            assignments[pSlot.pin] = `${id}-${pSlot.role}`;
+            assignments[pSlot.pin] = `${newNode.id}-${pSlot.role}`;
         }
     }
 
-    nodes.push(newNode);
+    if (!presetNode) nodes.push(newNode);
     renderGrid();
+    schedulePersist();
 
-    const assignedPinList = cfg.slots.map(s => s.pin).join(', ');
-    let msg = `⚡ Applied preset "${preset.name}" → Created ${newNode.label} [${assignedPinList}]`;
+    const assignedPinList = presetSlots.map(s => s.pin).join(', ');
+    let msg = `⚡ Applied preset "${preset.name}" → ${presetNode ? 'Assigned' : 'Created'} ${newNode.label} [${assignedPinList}]`;
     if (conflictMsgs.length > 0) {
         msg += ` · Reassigned: ${conflictMsgs.join('; ')}`;
         setStatus('warn', msg);
@@ -408,16 +444,25 @@ function applyPreset(presetId) {
    Boot
    ──────────────────────────────────────────────────────────────────────── */
 (async function init() {
+    if (window.self !== window.top || location.search.includes('embed=1')) {
+        document.body.classList.add('embedded');
+    }
     renderPresets();
     try {
-        const r = await fetch('/api/boards');
-        boards  = await r.json();
+        const [boardsResponse, hardwareResponse] = await Promise.all([fetch('/api/boards'), fetch('/api/hardware')]);
+        boards = await boardsResponse.json();
+        savedHardware = await hardwareResponse.json();
         const sel = document.getElementById('boardSelect');
         sel.innerHTML = '<option value="">— select board —</option>';
         for (const [id, bd] of Object.entries(boards)) {
             sel.innerHTML += `<option value="${id}">${bd.name || id}</option>`;
         }
         sel.addEventListener('change', () => switchBoard(sel.value));
+        if (savedHardware.board && boards[savedHardware.board]) {
+            restoreHardware(savedHardware);
+            sel.value = savedHardware.board;
+            switchBoard(savedHardware.board, true);
+        }
     } catch(e) {
         setStatus('err', 'Server unreachable — run: node server.js');
     }
@@ -426,11 +471,14 @@ function applyPreset(presetId) {
 /* ────────────────────────────────────────────────────────────────────────
    Board switch
    ──────────────────────────────────────────────────────────────────────── */
-function switchBoard(boardId) {
+function switchBoard(boardId, restoring) {
     currentBoard = boardId || null;
-    nodes = [];
-    assignments = {};
-    nodeCounter = 0;
+    if (!restoring) {
+        nodes = [];
+        assignments = {};
+        nodeCounter = 0;
+        resourceConfigurations = {};
+    }
 
     if (!currentBoard) {
         document.getElementById('peripheralTree').innerHTML =
@@ -445,8 +493,92 @@ function switchBoard(boardId) {
     document.getElementById('boardMeta').textContent =
         `${bd.architecture || ''} · ${bd.clock_freq_mhz || '?'}MHz · FPGA via ${bd.fpga_transport || '?'}`;
     renderPeripheralTree(bd.pins);
+    renderResourceConfig(bd.pins);
     renderGrid();
     setStatus('ok', `Board loaded: ${bd.name || currentBoard}`);
+    if (!restoring) schedulePersist();
+}
+
+function resourceDefaults(type) {
+    if (type === 'spi') return { frequencyHz: 1000000, mode: 0 };
+    if (type === 'i2c') return { frequencyHz: 400000 };
+    if (type === 'uart') return { baudRate: 115200 };
+    if (type === 'pwm') return { frequencyHz: 50, resolutionBits: 16 };
+    if (type === 'adc') return { attenuationDb: 11 };
+    return { direction: 'input' };
+}
+
+function renderResourceConfig(pins) {
+    const host = document.getElementById('resourceConfig');
+    host.innerHTML = '<div class="panel-header" style="padding:0 0 6px">Hardware resource configuration</div>';
+    const types = ['spi', 'i2c', 'uart', 'pwm', 'adc'];
+    for (const type of types) {
+        const data = pins[type];
+        const entries = Array.isArray(data) ? data.map(pin => [pin, null]) : Object.entries(data || {});
+        for (const [instance] of entries) {
+            const id = `${type}.${instance}`;
+            const defaults = resourceDefaults(type);
+            const config = resourceConfigurations[id] || (resourceConfigurations[id] = {...defaults});
+            const details = document.createElement('details');
+            details.innerHTML = `<summary>${id}</summary>`;
+            for (const [key, value] of Object.entries(config)) {
+                const label = document.createElement('label');
+                const input = document.createElement('input');
+                input.value = value;
+                input.type = typeof value === 'number' ? 'number' : 'text';
+                input.onchange = () => {
+                    resourceConfigurations[id][key] = input.type === 'number' ? Number(input.value) : input.value;
+                    schedulePersist();
+                };
+                label.append(document.createTextNode(key), input);
+                details.appendChild(label);
+            }
+            host.appendChild(details);
+        }
+    }
+}
+
+function hardwarePayload() {
+    return {
+        board: currentBoard,
+        assignments: nodes.flatMap(nd => nd.slots.filter(slot => slot.pin).map(slot => ({
+            node: nd.label, role: slot.role, pin: slot.pin,
+            resource: slot.peripheral || 'gpio'
+        }))),
+        configurations: resourceConfigurations
+    };
+}
+
+function restoreHardware(hardware) {
+    if (!hardware || !hardware.board || !Array.isArray(hardware.assignments)) return;
+    resourceConfigurations = Object.fromEntries(Object.entries(hardware.resources || {})
+        .map(([id, resource]) => [id, resource.configuration || {}]));
+    const grouped = new Map();
+    for (const assignment of hardware.assignments) {
+        if (!grouped.has(assignment.node)) grouped.set(assignment.node, []);
+        grouped.get(assignment.node).push(assignment);
+    }
+    nodes = [...grouped.entries()].map(([label, slots], index) => ({
+        id: index + 1,
+        type: label.startsWith('ActuatorOutput') ? 'ActuatorOutput' : 'SensorInput',
+        label,
+        slots: SEMANTIC_SIGNAL_ROLES.map(role => {
+            const assignment = slots.find(item => item.role === role);
+            return assignment ? { role, pin: assignment.pin, peripheral: assignment.resource } : { role, pin: null, peripheral: null };
+        })
+    }));
+    nodeCounter = nodes.length;
+    assignments = {};
+    for (const node of nodes) for (const slot of node.slots) if (slot.pin) assignments[slot.pin] = `${node.id}-${slot.role}`;
+}
+
+function schedulePersist() {
+    if (!currentBoard) return;
+    window.clearTimeout(persistTimer);
+    persistTimer = window.setTimeout(() => {
+        fetch('/api/hardware', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(hardwarePayload()) })
+            .catch(() => setStatus('warn', 'Hardware configuration could not be saved.'));
+    }, 200);
 }
 
 /* ────────────────────────────────────────────────────────────────────────
@@ -469,48 +601,46 @@ function renderPeripheralTree(pins) {
         const data = pins[sec.key];
         if (!data) continue;
 
-        let items = [];
-        if (Array.isArray(data)) {
-            // gpio / pwm / adc — flat list
-            items = data.map(p => ({ periph: sec.key, bus: null, role: sec.key, pin: p }));
-        } else {
-            // spi / i2c / uart — object of bus → {role: pin}
-            for (const [bus, signals] of Object.entries(data)) {
-                for (const [role, pin] of Object.entries(signals)) {
-                    items.push({ periph: sec.key, bus, role, pin });
-                }
-            }
-        }
-        if (items.length === 0) continue;
+        const resources = Array.isArray(data)
+            ? data.map(pin => ({ instance: pin, signals: { [sec.key === 'pwm' ? 'output' : sec.key === 'adc' ? 'input' : 'gpio']: pin } }))
+            : Object.entries(data).map(([instance, signals]) => ({ instance, signals }));
+        if (resources.length === 0) continue;
 
         const grp = document.createElement('div');
         grp.className = 'periph-group';
         grp.innerHTML = `
-            <div class="periph-group-hdr open" onclick="this.classList.toggle('open')">
+            <div class="periph-group-hdr ${['spi', 'i2c', 'uart'].includes(sec.key) ? 'open' : ''}" onclick="this.classList.toggle('open')">
                 <span class="tag ${sec.tag}">${sec.label}</span>
-                <span>${sec.label} pins</span>
-                <span style="color:var(--muted);font-size:11px">(${items.length})</span>
+                <span>${sec.label} resources</span>
+                <span style="color:var(--muted);font-size:11px">(${resources.length})</span>
                 <span class="chevron">›</span>
             </div>
             <div class="periph-items" id="section-${sec.key}"></div>`;
         tree.appendChild(grp);
 
         const itemsEl = grp.querySelector('.periph-items');
-        for (const item of items) {
-            const el = document.createElement('div');
-            el.className = 'pin-item';
-            el.dataset.periph = item.periph;
-            el.dataset.bus    = item.bus || '';
-            el.dataset.role   = item.role;
-            el.dataset.pin    = item.pin;
-            el.id             = 'pitem-' + item.pin;
-            el.draggable      = true;
-            el.innerHTML = `
-                <span class="drag-handle">⠿</span>
-                <span class="pin-name">${item.pin}</span>
-                <span class="pin-role">${item.bus ? item.bus + '.' + item.role : item.role}</span>`;
-            el.addEventListener('dragstart', onPinDragStart);
-            itemsEl.appendChild(el);
+        for (const resource of resources) {
+            const details = document.createElement('details');
+            details.className = 'resource-group';
+            details.open = ['spi', 'i2c', 'uart'].includes(sec.key);
+            details.innerHTML = `<summary>${resource.instance}</summary>`;
+            const resourceItems = document.createElement('div');
+            resourceItems.className = 'periph-items';
+            for (const [role, pin] of Object.entries(resource.signals)) {
+                const el = document.createElement('div');
+                el.className = 'pin-item';
+                el.dataset.periph = sec.key;
+                el.dataset.bus = ['spi', 'i2c', 'uart'].includes(sec.key) ? resource.instance : '';
+                el.dataset.role = role;
+                el.dataset.pin = pin;
+                el.id = `pitem-${sec.key}-${resource.instance}-${role}`.replace(/[^A-Za-z0-9_-]/g, '_');
+                el.draggable = true;
+                el.innerHTML = `<span class="drag-handle">⠿</span><span class="pin-name">${pin}</span><span class="pin-role">${resource.instance}.${role.toUpperCase()}</span>`;
+                el.addEventListener('dragstart', onPinDragStart);
+                resourceItems.appendChild(el);
+            }
+            details.appendChild(resourceItems);
+            itemsEl.appendChild(details);
         }
     }
 }
@@ -520,11 +650,9 @@ function renderPeripheralTree(pins) {
    ──────────────────────────────────────────────────────────────────────── */
 function addNode(type) {
     const id = ++nodeCounter;
-    const slotDefs = type === 'SensorInput'
-        ? ['bus', 'data', 'cs', 'clk']
-        : ['bus', 'data', 'cs', 'clk'];
-    nodes.push({ id, type, label: `${type}[${id}]`, slots: slotDefs.map(r => ({ role: r, pin: null, peripheral: null })) });
+    nodes.push({ id, type, label: `${type}[${id}]`, slots: SEMANTIC_SIGNAL_ROLES.map(role => ({ role, pin: null, peripheral: null })) });
     renderGrid();
+    schedulePersist();
 }
 
 function renderGrid() {
@@ -553,7 +681,7 @@ function renderGrid() {
             const dropId = `drop-${nd.id}-${slot.role}`;
             const isFilled = !!slot.pin;
             row.innerHTML = `
-                <span class="slot-label">${slot.role}</span>
+                <span class="slot-label">${slot.role.toUpperCase()}</span>
                 <div class="slot-drop ${isFilled ? 'filled' : ''}" id="${dropId}"
                      data-nodeid="${nd.id}" data-role="${slot.role}">
                     ${isFilled
@@ -595,6 +723,7 @@ function removeNode(id) {
     }
     nodes = nodes.filter(n => n.id !== id);
     renderGrid();
+    schedulePersist();
 }
 
 function clearSlot(nodeId, role) {
@@ -605,6 +734,7 @@ function clearSlot(nodeId, role) {
     delete assignments[slot.pin];
     slot.pin = null; slot.peripheral = null;
     renderGrid();
+    schedulePersist();
 }
 
 /* ────────────────────────────────────────────────────────────────────────
@@ -624,8 +754,12 @@ function onPinDragStart(e) {
 
 function onDrop(e, nodeId, slotRole) {
     if (!dragging) return;
-    const { pin, periph, bus } = dragging;
+    const { pin, periph, bus, role } = dragging;
     dragging = null;
+    if (slotRole !== role) {
+        setStatus('warn', `⚠ ${pin} is a ${role.toUpperCase()} signal; drop it on the ${role.toUpperCase()} slot.`);
+        return;
+    }
 
     // Conflict check
     if (assignments[pin] && assignments[pin] !== `${nodeId}-${slotRole}`) {
@@ -645,10 +779,11 @@ function onDrop(e, nodeId, slotRole) {
     if (slot) {
         if (slot.pin) delete assignments[slot.pin]; // evict previous occupant
         slot.pin        = pin;
-        slot.peripheral = bus ? `${periph}.${bus}` : periph;
+        slot.peripheral = bus ? `${periph}.${bus}` : (periph === 'pwm' || periph === 'adc' ? `${periph}.${pin}` : periph);
     }
     renderGrid();
     setStatus('ok', `Assigned ${pin} → ${nd.label}.${slotRole}`);
+    schedulePersist();
 }
 
 function refreshPinAvailability() {
@@ -656,7 +791,7 @@ function refreshPinAvailability() {
     document.querySelectorAll('.pin-item').forEach(el => {
         const isAssigned = assigned.has(el.dataset.pin);
         el.classList.toggle('assigned', isAssigned);
-        el.draggable = !isAssigned;
+        el.draggable = true;
     });
 }
 
@@ -666,17 +801,7 @@ function refreshPinAvailability() {
 document.getElementById('btnGenerate').addEventListener('click', async () => {
     if (!currentBoard) { setStatus('err', 'No board selected.'); return; }
 
-    const payload = {
-        board: currentBoard,
-        assignments: nodes.flatMap(nd =>
-            nd.slots.filter(s => s.pin).map(s => ({
-                node:       nd.label,
-                role:       s.role,
-                pin:        s.pin,
-                peripheral: s.peripheral || ''
-            }))
-        )
-    };
+    const payload = hardwarePayload();
 
     setStatus('', 'Generating…');
     document.getElementById('btnGenerate').disabled = true;

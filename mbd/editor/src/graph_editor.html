@@ -847,7 +847,7 @@ const portTypes = {
   KinematicsSolve:{in:[['joint_positions_rad','vector<number>']],out:[['end_effector_pose','pose']]},
   ControlLoop:{in:[['setpoint','number'],['measurement','number'],['enable','boolean']],out:[['command','number'],['error','number']]},
   ActuatorOutput:{in:[['command','number'],['enable','boolean']],out:[['applied','number'],['active','boolean']]},
-  Publish:{in:[['value','any'],['timestamp_us','number']],out:[['published','boolean']]},
+  Publish:{in:[['value','any'],['timestamp_us','number (optional)']],out:[['published','boolean']]},
   Constant:{in:[],out:[['value','number']]},
   Add:{in:[['a','number'],['b','number']],out:[['value','number']]},
   Subtract:{in:[['a','number'],['b','number']],out:[['value','number']]},
@@ -969,8 +969,9 @@ function updateParam(key, value) {
 }
 
 function field(key, value, type) {
+  const label = key === 'retain' ? 'Retain' : key;
   return hyprGraphH('div', {className:'field', key},
-    hyprGraphH('label', null, key),
+    hyprGraphH('label', null, label),
     type === 'select'
       ? hyprGraphH('select', {value, onChange: e => updateParam(key, e.target.value)},
           (key === 'operation' ? ['sin','cos','sincos','atan2']
@@ -979,7 +980,7 @@ function field(key, value, type) {
            : ['forward','inverse']).map(x => hyprGraphH('option', {key:x}, x)))
       : type === 'check'
       ? hyprGraphH('label', {className:'check'},
-          hyprGraphH('input', {type:'checkbox', checked:!!value, onChange: e => updateParam(key, e.target.checked)}), 'Enabled')
+          hyprGraphH('input', {type:'checkbox', checked:!!value, onChange: e => updateParam(key, e.target.checked)}), key === 'retain' ? 'Enable retained message' : 'Enabled')
       : hyprGraphH('input', {type: type || 'text', value: value ?? '', step: 'any', onChange: e => updateParam(key, type === 'number' ? Number(e.target.value) : e.target.value)})
   );
 }

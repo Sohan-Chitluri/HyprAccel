@@ -155,6 +155,28 @@ try {
     console.log('[PASS] Graph with unconfigured resource correctly rejected:', e.message);
 }
 
+// 2h: Servo/PWM preset contract regression. The UI must resolve the
+// canonical resource from the selected board's declared PWM capabilities.
+try {
+    const pwmHardware = projectHardware('esp32', [
+        { node: 'ActuatorOutput[1]', role: 'output', pin: 'GPIO25', resource: 'pwm.GPIO25' }
+    ]);
+    if (!pwmHardware.resources['pwm.GPIO25'] || !pwmHardware.resources['pwm.GPIO25'].available) {
+        throw new Error('pwm.GPIO25 was not materialized as a canonical ESP32 resource');
+    }
+    console.log('[PASS] Servo/PWM preset resolves declared canonical resource pwm.GPIO25.');
+    try {
+        projectHardware('esp32', [
+            { node: 'ActuatorOutput[1]', role: 'output', pin: 'GPIO25', resource: 'pwm.GPIO999' }
+        ]);
+        console.error('[FAIL] Stale PWM resource was accepted');
+    } catch (_) {
+        console.log('[PASS] Stale PWM resource pwm.GPIO999 rejected.');
+    }
+} catch (e) {
+    console.error('[FAIL] Servo/PWM canonical resource regression:', e.message);
+}
+
 // 3. Board Header Codegen Test
 console.log('\n--- Testing Header Codegen output ---');
 let headerText = `/*
