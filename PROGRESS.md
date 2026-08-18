@@ -3,7 +3,7 @@
 *DEMO SCOPE, 2026-08-17: live demo targets ESP32 physical target (THEJAS/FPGA simulated via Verilator). Robotic arm demoed via pre-recorded video (MyCobot 280), not live. Hardware model remains generic with target-specific backends.*
 
 *Note: Owner field = the AI tool/person actually executing this task, update on every status change.*
-*General Fixes: SDK include path fixed (-I sdk/include); root .gitignore updated for build artifacts; JS scoping/IIFE protection added to graph editor.*
+*General Fixes: SDK include path fixed (-I sdk/include); root .gitignore updated for build artifacts; JS scoping/IIFE protection added to graph editor; CORDIC accelerator resource validation fixed in server.js to distinguish from physical peripherals.*
 
 ## TRACK CORE — Core SDK & Descriptors
 - [x] CORE-T1 | API header | Owner: Antigravity | Status: Complete

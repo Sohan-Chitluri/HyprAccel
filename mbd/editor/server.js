@@ -299,6 +299,9 @@ function projectHardware(boardKey, assignments, configurations = {}, devices = [
         }
         if (!resources[resourceId]) throw new Error(`Unknown hardware resource '${resourceId}'.`);
         const resource = resources[resourceId];
+        if (resource.type === 'accelerator') {
+            throw new Error(`Hardware resource '${resourceId}' is an accelerator and cannot have pin assignments.`);
+        }
         const legacyMap = LEGACY_SIGNAL_ROLES[resource.type] || {};
         const role = legacyMap[assignment.role] || assignment.role;
         if (!RESOURCE_SIGNAL_ROLES[resource.type] || !RESOURCE_SIGNAL_ROLES[resource.type].has(role)) {
@@ -339,7 +342,7 @@ function validateGraphHardwareResources(graph) {
     }
     const configured = new Set((hardware.assignments || []).map(assignment => assignment.resource));
     for (const [id, resource] of Object.entries(hardware.resources || {})) {
-        if (resource.type === 'accelerator' && resource.configuration && Object.keys(resource.configuration).length > 0) {
+        if (resource.type === 'accelerator' || (resource.configuration && Object.keys(resource.configuration).length > 0)) {
             configured.add(id);
         }
     }
