@@ -36,7 +36,7 @@
     font: 12px/1.4 var(--font);
     display: flex;
     flex-direction: column;
-    user-select: none;
+    /* user-select: none removed — console/source must remain selectable */
   }
 
   /* ── Top Menu & Header ── */
@@ -236,7 +236,8 @@
 
   /* ── Main Studio Layout ── */
   .studio-body {
-    flex: 1;
+    flex: 1 1 0;
+    min-height: 0;
     display: grid;
     grid-template-columns: 240px 1fr 320px;
     overflow: hidden;
@@ -530,9 +531,10 @@
     flex-direction: column;
     z-index: 5;
     min-height: 28px;
+    flex-shrink: 0;
   }
   .bottom-dock.collapsed {
-    height: 28px;
+    height: 28px !important;
   }
   .bottom-header {
     height: 28px;
@@ -544,9 +546,35 @@
     justify-content: space-between;
     flex-shrink: 0;
     position: relative;
+    user-select: none;
   }
-  .bottom-resize-handle { position: absolute; left: 0; right: 0; top: -4px; height: 8px; cursor: ns-resize; z-index: 2; }
-  .bottom-resize-handle:hover { background: var(--accent); opacity: .7; }
+  /* Visible resize bar sitting above the bottom dock header */
+  .bottom-resize-handle {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -5px;
+    height: 10px;
+    cursor: ns-resize;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .bottom-resize-handle::before {
+    content: '';
+    display: block;
+    width: 40px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--border-light);
+    transition: background .15s, width .15s;
+  }
+  .bottom-resize-handle:hover::before,
+  .bottom-resize-handle.dragging::before {
+    background: var(--accent);
+    width: 60px;
+  }
   .bottom-tabs {
     display: flex;
     gap: 4px;
@@ -567,19 +595,36 @@
   .console-content {
     flex: 1;
     overflow: auto;
+    overflow-x: hidden;
     padding: 8px 12px;
     font-family: var(--font-mono);
     font-size: 11px;
     line-height: 1.5;
     background: var(--bg);
+    min-height: 0;
+    user-select: text;
+    -webkit-user-select: text;
   }
   .console-content pre {
     margin: 0;
-    white-space: pre;
-    word-break: normal;
+    white-space: pre-wrap;
+    word-break: break-word;
+    user-select: text;
+    -webkit-user-select: text;
   }
-  .source-actions { display: none; gap: 8px; padding: 0 0 8px; }
+  .source-actions { display: none; gap: 8px; padding: 0 0 8px; align-items: center; }
   .console-content.source-active .source-actions { display: flex; }
+  .copy-source-toast {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    transition: opacity .3s;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .copy-source-toast.visible { opacity: 1; }
+  .copy-source-toast.ok  { color: var(--green); }
+  .copy-source-toast.err { color: var(--red); }
   .log-ok { color: var(--green); }
   .log-err { color: var(--red); }
   .log-info { color: var(--accent); }
@@ -786,7 +831,10 @@
     </div>
   </div>
   <div class="console-content" id="consoleContent">
-    <div class="source-actions" id="sourceActions"><button class="tool-btn" id="copySource">Copy C Source</button></div>
+    <div class="source-actions" id="sourceActions">
+      <button class="tool-btn" id="copySource">Copy C Source</button>
+      <span class="copy-source-toast" id="copySourceToast"></span>
+    </div>
     <pre id="consoleLogText" class="log-info">HyprAccel MBD Studio Initialized. Ready for model editing and code generation.</pre>
   </div>
 </div>
@@ -1458,13 +1506,18 @@ document.getElementById('btnToggleBottom').onclick = () => {
 document.getElementById('bottomResizeHandle').addEventListener('pointerdown', event => {
   const dock = document.getElementById('bottomDock');
   if (dock.classList.contains('collapsed')) dock.classList.remove('collapsed');
+  const handle = document.getElementById('bottomResizeHandle');
+  handle.classList.add('dragging');
   const startY = event.clientY;
   const startHeight = dock.getBoundingClientRect().height;
   const move = moveEvent => {
-    const next = Math.max(28, Math.min(window.innerHeight - 120, startHeight + startY - moveEvent.clientY));
+    const next = Math.max(80, Math.min(window.innerHeight - 120, startHeight + startY - moveEvent.clientY));
     dock.style.height = `${next}px`;
   };
   const stop = () => {
+    handle.classList.remove('dragging');
+    // Persist panel height to localStorage
+    try { localStorage.setItem('hyp_bottom_panel_height', dock.style.height); } catch(_) {}
     document.removeEventListener('pointermove', move);
     document.removeEventListener('pointerup', stop);
   };
@@ -1473,12 +1526,37 @@ document.getElementById('bottomResizeHandle').addEventListener('pointerdown', ev
   event.preventDefault();
 });
 
-document.getElementById('copySource').onclick = async () => {
+// Restore bottom panel height from localStorage
+(function restoreBottomPanelHeight() {
   try {
-    await navigator.clipboard.writeText(lastSourceCode || '');
-    lastDiagnostics = 'Generated C source copied to the clipboard.';
-    updateConsoleOutput();
-  } catch (_) { lastDiagnostics = 'Clipboard access was unavailable.'; }
+    const saved = localStorage.getItem('hyp_bottom_panel_height');
+    if (saved) {
+      const h = parseInt(saved, 10);
+      if (h >= 80 && h <= window.innerHeight - 120) {
+        document.getElementById('bottomDock').style.height = h + 'px';
+      }
+    }
+  } catch(_) {}
+})();
+
+document.getElementById('copySource').onclick = async () => {
+  const toast = document.getElementById('copySourceToast');
+  const src = lastSourceCode || '';
+  if (!src) {
+    toast.textContent = 'No source generated yet.';
+    toast.className = 'copy-source-toast err visible';
+    setTimeout(() => toast.classList.remove('visible'), 2500);
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(src);
+    toast.textContent = '✓ Copied!';
+    toast.className = 'copy-source-toast ok visible';
+  } catch (_) {
+    toast.textContent = '✗ Clipboard unavailable';
+    toast.className = 'copy-source-toast err visible';
+  }
+  setTimeout(() => toast.classList.remove('visible'), 2000);
 };
 
 // Node Library Search
