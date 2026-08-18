@@ -91,10 +91,10 @@ The runtime SDK provides embedded primitives required by generated C step functi
 - [x] NL-P0 | Core P0 node implementation | Owner: Codex | Status: Complete (`CordicOp`, `Publish`, `SensorInput`, `ActuatorOutput`, `GPIOInput`, `ADCInput`, and `PWMOutput` fully implemented with schema, palette/inspector, ports, resource validation, codegen, existing SDK primitives, ESP32 backend, and focused graph tests)
 - [ ] NL-P1 | Basic math & signal processing nodes | Owner: Future | Status: Not started
 - [x] NL-P2 | Control nodes (PID) | Owner: Nemotron | Status: Complete (`ControlLoop` fully implemented with schema, palette/inspector, ports, validation, deterministic C codegen, `hyp_pid_step` SDK primitive, and focused tests)
+- [x] NL-COM | Communication & timing nodes (Phase 1) | Owner: Nemotron | Status: Complete (`UARTInput`, `UARTOutput` fully implemented with schema, palette/inspector, ports, validation, deterministic C codegen via `hyp_sensor_read`/`hyp_actuator_write`, ESP32 backend via existing UART resource table, and focused tests)
 - [ ] NL-R1 | 3-DOF robotics foundation nodes | Owner: Future | Status: Not started
 - [ ] NL-4WD | 4WD / mobile robotics nodes | Owner: Future | Status: Not started
 - [ ] NL-R2 | 6-DOF robotics foundation nodes | Owner: Future | Status: Not started
-- [ ] NL-COM | Communication & timing nodes | Owner: Future | Status: Not started
 - [/] NL-DATA | Data & telemetry nodes | Owner: Antigravity | Status: Partial (`Publish` topic streaming complete; logging pending)
 - [ ] NL-CUSTOM | Custom code & function nodes | Owner: Future | Status: Not started
 - [ ] NL-ADV | Advanced P2/P3 nodes | Owner: Future | Status: Not started

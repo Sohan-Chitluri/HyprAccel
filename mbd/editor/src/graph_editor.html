@@ -681,6 +681,8 @@
       <div class="menu-dropdown">
         <button id="menu-build">Generate C Code</button>
         <button id="menu-compile">Compile Code</button>
+        <div style="height:1px; background:var(--border); margin:4px 0;"></div>
+        <button id="menu-generate-project">Generate Project Workspace</button>
       </div>
     </div>
     <div class="menu-item" tabindex="0">Deploy
@@ -722,6 +724,9 @@
   </div>
   <div class="toolbar-divider"></div>
   <div class="toolbar-group">
+    <div style="width:1px; height:24px; background:var(--border);"></div>
+    <button id="generate-project" class="tool-btn btn-primary" style="background:#8b5cf6;border-color:#7c3aed;">Generate Project Workspace</button>
+    <div style="width:1px; height:24px; background:var(--border);"></div>
     <button id="build" class="tool-btn btn-primary">Generate C</button>
     <button id="compile" class="tool-btn">Compile</button>
     <button id="flash" class="tool-btn btn-accent">Build &amp; Flash</button>
@@ -812,7 +817,9 @@ const defaults = {
   Switch:{},
   GPIOInput:{samplePeriodUs:1000,invert:false},
   ADCInput:{samplePeriodUs:1000,unit:'V',minValue:0,maxValue:3.3},
-  PWMOutput:{min:0,max:255,unit:'%',safeValue:0}
+  PWMOutput:{min:0,max:255,unit:'%',safeValue:0},
+  UARTInput:{samplePeriodUs:1000,baudRate:115200,dataBits:8,parity:'none',stopBits:1},
+  UARTOutput:{baudRate:115200,dataBits:8,parity:'none',stopBits:1}
 };
 
 const descriptions = {
@@ -832,7 +839,9 @@ const descriptions = {
   Switch:'Select between true/false values based on condition',
   GPIOInput:'Digital GPIO input with optional inversion',
   ADCInput:'Analog-to-digital converter input',
-  PWMOutput:'Pulse-width modulation output'
+  PWMOutput:'Pulse-width modulation output',
+  UARTInput:'UART serial input (reads available bytes)',
+  UARTOutput:'UART serial output (writes bytes)'
 };
 
 // Keep schema/node-library identifiers stable while presenting the domain
@@ -840,8 +849,8 @@ const descriptions = {
 const displayNames = { CordicOp: 'CORDIC' };
 
 const categories = [
-  { name: 'Inputs & Sensors', items: ['SensorInput', 'GPIOInput', 'ADCInput'] },
-  { name: 'Outputs & Actuators', items: ['ActuatorOutput', 'PWMOutput'] },
+  { name: 'Inputs & Sensors', items: ['SensorInput', 'GPIOInput', 'ADCInput', 'UARTInput'] },
+  { name: 'Outputs & Actuators', items: ['ActuatorOutput', 'PWMOutput', 'UARTOutput'] },
   { name: 'Accelerator', items: ['CordicOp'] },
   { name: 'Control', items: ['ControlLoop'] },
   { name: 'Robotics', items: ['KinematicsSolve'] },
@@ -870,7 +879,9 @@ const portTypes = {
   Switch:{in:[['condition','boolean'],['true_value','number'],['false_value','number']],out:[['value','number']]},
   GPIOInput:{in:[],out:[['value','boolean']]},
   ADCInput:{in:[],out:[['value','number']]},
-  PWMOutput:{in:[['value','number'],['enable','boolean']],out:[['applied','number'],['active','boolean']]}
+  PWMOutput:{in:[['value','number'],['enable','boolean']],out:[['applied','number'],['active','boolean']]},
+  UARTInput:{in:[],out:[['value','number'],['valid','boolean']]},
+  UARTOutput:{in:[['data','number']],out:[['sent','boolean']]}
 };
 
 function ports(type, params) {
@@ -910,6 +921,14 @@ let undoSnapshots = [], redoSnapshots = [], pendingMoveSnapshot = null;
 let activeConsoleTab = 'console', lastSourceCode = '', lastDiagnostics = '';
 let currentHardware = null;
 let previousHardwareBoard = null;
+
+function log(msg, type = 'info') {
+  const txt = document.getElementById('consoleLogText');
+  txt.className = 'log-' + type;
+  txt.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  txt.dataset.log = txt.textContent;
+  updateConsoleOutput();
+}
 
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
 function snapshot() { return {nodes:clone(graphNodes),edges:clone(graphEdges),selectedId,nextId}; }
@@ -982,18 +1001,26 @@ function updateParam(key, value) {
   setState(graphNodes.map(x => x.id === selectedId ? {...x, data:{...x.data, params}} : x), graphEdges);
 }
 
+function getSelectOptions(key) {
+  if (key === 'operation') return ['sin','cos','sincos','atan2'];
+  if (key === 'implementation') return [['auto','Automatic'],['software','Software'],['hardware','Hardware Accelerator']];
+  if (key === 'transport') return ['telemetry','can','uart','spi'];
+  if (key === 'mode') return ['forward','inverse'];
+  if (key === 'dataBits') return [5,6,7,8];
+  if (key === 'parity') return ['none','even','odd'];
+  if (key === 'stopBits') return [1,2];
+  return ['forward','inverse'];
+}
+
 function field(key, value, type) {
   const label = key === 'retain' ? 'Retain' : key;
   return hyprGraphH('div', {className:'field', key},
     hyprGraphH('label', null, label),
     type === 'select'
       ? hyprGraphH('select', {value, onChange: e => updateParam(key, e.target.value)},
-          (key === 'operation' ? ['sin','cos','sincos','atan2']
-           : key === 'implementation' ? [['auto','Automatic'],['software','Software'],['hardware','Hardware Accelerator']]
-           : key === 'transport' ? ['telemetry','can','uart','spi']
-           : ['forward','inverse']).map(x => Array.isArray(x)
-             ? hyprGraphH('option', {key:x[0], value:x[0]}, x[1])
-             : hyprGraphH('option', {key:x, value:x}, x)))
+          getSelectOptions(key).map(x => Array.isArray(x)
+            ? hyprGraphH('option', {key:x[0], value:x[0]}, x[1])
+            : hyprGraphH('option', {key:x, value:x}, x)))
       : type === 'check'
       ? hyprGraphH('label', {className:'check'},
           hyprGraphH('input', {type:'checkbox', checked:!!value, onChange: e => updateParam(key, e.target.checked)}), key === 'retain' ? 'Enable retained message' : 'Enabled')
@@ -1002,21 +1029,6 @@ function field(key, value, type) {
 }
 
 function renderHardwareInspector(el, n) {
-  const p = n.data.params;
-  el.innerHTML = `
-    <div class="inspector-header">
-      <span>${n.data.nodeType} Inspector</span>
-      <span class="project-prop-val" style="color:var(--accent);font-size:10px">${n.id}</span>
-    </div>
-    <div class="inspector-body">
-      <div class="embed-note">Physical pins and peripheral settings are owned by Hardware Setup. This node references one configured resource and never stores GPIO mappings.</div>
-      <label class="prop-label" for="hardwareResourceSelect">Configured hardware resource</label>
-      <select id="hardwareResourceSelect" class="prop-input"><option value="">Loading Hardware Setup…</option></select>
-      <a href="/" style="display:inline-block;margin-top:10px;color:var(--accent);font-weight:600;text-decoration:none">Open Hardware Setup</a>
-      <pre id="hardwareResourceSummary" class="embed-note" style="white-space:pre-line;margin-top:12px"></pre>
-    </div>
-  `;
-  const select = document.getElementById('hardwareResourceSelect');
   const summary = document.getElementById('hardwareResourceSummary');
   select.onchange = () => updateParam('hardwareResource', select.value);
   fetch('/api/hardware').then(response => response.json()).then(hardware => {
@@ -1055,7 +1067,7 @@ function renderConfig() {
 
   let groupHtml = '';
 
-  if (['SensorInput', 'ActuatorOutput', 'GPIOInput', 'ADCInput', 'PWMOutput'].includes(t)) {
+  if (['SensorInput', 'ActuatorOutput', 'GPIOInput', 'ADCInput', 'PWMOutput', 'UARTInput', 'UARTOutput'].includes(t)) {
     renderHardwareInspector(el, n);
     return;
   }
@@ -1120,6 +1132,14 @@ function renderConfig() {
   } else if (t === 'PWMOutput') {
     paramGroups = [
       { name: 'PWM Settings', fields: [['min','number'],['max','number'],['unit','text'],['safeValue','number']] }
+    ];
+  } else if (t === 'UARTInput') {
+    paramGroups = [
+      { name: 'UART Settings', fields: [['hardwareResource','select'],['samplePeriodUs','number'],['baudRate','number'],['dataBits','select'],['parity','select'],['stopBits','select']] }
+    ];
+  } else if (t === 'UARTOutput') {
+    paramGroups = [
+      { name: 'UART Settings', fields: [['hardwareResource','select'],['baudRate','number'],['dataBits','select'],['parity','select'],['stopBits','select']] }
     ];
   }
 
@@ -1218,13 +1238,9 @@ async function syncHardwareTarget() {
 }
 
 async function requestBuild(endpoint, initial) {
-  const txt = document.getElementById('consoleLogText');
   const bottomDock = document.getElementById('bottomDock');
   bottomDock.classList.remove('collapsed');
-
-  txt.className = 'log-info';
-  txt.textContent = `[${new Date().toLocaleTimeString()}] ${initial}...`;
-  txt.dataset.log = txt.textContent;
+  log(initial, 'info');
 
   try {
     const r = await fetch(endpoint, {
@@ -1235,28 +1251,41 @@ async function requestBuild(endpoint, initial) {
     const data = await r.json();
     if (r.ok) {
       const logBody = data.log ? data.log : (data.markers ? 'Verified markers: ' + data.markers.join(', ') : 'Action succeeded.');
-      txt.className = 'log-ok';
-      txt.textContent = `[SUCCESS] ${endpoint} completed successfully.\n\n${logBody}`;
-      txt.dataset.log = txt.textContent;
+      log(`[SUCCESS] ${endpoint} completed successfully.\n\n${logBody}`, 'ok');
       if (data.source) lastSourceCode = data.source;
       if (data.markers) lastDiagnostics = `Verified markers: ${data.markers.join(', ')}`;
     } else {
-      txt.className = 'log-err';
-      txt.textContent = `[ERROR] ${data.error || data.log || 'Build step failed'}`;
-      txt.dataset.log = txt.textContent;
+      log(`[ERROR] ${data.error || data.log || 'Build step failed'}`, 'err');
     }
   } catch (e) {
-    txt.className = 'log-err';
-    txt.textContent = `[EXCEPTION] ${e.message}`;
-    txt.dataset.log = txt.textContent;
+    log(`[EXCEPTION] ${e.message}`, 'err');
   }
-  updateConsoleOutput();
 }
 
 function build() { return requestBuild('/api/build', 'Generating C code from MBD graph'); }
-function compile() { return requestBuild('/api/compile', 'Compiling C code with RISC-V GCC'); }
-function flash() { return requestBuild('/api/flash', 'Building & Flashing to target THEJAS32'); }
-function verify() { return requestBuild('/api/verify', 'Running hardware verification check'); }
+function compile() { return requestBuild('/api/compile', 'Compiling hardware sources for ESP32'); }
+function flash() { return requestBuild('/api/flash', 'Building and Flashing target ESP32'); }
+function verify() { return requestBuild('/api/verify', 'Verifying hardware integration'); }
+
+async function generateProject() {
+  log('Generating Project Workspace...', 'info');
+  try {
+    const res = await fetch('/api/project/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(toGraph())
+    });
+    const data = await res.json();
+    if (res.ok) {
+      log('Project Workspace generated.', 'ok');
+      window.open('/workspace', '_blank');
+    } else {
+      log(`Generation failed: ${data.error || 'Unknown error'}`, 'err');
+    }
+  } catch (err) {
+    log(`Network error: ${err.message}`, 'err');
+  }
+}
 
 function confirmDelete(nodeId) {
   const node = graphNodes.find(item => item.id === nodeId);
@@ -1472,6 +1501,7 @@ canvasEl.addEventListener('drop', e => {
 document.getElementById('clear').onclick = () => { const previous = snapshot(); nextId = 1; selectedId = null; setState([], [], true, previous); };
 document.getElementById('undo').onclick = undo;
 document.getElementById('redo').onclick = redo;
+document.getElementById('generate-project').onclick = generateProject;
 document.getElementById('build').onclick = build;
 document.getElementById('compile').onclick = compile;
 document.getElementById('flash').onclick = flash;
@@ -1486,6 +1516,7 @@ document.getElementById('menu-pin-config').onclick = () => window.open('/pin_con
 document.getElementById('menu-board-info').onclick = () => alert(`Target Board: ${currentHardware && currentHardware.board ? currentHardware.board : 'none'}\nHardware resources are owned by Hardware Setup.\nHeader: hyp_board_config.h`);
 document.getElementById('menu-validate').onclick = () => alert('Model structure valid.\nAll node parameter constraints satisfied.');
 document.getElementById('menu-build').onclick = build;
+document.getElementById('menu-generate-project').onclick = generateProject;
 document.getElementById('menu-compile').onclick = compile;
 document.getElementById('menu-flash').onclick = flash;
 document.getElementById('menu-verify').onclick = verify;

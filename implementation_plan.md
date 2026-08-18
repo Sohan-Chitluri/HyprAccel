@@ -184,10 +184,10 @@ Node implementations are organized into functional phases.
 - **`NL-P0` | Foundation Nodes**: `Complete` for `CordicOp`, `Publish`, `SensorInput`, and `ActuatorOutput`; the latter two use the SDK-T1/T2 runtime primitives and graph codegen paths.
 - **`NL-P1` | Basic Math & Signal Processing**: `Not started`. `Constant`, `Add`, `Subtract`, `Multiply`, `Gain`, `Clamp`, `Saturation`.
 - **`NL-P2` | Control Nodes**: `Complete` for `PID` (ControlLoop). Discrete PID with anti-windup, conditional integration, output saturation; uses SDK-T3 `hyp_pid_step`; graph schema, palette, inspector, ports, validation, codegen, and tests complete. `PI`, `Lead-Lag` remain `Not started`.
+- **`NL-COM` | Communication & Timing**: `Complete` for Phase 1 `UARTInput`, `UARTOutput`. Uses existing `hyp_sensor_read`/`hyp_actuator_write` SDK primitives; UART resource IDs resolved via `hyp_resource_pin_table` and `is_configured_bus_resource`; graph schema, palette, inspector, ports, validation, deterministic C codegen, and tests complete. Remaining: `SPI/I2C packet I/O`, `timer tick`, `delay blocks` remain `Not started`.
 - **`NL-R1` | 3-DOF Robotics Foundation**: `Not started`. 3-DOF arm forward/inverse kinematics, joint position/velocity, planar transformations.
 - **`NL-4WD` | 4WD / Mobile Robotics**: `Not started`. Wheel encoders, differential drive kinematics, motor speed controllers, odometry.
 - **`NL-R2` | 6-DOF Robotics Foundation**: `Not started`. 6-DOF manipulator FK/IK, end-effector pose, SE(3) transform, joint limits.
-- **`NL-COM` | Communication & Timing**: `Not started`. UART/SPI/I2C packet I/O, timer tick, delay blocks.
 - **`NL-DATA` | Data & Telemetry**: `Partial`. `Publish` topic streaming is complete; data logging buffer blocks are pending.
 - **`NL-CUSTOM` | Custom Code Nodes**: `Not started`. User C expression block and header inclusion wrapper.
 - **`NL-ADV` | Advanced P2/P3 Nodes**: `Not started`. Specialized DSP filters, matrix solvers, custom RTL hardware accelerator wrappers.

@@ -94,6 +94,10 @@ function nodeOutputNames(node) {
             return ['value'];
         case 'ADCInput':
             return ['value'];
+        case 'UARTInput':
+            return ['value', 'valid'];
+        case 'UARTOutput':
+            return ['sent'];
         default:
             return [];
     }
@@ -124,6 +128,10 @@ function nodeInputNames(node) {
             return ['setpoint', 'measurement', 'enable'];
         case 'PWMOutput':
             return ['value', 'enable'];
+        case 'UARTInput':
+            return [];
+        case 'UARTOutput':
+            return ['data'];
         default:
             return [];
     }
@@ -185,7 +193,7 @@ function generate(graph, sourceName) {
     if (!Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) fail('graph must contain nodes and edges arrays');
     const nodeById = new Map();
     const nodeSymbols = new Set();
-    const supportedTypes = ['CordicOp', 'Publish', 'SensorInput', 'ActuatorOutput', 'Constant', 'Add', 'Subtract', 'Multiply', 'Gain', 'Compare', 'Saturation', 'Switch', 'ControlLoop', 'GPIOInput', 'ADCInput', 'PWMOutput'];
+    const supportedTypes = ['CordicOp', 'Publish', 'SensorInput', 'ActuatorOutput', 'Constant', 'Add', 'Subtract', 'Multiply', 'Gain', 'Compare', 'Saturation', 'Switch', 'ControlLoop', 'GPIOInput', 'ADCInput', 'PWMOutput', 'UARTInput', 'UARTOutput'];
 
     for (const node of graph.nodes) {
         if (!node || typeof node.id !== 'string' || !node.params || nodeById.has(node.id)) {
@@ -201,6 +209,8 @@ function generate(graph, sourceName) {
         if (node.type === 'GPIOInput') hardwareResource(node, 'gpio');
         if (node.type === 'ADCInput') hardwareResource(node, 'adc');
         if (node.type === 'PWMOutput') hardwareResource(node, 'pwm');
+        if (node.type === 'UARTInput') hardwareResource(node, 'uart');
+        if (node.type === 'UARTOutput') hardwareResource(node, 'uart');
         nodeById.set(node.id, node);
     }
 
@@ -225,7 +235,9 @@ function generate(graph, sourceName) {
                               source.type === 'ControlLoop' ? ['command', 'error'] :
                               source.type === 'GPIOInput' ? ['value'] :
                               source.type === 'ADCInput' ? ['value'] :
-                              source.type === 'PWMOutput' ? ['applied', 'active'] : [];
+                              source.type === 'UARTInput' ? ['value', 'valid'] :
+                              source.type === 'PWMOutput' ? ['applied', 'active'] :
+                              source.type === 'UARTOutput' ? ['sent'] : [];
         if (!sourceOutputs.includes(edge.from.port)) {
             fail(`edge source '${edge.from.node}.${edge.from.port}' is not a supported generated output`);
         }
@@ -511,6 +523,89 @@ function generate(graph, sourceName) {
             const trueVal = `${cIdentifier(trueEdge.node.id, 'node id')}_${trueEdge.port}`;
             const falseVal = `${cIdentifier(falseEdge.node.id, 'node id')}_${falseEdge.port}`;
             lines.push(`    float ${nodeName}_value = ${condVal} ? ${trueVal} : ${falseVal};`);
+
+        } else if (node.type === 'ControlLoop') {
+            // ControlLoop has inputs: setpoint, measurement, enable
+            // Outputs: command, error
+            
+            const setpointEdge = inbound.get(`${node.id}.setpoint`);
+            const measurementEdge = inbound.get(`${node.id}.measurement`);
+            const enableEdge = inbound.get(`${node.id}.enable`);
+            
+            if (!setpointEdge) fail(`ControlLoop '${node.id}' requires a 'setpoint' input edge`);
+            if (!measurementEdge) fail(`ControlLoop '${node.id}' requires a 'measurement' input edge`);
+            // enable is optional
+            
+            const setpointVal = `${cIdentifier(setpointEdge.node.id, 'node id')}_${setpointEdge.port}`;
+            const measurementVal = `${cIdentifier(measurementEdge.node.id, 'node id')}_${measurementEdge.port}`;
+            
+            // Generate PID state variable name
+            const pidState = `${nodeName}_pid_state`;
+            
+            // Initialize PID state on first call
+            lines.push(`    static hyp_pid_state_t ${pidState} = {`);
+            lines.push(`        .kp = ${numberLiteral(node.params.kp, `ControlLoop '${node.id}' kp`)},`);
+            lines.push(`        .ki = ${numberLiteral(node.params.ki, `ControlLoop '${node.id}' ki`)},`);
+            lines.push(`        .kd = ${numberLiteral(node.params.kd, `ControlLoop '${node.id}' kd`)},`);
+            lines.push(`        .sample_period_s = ${numberLiteral(node.params.samplePeriodUs / 1e6, `ControlLoop '${node.id}' samplePeriodUs`)},`);
+            lines.push(`        .output_min = ${numberLiteral(node.params.outputMin, `ControlLoop '${node.id}' outputMin`)},`);
+            lines.push(`        .output_max = ${numberLiteral(node.params.outputMax, `ControlLoop '${node.id}' outputMax`)},`);
+            lines.push(`        .integral = 0.0f,`);
+            lines.push(`        .prev_error = 0.0f,`);
+            lines.push(`        .initialized = false`);
+            lines.push(`    };`);
+            
+            // Initial output if provided
+            if (node.params.initialOutput !== undefined && node.params.initialOutput !== 0.0) {
+                lines.push(`    if (!${pidState}.initialized) {`);
+                lines.push(`        ${pidState}.integral = ${numberLiteral(node.params.initialOutput, `ControlLoop '${node.id}' initialOutput`)} / ${pidState}.kp;`);
+                lines.push(`    }`);
+            }
+            
+            // Call hyp_pid_step
+            const enableVal = enableEdge ? `${cIdentifier(enableEdge.node.id, 'node id')}_${enableEdge.port}` : 'true';
+            lines.push(`    float ${nodeName}_command = 0.0f;`);
+            lines.push(`    float ${nodeName}_error = 0.0f;`);
+            lines.push(`    hyp_pid_step(&${pidState}, ${setpointVal}, ${measurementVal}, ${enableVal}, &${nodeName}_command, &${nodeName}_error);`);
+
+        } else if (node.type === 'UARTInput') {
+            // UARTInput reads available bytes from UART
+            const resourceId = hardwareResource(node, 'uart');
+            
+            const valueUsed = usedOutputs.has(`${node.id}.value`);
+            const validUsed = usedOutputs.has(`${node.id}.valid`);
+            
+            if (valueUsed) {
+                lines.push(`    int ${nodeName}_value = 0;`);
+            }
+            if (validUsed) {
+                lines.push(`    uint8_t ${nodeName}_valid = 0;`);
+            }
+            
+            if (valueUsed) {
+                lines.push(`    int ${nodeName}_result = hyp_sensor_read(${cString(resourceId)}, &${nodeName}_value, sizeof(${nodeName}_value));`);
+                lines.push(`    if (${nodeName}_result == HYP_RUNTIME_OK) {`);
+                if (validUsed) {
+                    lines.push(`        ${nodeName}_valid = 1;`);
+                }
+                lines.push(`    }`);
+            }
+
+        } else if (node.type === 'UARTOutput') {
+            // UARTOutput writes bytes to UART
+            const dataEdge = inbound.get(`${node.id}.data`);
+            if (!dataEdge) fail(`UARTOutput '${node.id}' requires a 'data' input edge`);
+            const dataVal = `${cIdentifier(dataEdge.node.id, 'node id')}_${dataEdge.port}`;
+            
+            const resourceId = hardwareResource(node, 'uart');
+            
+            const sentUsed = usedOutputs.has(`${node.id}.sent`);
+            lines.push(`    uint8_t ${nodeName}_sent = 0;`);
+            lines.push(`    int ${nodeName}_result = hyp_actuator_write(${cString(resourceId)}, &${dataVal}, sizeof(${dataVal}));`);
+            lines.push(`    if (${nodeName}_result == HYP_RUNTIME_OK) {`);
+            lines.push(`        ${nodeName}_sent = 1;`);
+            lines.push(`    }`);
+            if (!sentUsed) lines.push(`    (void)${nodeName}_sent;`);
 
         } else {
             // For now, other node types are not yet implemented in codegen
