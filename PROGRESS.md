@@ -136,3 +136,15 @@ The runtime SDK provides embedded primitives required by generated C step functi
 - [x] PLAT-T1 | Telemetry dashboard | Owner: Antigravity | Status: Complete
 - [x] PLAT-T2 | Siemens comparison | Owner: Gemini CLI | Status: Complete
 - [ ] PLAT-T3 | Bare carrier PCB | Owner: Antigravity | Status: Deferred
+
+## TRACK HW-UX — Hardware Setup UX v2
+*Evolve the current flat pin-configuration UI into a structured, resource-oriented engineering workflow. Reuses the canonical hardware resource model (MBD-T1d) and schematic import backend (SCH-T1..T4).*
+
+- [ ] HW-UX-T1 | Hardware Setup v2 foundation / resource grouping (Board → Peripheral → Semantic Signals → Physical Pins) | Owner: Antigravity | Status: Not started
+- [ ] HW-UX-T2 | Peripheral / semantic signal sections (GPIO, SPI, I2C, UART, PWM, ADC grouped under resources) | Owner: Antigravity | Status: Not started
+- [ ] HW-UX-T3 | Project target board selector integration (single project-level board state shared by Hardware Setup, Graph Editor, Codegen, Build/Deploy) | Owner: Antigravity | Status: Not started
+- [ ] HW-UX-T4 | KiCad schematic import UI (expose SCH-T1..T4 importer via Hardware Setup: "Manual Configuration" OR "Import KiCad Schematic") | Owner: Antigravity | Status: Not started
+- [ ] HW-UX-T5 | Schematic import preview and apply workflow (detected MCU, resources, signals, resolved pins, warnings/errors) | Owner: Antigravity | Status: Not started
+- [ ] HW-UX-T6 | Pinout visualization / CubeMX-style board view (physical pins, assigned peripherals, semantic roles, conflicts, available pins) | Owner: Antigravity | Status: Not started
+- [ ] HW-UX-T7 | Hardware Setup ↔ Graph Editor integration polish (shared canonical hardware state; graph references resources, not independent pin mappings) | Owner: Antigravity | Status: Not started
+- [ ] HW-UX-T8 | Hardware Setup validation/error UX (surface existing canonical validation: duplicate pins, invalid roles, invalid combinations, unknown resources, unconfigured resources, unresolved schematic MCU, conflicting assignments) | Owner: Antigravity | Status: Not started
