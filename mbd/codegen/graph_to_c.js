@@ -32,6 +32,22 @@ function cString(value) {
     return JSON.stringify(value);
 }
 
+function hardwareResource(node, expectedType) {
+    const resourceId = node.params && node.params.hardwareResource;
+    if (typeof resourceId !== 'string' || !resourceId) {
+        fail(`${node.type} '${node.id}' requires a hardwareResource parameter`);
+    }
+    if (!resourceId.startsWith(`${expectedType}.`)) {
+        fail(`${node.type} '${node.id}' requires a ${expectedType} hardware resource, got '${resourceId}'`);
+    }
+    return resourceId;
+}
+
+function numberLiteral(value, context) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) fail(`${context} must be a finite number`);
+    return `${Number.isInteger(value) ? `${value}.0` : value}f`;
+}
+
 function cIdentifier(value, context) {
     if (!GRAPH_IDENTIFIER.test(value)) {
         fail(`${context} '${value}' is not a valid graph identifier`);
@@ -44,12 +60,67 @@ function cIdentifier(value, context) {
 }
 
 function nodeOutputNames(node) {
-    if (node.type !== 'CordicOp') return [];
-    switch (node.params.operation) {
-        case 'sin': return ['value'];
-        case 'cos': return ['value'];
-        case 'sincos': return ['sin', 'cos'];
-        default: fail(`CordicOp '${node.id}' operation '${node.params.operation}' is not supported by the SDK`);
+    switch (node.type) {
+        case 'CordicOp':
+            switch (node.params.operation) {
+                case 'sin': return ['value'];
+                case 'cos': return ['value'];
+                case 'sincos': return ['sin', 'cos'];
+                default: fail(`CordicOp '${node.id}' operation '${node.params.operation}' is not supported by the SDK`);
+            }
+        case 'SensorInput':
+            return ['value', 'timestamp_us', 'valid'];
+        case 'Constant':
+            return ['value'];
+        case 'Add':
+        case 'Subtract':
+        case 'Multiply':
+        case 'Gain':
+            return ['value'];
+        case 'Compare':
+            return ['result'];
+        case 'Saturation':
+            return ['value'];
+        case 'Switch':
+            return ['value'];
+        case 'ControlLoop':
+            return ['command', 'error'];
+        case 'GPIOInput':
+            return ['value'];
+        case 'ADCInput':
+            return ['value'];
+        default:
+            return [];
+    }
+}
+
+function nodeInputNames(node) {
+    switch (node.type) {
+        case 'CordicOp':
+            if (node.params.operation === 'atan2') return ['y', 'x'];
+            return ['angle_rad'];
+        case 'Publish':
+            return ['value', 'timestamp_us'];
+        case 'ActuatorOutput':
+            return ['command', 'enable'];
+        case 'Add':
+        case 'Subtract':
+        case 'Multiply':
+            return ['a', 'b'];
+        case 'Gain':
+            return ['input'];
+        case 'Compare':
+            return ['input'];
+        case 'Saturation':
+            return ['input'];
+        case 'Switch':
+            return ['condition', 'true_value', 'false_value'];
+        case 'ControlLoop':
+            return ['setpoint', 'measurement', 'enable'];
+        case 'PWMOutput':
+            return ['value', 'enable'];
+        default:
+            return [];
     }
 }
 
@@ -103,23 +174,28 @@ function topologicalOrder(nodes, edges) {
 }
 
 function generate(graph, sourceName) {
-    if (graph.format !== 'hypraccel.mbd.graph' || graph.version !== 1) {
+    if (!graph || graph.format !== 'hypraccel.mbd.graph' || graph.version !== 1) {
         fail('expected a hypraccel.mbd.graph version 1 graph');
     }
     if (!Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) fail('graph must contain nodes and edges arrays');
-
     const nodeById = new Map();
     const nodeSymbols = new Set();
+    const supportedTypes = ['CordicOp', 'Publish', 'SensorInput', 'ActuatorOutput', 'Constant', 'Add', 'Subtract', 'Multiply', 'Gain', 'Compare', 'Saturation', 'Switch', 'ControlLoop', 'GPIOInput', 'ADCInput', 'PWMOutput'];
+
     for (const node of graph.nodes) {
-        if (!node || typeof node.id !== 'string' || !node.params) fail('each node must have an id and params');
-        if (nodeById.has(node.id)) fail(`duplicate node id '${node.id}'`);
+        if (!node || typeof node.id !== 'string' || !node.params || nodeById.has(node.id)) {
+            fail('each node must have a unique id and params object');
+        }
         const nodeSymbol = cIdentifier(node.id, 'node id');
         if (nodeSymbols.has(nodeSymbol)) fail(`node id '${node.id}' collides with another generated C symbol`);
         nodeSymbols.add(nodeSymbol);
-        if (node.type !== 'CordicOp' && node.type !== 'Publish' && node.type !== 'SensorInput' && node.type !== 'ActuatorOutput') {
-            fail(`node '${node.id}' has unsupported type '${node.type}'; the current SDK codegen supports CordicOp, Publish, SensorInput, and ActuatorOutput`);
+        if (!supportedTypes.includes(node.type)) {
+            fail(`node '${node.id}' has unsupported type '${node.type}'`);
         }
         if (node.type === 'CordicOp') nodeOutputNames(node);
+        if (node.type === 'GPIOInput') hardwareResource(node, 'gpio');
+        if (node.type === 'ADCInput') hardwareResource(node, 'adc');
+        if (node.type === 'PWMOutput') hardwareResource(node, 'pwm');
         nodeById.set(node.id, node);
     }
 
@@ -132,15 +208,25 @@ function generate(graph, sourceName) {
 
         // Validate source port
         const sourceOutputs = source.type === 'CordicOp' ? nodeOutputNames(source) :
-                              source.type === 'SensorInput' ? sensorOutputNames(source) : [];
+                              source.type === 'SensorInput' ? sensorOutputNames(source) :
+                              source.type === 'Constant' ? ['value'] :
+                              source.type === 'Add' ? ['value'] :
+                              source.type === 'Subtract' ? ['value'] :
+                              source.type === 'Multiply' ? ['value'] :
+                              source.type === 'Gain' ? ['value'] :
+                              source.type === 'Compare' ? ['result'] :
+                              source.type === 'Saturation' ? ['value'] :
+                              source.type === 'Switch' ? ['value'] :
+                              source.type === 'ControlLoop' ? ['command', 'error'] :
+                              source.type === 'GPIOInput' ? ['value'] :
+                              source.type === 'ADCInput' ? ['value'] :
+                              source.type === 'PWMOutput' ? ['applied', 'active'] : [];
         if (!sourceOutputs.includes(edge.from.port)) {
             fail(`edge source '${edge.from.node}.${edge.from.port}' is not a supported generated output`);
         }
 
         // Validate target port
-        const targetInputs = target.type === 'Publish' ? ['value'] :
-                             target.type === 'ActuatorOutput' ? actuatorInputNames(target) :
-                             target.type === 'CordicOp' ? ['angle_rad'] : [];
+        const targetInputs = nodeInputNames(target);
         if (!targetInputs.includes(edge.to.port)) {
             fail(`edge destination '${edge.to.node}.${edge.to.port}' is not a supported generated input`);
         }
@@ -204,10 +290,11 @@ function generate(graph, sourceName) {
     const usedOutputs = new Set([...inbound.values()].map(edge => `${edge.node.id}.${edge.port}`));
 
     for (const node of ordered) {
+        const nodeName = cIdentifier(node.id, 'node id');
+
         if (node.type === 'CordicOp') {
             const input = bindings.get(`${node.id}.angle_rad`);
             if (!input) fail(`CordicOp '${node.id}' requires an external binding for angle_rad`);
-            const nodeName = cIdentifier(node.id, 'node id');
             const args = `${nodeName}_args`;
             const target = cordicTarget(node);
             lines.push(`    hyp_cordic_args_t ${args} = {0};`);
@@ -219,51 +306,101 @@ function generate(graph, sourceName) {
                 const field = output === 'sin' || node.params.operation === 'sin' ? 'out_sin' : 'out_cos';
                 lines.push(`    float ${nodeName}_${output} = ${args}.${field};`);
             }
+        } else if (node.type === 'GPIOInput') {
+            const resourceId = hardwareResource(node, 'gpio');
+            const valueUsed = usedOutputs.has(`${node.id}.value`);
+            if (valueUsed) {
+                lines.push(`    uint8_t ${nodeName}_value = 0;`);
+                lines.push(`    if (hyp_sensor_read(${cString(resourceId)}, &${nodeName}_value, sizeof(${nodeName}_value)) == HYP_RUNTIME_OK) {`);
+                if (node.params.invert) lines.push(`        ${nodeName}_value = (uint8_t)!${nodeName}_value;`);
+                lines.push('    }');
+            }
+
+        } else if (node.type === 'ADCInput') {
+            const resourceId = hardwareResource(node, 'adc');
+            if (node.params.minValue !== undefined && node.params.maxValue !== undefined && node.params.maxValue < node.params.minValue) {
+                fail(`ADCInput '${node.id}' maxValue must be at least minValue`);
+            }
+            const valueUsed = usedOutputs.has(`${node.id}.value`);
+            if (valueUsed) {
+                lines.push(`    float ${nodeName}_value = 0.0f;`);
+                lines.push(`    hyp_sensor_read(${cString(resourceId)}, &${nodeName}_value, sizeof(${nodeName}_value));`);
+                if (node.params.minValue !== undefined) lines.push(`    if (${nodeName}_value < ${numberLiteral(node.params.minValue, `${node.type} '${node.id}' minValue`)}) ${nodeName}_value = ${numberLiteral(node.params.minValue, `${node.type} '${node.id}' minValue`)};`);
+                if (node.params.maxValue !== undefined) lines.push(`    if (${nodeName}_value > ${numberLiteral(node.params.maxValue, `${node.type} '${node.id}' maxValue`)}) ${nodeName}_value = ${numberLiteral(node.params.maxValue, `${node.type} '${node.id}' maxValue`)};`);
+            }
+
         } else if (node.type === 'SensorInput') {
-                    const nodeName = cIdentifier(node.id, 'node id');
-                    const resourceId = node.params.hardwareResource || '';
-                    if (!resourceId) fail(`SensorInput '${node.id}' requires a hardwareResource parameter`);
+            const resourceId = node.params.hardwareResource || '';
+            if (!resourceId) fail(`SensorInput '${node.id}' requires a hardwareResource parameter`);
 
-                    // Check if sensor outputs are actually used
-                    const valueUsed = usedOutputs.has(`${node.id}.value`);
-                    const timestampUsed = usedOutputs.has(`${node.id}.timestamp_us`);
-                    const validUsed = usedOutputs.has(`${node.id}.valid`);
-                    const resultNeeded = timestampUsed || validUsed;
+            // Check if sensor outputs are actually used
+            const valueUsed = usedOutputs.has(`${node.id}.value`);
+            const timestampUsed = usedOutputs.has(`${node.id}.timestamp_us`);
+            const validUsed = usedOutputs.has(`${node.id}.valid`);
+            const resultNeeded = timestampUsed || validUsed;
 
-                    // Generate variables for sensor outputs that are used
-                    if (valueUsed) {
-                        lines.push(`    float ${nodeName}_value = 0.0f;`);
+            // Generate variables for sensor outputs that are used
+            if (valueUsed) {
+                lines.push(`    float ${nodeName}_value = 0.0f;`);
+            }
+            if (timestampUsed) {
+                lines.push(`    uint32_t ${nodeName}_timestamp_us = 0;`);
+            }
+            if (validUsed) {
+                lines.push(`    uint8_t ${nodeName}_valid = 0;`);
+            }
+
+            // Call sensor read - the SDK will handle the type based on value_size
+            if (valueUsed) {
+                if (resultNeeded) {
+                    lines.push(`    int ${nodeName}_result = hyp_sensor_read(${cString(resourceId)}, &${nodeName}_value, sizeof(${nodeName}_value));`);
+                    lines.push(`    if (${nodeName}_result == 0) {`);
+                    if (validUsed) {
+                        lines.push(`        ${nodeName}_valid = 1;`);
                     }
                     if (timestampUsed) {
-                        lines.push(`    uint32_t ${nodeName}_timestamp_us = 0;`);
+                        lines.push(`        ${nodeName}_timestamp_us = (uint32_t)micros();`);
                     }
-                    if (validUsed) {
-                        lines.push(`    uint8_t ${nodeName}_valid = 0;`);
-                    }
+                    lines.push(`    }`);
+                } else {
+                    lines.push(`    hyp_sensor_read(${cString(resourceId)}, &${nodeName}_value, sizeof(${nodeName}_value));`);
+                }
+            }
 
-                    // Call sensor read - the SDK will handle the type based on value_size
-                    if (valueUsed) {
-                        if (resultNeeded) {
-                            lines.push(`    int ${nodeName}_result = hyp_sensor_read(${cString(resourceId)}, &${nodeName}_value, sizeof(${nodeName}_value));`);
-                            lines.push(`    if (${nodeName}_result == 0) {`);
-                            if (validUsed) {
-                                lines.push(`        ${nodeName}_valid = 1;`);
-                            }
-                            if (timestampUsed) {
-                                lines.push(`        ${nodeName}_timestamp_us = (uint32_t)micros();`);
-                            }
-                            lines.push(`    }`);
-                        } else {
-                            lines.push(`    hyp_sensor_read(${cString(resourceId)}, &${nodeName}_value, sizeof(${nodeName}_value));`);
-                        }
-                    }
+        } else if (node.type === 'PWMOutput') {
+            const inputEdge = inbound.get(`${node.id}.value`);
+            if (!inputEdge) fail(`PWMOutput '${node.id}' requires a 'value' input edge`);
+            const inputValue = `${cIdentifier(inputEdge.node.id, 'node id')}_${inputEdge.port}`;
+            const resourceId = hardwareResource(node, 'pwm');
+            const min = numberLiteral(node.params.min, `PWMOutput '${node.id}' min`);
+            const max = numberLiteral(node.params.max, `PWMOutput '${node.id}' max`);
+            if (node.params.max <= node.params.min) fail(`PWMOutput '${node.id}' max must be greater than min`);
+            const safe = numberLiteral(node.params.safeValue === undefined ? node.params.min : node.params.safeValue, `PWMOutput '${node.id}' safeValue`);
+            lines.push(`    float ${nodeName}_applied = ${inputValue};`);
+            lines.push(`    if (${nodeName}_applied < ${min}) ${nodeName}_applied = ${min};`);
+            lines.push(`    if (${nodeName}_applied > ${max}) ${nodeName}_applied = ${max};`);
+            lines.push(`    float ${nodeName}_duty = (${nodeName}_applied - ${min}) / (${max} - ${min});`);
+            lines.push(`    float ${nodeName}_safe_value = ${safe};`);
+            lines.push(`    if (${nodeName}_safe_value < ${min}) ${nodeName}_safe_value = ${min};`);
+            lines.push(`    if (${nodeName}_safe_value > ${max}) ${nodeName}_safe_value = ${max};`);
+            lines.push(`    uint8_t ${nodeName}_active = 0;`);
+            const enableEdge = inbound.get(`${node.id}.enable`);
+            if (enableEdge) {
+                const enableValue = `${cIdentifier(enableEdge.node.id, 'node id')}_${enableEdge.port}`;
+                lines.push(`    if (${enableValue}) ${nodeName}_active = (hyp_actuator_write(${cString(resourceId)}, &${nodeName}_duty, sizeof(${nodeName}_duty)) == HYP_RUNTIME_OK);`);
+                lines.push(`    else { float ${nodeName}_safe_duty = (${nodeName}_safe_value - ${min}) / (${max} - ${min}); hyp_actuator_write(${cString(resourceId)}, &${nodeName}_safe_duty, sizeof(${nodeName}_safe_duty)); }`);
+            } else {
+                lines.push(`    ${nodeName}_active = (hyp_actuator_write(${cString(resourceId)}, &${nodeName}_duty, sizeof(${nodeName}_duty)) == HYP_RUNTIME_OK);`);
+            }
+            if (!usedOutputs.has(`${node.id}.applied`)) lines.push(`    (void)${nodeName}_applied;`);
+            if (!enableEdge || !usedOutputs.has(`${node.id}.active`)) lines.push(`    (void)${nodeName}_safe_value;`);
+            if (!usedOutputs.has(`${node.id}.active`)) lines.push(`    (void)${nodeName}_active;`);
 
         } else if (node.type === 'ActuatorOutput') {
             const edge = inbound.get(`${node.id}.command`);
             if (!edge) fail(`ActuatorOutput '${node.id}' requires a command input edge`);
             const value = `${cIdentifier(edge.node.id, 'node id')}_${edge.port}`;
 
-            const nodeName = cIdentifier(node.id, 'node id');
             const resourceId = node.params.hardwareResource || '';
             if (!resourceId) fail(`ActuatorOutput '${node.id}' requires a hardwareResource parameter`);
 
@@ -278,11 +415,88 @@ function generate(graph, sourceName) {
                 lines.push(`    hyp_actuator_write(${cString(resourceId)}, &${value}, sizeof(${value}));`);
             }
 
-        } else {
+        } else if (node.type === 'Publish') {
             const edge = inbound.get(`${node.id}.value`);
             if (!edge) fail(`Publish '${node.id}' requires a value input edge`);
             const value = `${cIdentifier(edge.node.id, 'node id')}_${edge.port}`;
             lines.push(`    hyp_publish(${cString(node.params.topic)}, &${value}, (uint32_t)sizeof(${value}));`);
+
+        } else if (node.type === 'Constant') {
+            const value = node.params.value;
+            lines.push(`    float ${nodeName}_value = ${numberLiteral(value, `Constant '${node.id}' value`)};`);
+
+        } else if (node.type === 'Add') {
+            const aEdge = inbound.get(`${node.id}.a`);
+            const bEdge = inbound.get(`${node.id}.b`);
+            if (!aEdge || !bEdge) fail(`Add '${node.id}' requires both 'a' and 'b' input edges`);
+            const aVal = `${cIdentifier(aEdge.node.id, 'node id')}_${aEdge.port}`;
+            const bVal = `${cIdentifier(bEdge.node.id, 'node id')}_${bEdge.port}`;
+            lines.push(`    float ${nodeName}_value = ${aVal} + ${bVal};`);
+
+        } else if (node.type === 'Subtract') {
+            const aEdge = inbound.get(`${node.id}.a`);
+            const bEdge = inbound.get(`${node.id}.b`);
+            if (!aEdge || !bEdge) fail(`Subtract '${node.id}' requires both 'a' and 'b' input edges`);
+            const aVal = `${cIdentifier(aEdge.node.id, 'node id')}_${aEdge.port}`;
+            const bVal = `${cIdentifier(bEdge.node.id, 'node id')}_${bEdge.port}`;
+            lines.push(`    float ${nodeName}_value = ${aVal} - ${bVal};`);
+
+        } else if (node.type === 'Multiply') {
+            const aEdge = inbound.get(`${node.id}.a`);
+            const bEdge = inbound.get(`${node.id}.b`);
+            if (!aEdge || !bEdge) fail(`Multiply '${node.id}' requires both 'a' and 'b' input edges`);
+            const aVal = `${cIdentifier(aEdge.node.id, 'node id')}_${aEdge.port}`;
+            const bVal = `${cIdentifier(bEdge.node.id, 'node id')}_${bEdge.port}`;
+            lines.push(`    float ${nodeName}_value = ${aVal} * ${bVal};`);
+
+        } else if (node.type === 'Gain') {
+            const inputEdge = inbound.get(`${node.id}.input`);
+            if (!inputEdge) fail(`Gain '${node.id}' requires an 'input' edge`);
+            const inputVal = `${cIdentifier(inputEdge.node.id, 'node id')}_${inputEdge.port}`;
+            const gain = node.params.gain;
+            lines.push(`    float ${nodeName}_value = ${inputVal} * ${numberLiteral(gain, `Gain '${node.id}' gain`)};`);
+
+        } else if (node.type === 'Compare') {
+            const inputEdge = inbound.get(`${node.id}.input`);
+            if (!inputEdge) fail(`Compare '${node.id}' requires an 'input' edge`);
+            const inputVal = `${cIdentifier(inputEdge.node.id, 'node id')}_${inputEdge.port}`;
+            const op = node.params.operation;
+            const threshold = node.params.threshold;
+            let cmpOp;
+            switch (op) {
+                case 'gt': cmpOp = '>'; break;
+                case 'lt': cmpOp = '<'; break;
+                case 'ge': cmpOp = '>='; break;
+                case 'le': cmpOp = '<='; break;
+                case 'eq': cmpOp = '=='; break;
+                case 'ne': cmpOp = '!='; break;
+                default: fail(`Compare '${node.id}' has unsupported operation '${op}'`);
+            }
+            lines.push(`    uint8_t ${nodeName}_result = (${inputVal} ${cmpOp} ${numberLiteral(threshold, `Compare '${node.id}' threshold`)}) ? 1 : 0;`);
+
+        } else if (node.type === 'Saturation') {
+            const inputEdge = inbound.get(`${node.id}.input`);
+            if (!inputEdge) fail(`Saturation '${node.id}' requires an 'input' edge`);
+            const inputVal = `${cIdentifier(inputEdge.node.id, 'node id')}_${inputEdge.port}`;
+            const min = node.params.min;
+            const max = node.params.max;
+            lines.push(`    float ${nodeName}_value = ${inputVal};`);
+            lines.push(`    if (${nodeName}_value < ${numberLiteral(min, `Saturation '${node.id}' min`)}) ${nodeName}_value = ${numberLiteral(min, `Saturation '${node.id}' min`)};`);
+            lines.push(`    if (${nodeName}_value > ${numberLiteral(max, `Saturation '${node.id}' max`)}) ${nodeName}_value = ${numberLiteral(max, `Saturation '${node.id}' max`)};`);
+
+        } else if (node.type === 'Switch') {
+            const condEdge = inbound.get(`${node.id}.condition`);
+            const trueEdge = inbound.get(`${node.id}.true_value`);
+            const falseEdge = inbound.get(`${node.id}.false_value`);
+            if (!condEdge || !trueEdge || !falseEdge) fail(`Switch '${node.id}' requires 'condition', 'true_value', and 'false_value' input edges`);
+            const condVal = `${cIdentifier(condEdge.node.id, 'node id')}_${condEdge.port}`;
+            const trueVal = `${cIdentifier(trueEdge.node.id, 'node id')}_${trueEdge.port}`;
+            const falseVal = `${cIdentifier(falseEdge.node.id, 'node id')}_${falseEdge.port}`;
+            lines.push(`    float ${nodeName}_value = ${condVal} ? ${trueVal} : ${falseVal};`);
+
+        } else {
+            // For now, other node types are not yet implemented in codegen
+            fail(`node '${node.id}' type '${node.type}' codegen not yet implemented`);
         }
     }
     lines.push('}', '');

@@ -127,3 +127,18 @@ Publishes a value to telemetry, logs, or a host-facing graph output.
 | `transport` | `telemetry` \| `log` \| `host` | yes | Destination category. |
 | `retain` | boolean | no | Retain the latest payload for newly attached consumers; defaults to `false`. |
 
+## Hardware I/O nodes
+
+Hardware I/O nodes reference configured canonical resources. They do not contain
+physical pin numbers; Hardware Setup resolves the resource through the generated
+board configuration before the SDK runtime accesses the ESP32 peripheral.
+
+| Node | Ports | Resource type | Parameters |
+| --- | --- | --- | --- |
+| `GPIOInput` | `value: boolean` output | `gpio.*` | `samplePeriodUs` optional; `invert` optional |
+| `ADCInput` | `value: number` output | `adc.*` | `samplePeriodUs`, `unit`, `minValue`, `maxValue` optional |
+| `PWMOutput` | `value: number`, optional `enable: boolean` inputs; `applied: number`, `active: boolean` outputs | `pwm.*` | `min`, `max` required; `unit`, `safeValue` optional |
+
+`ADCInput` reads the SDK's numeric ADC value and applies the configured optional
+output limits. `PWMOutput` clamps its input to `min..max`, maps that range to the
+SDK's normalized `0..1` duty-cycle value, and uses `safeValue` when disabled.

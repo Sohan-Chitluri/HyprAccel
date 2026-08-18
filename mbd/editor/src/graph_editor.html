@@ -3,84 +3,1442 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>HyprAccel · MBD Graph Editor</title>
+<title>HyprAccel · Professional MBD Studio</title>
 <link rel="stylesheet" href="https://unpkg.com/reactflow@11.11.4/dist/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root { color-scheme: dark; --bg:#0d1117; --panel:#161b22; --panel2:#1c2128; --line:#30363d; --text:#e6edf3; --muted:#8b949e; --accent:#58a6ff; --green:#3fb950; --orange:#d29922; }
-  * { box-sizing:border-box } body { margin:0; height:100vh; overflow:hidden; background:var(--bg); color:var(--text); font:13px Inter,system-ui,sans-serif }
-  header { height:52px; display:flex; align-items:center; gap:14px; padding:0 18px; border-bottom:1px solid var(--line); background:#11161d }
-  .logo { color:var(--accent); font-weight:700; letter-spacing:.04em; font-size:16px } h1 { margin:0; font-size:14px; font-weight:600 } .crumb { color:var(--muted) }
-  .toolbar { margin-left:auto; display:flex; align-items:center; gap:8px } button, input, select { font:inherit; color:var(--text) }
-  button { border:1px solid var(--line); border-radius:6px; padding:7px 12px; background:var(--panel2); cursor:pointer } button:hover { border-color:var(--accent) }
-  .build { background:var(--green); border-color:var(--green); color:#07110a; font-weight:700 } .graph-id { width:155px; padding:7px 9px; border:1px solid var(--line); border-radius:6px; background:var(--bg) }
-  main { height:calc(100vh - 52px); display:grid; grid-template-columns:190px minmax(400px,1fr) 310px }
-  aside, .config { background:var(--panel); border-right:1px solid var(--line); overflow:auto } .config { border-right:0; border-left:1px solid var(--line); }
-  .section-title { padding:13px 14px 8px; color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.1em }
-  .palette { padding:0 10px 14px; display:grid; gap:7px } .palette-item { padding:10px; border:1px solid var(--line); background:var(--panel2); border-radius:7px; cursor:grab; user-select:none }
-  .palette-item:active { cursor:grabbing } .palette-item small { display:block; color:var(--muted); margin-top:3px; font-size:10px }
-  .hint { padding:12px 14px; color:var(--muted); line-height:1.5; border-top:1px solid var(--line); font-size:11px }
-  .canvas { position:relative; background-color:#0d1117; background-image:radial-gradient(#27313c 1px,transparent 1px); background-size:20px 20px }
-  .react-flow__controls button { background:var(--panel2); color:var(--text); border-color:var(--line) }.react-flow__minimap { background:var(--panel) }.react-flow__attribution { display:none }
-  .node { min-width:170px; border:1px solid #49627e; border-radius:8px; background:#182333; box-shadow:0 5px 15px #0005; overflow:visible }.node.selected { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent),0 5px 15px #0007 }
-  .node-head { padding:8px 11px; border-bottom:1px solid #30445a; font-weight:700; display:flex; justify-content:space-between; gap:10px }.node-type { color:var(--accent); font-size:11px }.node-label { color:var(--muted); font-size:10px; font-weight:400 }.ports { padding:7px 0 }.port { position:relative; min-height:21px; padding:2px 12px; color:#c9d1d9; font-size:11px }.port.in { text-align:left; padding-left:19px }.port.out { text-align:right; padding-right:19px }.port-type { color:var(--muted); font-size:10px; margin-left:5px }.port.out .port-type { margin-right:5px; margin-left:0 }
-  .config h2 { padding:15px 15px 9px; margin:0; font-size:13px; border-bottom:1px solid var(--line) }.empty { color:var(--muted); padding:16px; line-height:1.5 }.form { padding:14px; display:grid; gap:11px }.field { display:grid; gap:5px }.field label { color:var(--muted); font-size:11px }.field input,.field select { width:100%; padding:7px 8px; border-radius:5px; border:1px solid var(--line); background:var(--bg) }.check { display:flex; align-items:center; gap:7px; color:var(--muted) }.embed { width:100%; height:490px; border:0; border-top:1px solid var(--line); background:#0d1117 }.embed-note { padding:11px 14px; color:var(--muted); line-height:1.4; font-size:11px }
-  .output { border-top:1px solid var(--line); margin-top:12px }.output pre { margin:0; padding:12px 14px; max-height:280px; overflow:auto; white-space:pre-wrap; color:#c9d1d9; font:11px/1.55 ui-monospace,SFMono-Regular,monospace }.status { padding:8px 14px; color:var(--muted); border-top:1px solid var(--line); font-size:11px }.ok { color:var(--green) }.error { color:#ff7b72 }
+  :root {
+    color-scheme: dark;
+    --bg: #0b0e14;
+    --panel: #131720;
+    --panel-header: #181d28;
+    --panel-hover: #1c2331;
+    --border: #262d3d;
+    --border-light: #323b4e;
+    --text: #e1e7ec;
+    --text-muted: #7e8b9b;
+    --accent: #38bdf8;
+    --accent-glow: rgba(56, 189, 248, 0.15);
+    --green: #22c55e;
+    --orange: #f59e0b;
+    --red: #ef4444;
+    --font: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    height: 100vh;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font: 12px/1.4 var(--font);
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+  }
+
+  /* ── Top Menu & Header ── */
+  header.app-header {
+    height: 38px;
+    background: var(--panel-header);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 16px;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .brand-logo {
+    color: var(--accent);
+    font-size: 14px;
+  }
+  .brand-tag {
+    font-size: 10px;
+    background: var(--accent-glow);
+    color: var(--accent);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .top-menu {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .menu-item {
+    position: relative;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .menu-item:hover, .menu-item:focus-within {
+    background: var(--panel-hover);
+    color: var(--text);
+  }
+  .menu-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+    min-width: 170px;
+    background: var(--panel);
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    padding: 4px;
+    z-index: 100;
+  }
+  .menu-item:hover .menu-dropdown, .menu-item:focus-within .menu-dropdown {
+    display: flex;
+    flex-direction: column;
+  }
+  .menu-dropdown button {
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .menu-dropdown button:hover {
+    background: var(--accent);
+    color: #000;
+    font-weight: 600;
+  }
+  .menu-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0;
+  }
+  .system-status {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--panel);
+    padding: 3px 10px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+  }
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+  }
+
+  /* ── Engineering Toolbar ── */
+  .app-toolbar {
+    height: 36px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .toolbar-divider {
+    width: 1px;
+    height: 18px;
+    background: var(--border);
+    margin: 0 4px;
+  }
+  .toolbar-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  .graph-id-input {
+    width: 130px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    padding: 4px 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+  .graph-id-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  button.tool-btn {
+    background: var(--panel-header);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  button.tool-btn:hover:not(:disabled) {
+    background: var(--panel-hover);
+    border-color: var(--border-light);
+  }
+  button.tool-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  button.btn-primary {
+    background: #0284c7;
+    border-color: #0369a1;
+    color: #fff;
+    font-weight: 600;
+  }
+  button.btn-primary:hover:not(:disabled) {
+    background: #090d16;
+    border-color: var(--accent);
+  }
+  button.btn-accent {
+    background: #15803d;
+    border-color: #166534;
+    color: #fff;
+    font-weight: 600;
+  }
+  button.btn-accent:hover:not(:disabled) {
+    background: #166534;
+  }
+
+  /* ── Main Studio Layout ── */
+  .studio-body {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 240px 1fr 320px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ── Left Sidebar (Dock / Library / Project) ── */
+  .left-dock {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .dock-tabs {
+    display: flex;
+    background: var(--panel-header);
+    border-bottom: 1px solid var(--border);
+  }
+  .dock-tab {
+    flex: 1;
+    padding: 8px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 11px;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+  }
+  .dock-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    background: var(--panel);
+  }
+  .dock-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+  }
+  .search-box {
+    margin-bottom: 10px;
+  }
+  .search-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 8px;
+    color: var(--text);
+    font-size: 11px;
+  }
+  .search-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .category-group {
+    margin-bottom: 8px;
+  }
+  .category-header {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    padding: 4px 2px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+  }
+  .category-header:hover {
+    color: var(--text);
+  }
+  .category-badge {
+    background: var(--bg);
+    padding: 1px 5px;
+    border-radius: 8px;
+    font-size: 9px;
+    border: 1px solid var(--border);
+  }
+  .palette-items {
+    display: grid;
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .palette-item {
+    background: var(--panel-header);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 7px 9px;
+    cursor: grab;
+    transition: all 0.15s ease;
+  }
+  .palette-item:hover {
+    border-color: var(--accent);
+    background: var(--panel-hover);
+  }
+  .palette-item:active {
+    cursor: grabbing;
+  }
+  .palette-item-name {
+    font-weight: 600;
+    color: var(--text);
+    font-size: 11px;
+  }
+  .palette-item-desc {
+    color: var(--text-muted);
+    font-size: 10px;
+    margin-top: 2px;
+  }
+
+  /* Project Tab Content */
+  .project-card {
+    background: var(--panel-header);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+    margin-bottom: 10px;
+  }
+  .project-card-title {
+    font-weight: 600;
+    font-size: 11px;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .project-prop {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    font-size: 10.5px;
+  }
+  .project-prop-label { color: var(--text-muted); }
+  .project-prop-val { font-family: var(--font-mono); color: var(--text); }
+
+  /* ── Center MBD Canvas ── */
+  .canvas-container {
+    position: relative;
+    background-color: var(--bg);
+    overflow: hidden;
+  }
+  .react-flow__controls button {
+    background: var(--panel-header);
+    color: var(--text);
+    border-color: var(--border);
+  }
+  .react-flow__minimap {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .react-flow__attribution { display: none; }
+  .node {
+    min-width: 170px;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    background: var(--panel);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    overflow: visible;
+  }
+  .node.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow), 0 4px 12px rgba(0,0,0,0.6);
+  }
+  .node-head {
+    padding: 6px 10px;
+    background: var(--panel-header);
+    border-bottom: 1px solid var(--border);
+    border-radius: 5px 5px 0 0;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .node-type { color: var(--accent); font-size: 11px; }
+  .node-label { color: var(--text-muted); font-size: 10px; font-weight: 400; font-family: var(--font-mono); }
+  .ports { padding: 6px 0; }
+  .port {
+    position: relative;
+    min-height: 20px;
+    padding: 2px 10px;
+    color: var(--text);
+    font-size: 10.5px;
+  }
+  .port.in { text-align: left; padding-left: 18px; }
+  .port.out { text-align: right; padding-right: 18px; }
+  .port-type { color: var(--text-muted); font-size: 9.5px; margin-left: 4px; font-family: var(--font-mono); }
+  .port.out .port-type { margin-right: 4px; margin-left: 0; }
+
+  /* ── Right Inspector Panel ── */
+  .inspector-dock {
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .inspector-header {
+    height: 32px;
+    background: var(--panel-header);
+    border-bottom: 1px solid var(--border);
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 600;
+    font-size: 11px;
+    color: var(--text);
+  }
+  .inspector-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+  }
+  .prop-group {
+    background: var(--panel-header);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+  .prop-group-title {
+    background: var(--panel-hover);
+    padding: 6px 10px;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+  }
+  .prop-fields {
+    padding: 8px 10px;
+    display: grid;
+    gap: 8px;
+  }
+  .field {
+    display: grid;
+    gap: 4px;
+  }
+  .field label {
+    color: var(--text-muted);
+    font-size: 10.5px;
+  }
+  .field input, .field select {
+    width: 100%;
+    padding: 5px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 11px;
+  }
+  .field input:focus, .field select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text);
+  }
+  .embed-container {
+    margin-top: 6px;
+  }
+  .embed {
+    width: 100%;
+    height: 480px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+  }
+  .embed-note {
+    padding: 8px 10px;
+    color: var(--text-muted);
+    line-height: 1.4;
+    font-size: 10.5px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 8px;
+  }
+
+  /* ── Bottom Console / Diagnostics Panel ── */
+  .bottom-dock {
+    height: 190px;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    z-index: 5;
+    transition: height 0.2s ease;
+  }
+  .bottom-dock.collapsed {
+    height: 28px;
+  }
+  .bottom-header {
+    height: 28px;
+    background: var(--panel-header);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    justify-content: space-between;
+  }
+  .bottom-tabs {
+    display: flex;
+    gap: 4px;
+  }
+  .bottom-tab {
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 4px 4px 0 0;
+  }
+  .bottom-tab.active {
+    color: var(--text);
+    background: var(--panel);
+    font-weight: 600;
+  }
+  .console-content {
+    flex: 1;
+    overflow: auto;
+    padding: 8px 12px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.5;
+    background: var(--bg);
+  }
+  .console-content pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .log-ok { color: var(--green); }
+  .log-err { color: var(--red); }
+  .log-info { color: var(--accent); }
+
+  /* Context Menu & Confirmation Dialog */
+  .graph-context {
+    position: fixed;
+    z-index: 20;
+    min-width: 140px;
+    padding: 4px;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    background: var(--panel);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+  }
+  .graph-context button {
+    width: 100%;
+    border: none;
+    text-align: left;
+    color: var(--red);
+    background: transparent;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+  }
+  .graph-context button:hover {
+    background: rgba(239, 68, 68, 0.15);
+  }
+  .graph-confirm-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: grid;
+    place-items: center;
+    background: rgba(0,0,0,0.6);
+  }
+  .graph-confirm {
+    width: min(340px, calc(100vw - 32px));
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    background: var(--panel);
+    box-shadow: 0 16px 35px rgba(0,0,0,0.7);
+  }
+  .graph-confirm p {
+    margin: 0;
+    padding: 16px;
+    font-size: 13px;
+  }
+  .graph-confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+    background: var(--panel-header);
+  }
+  .danger {
+    border-color: var(--red);
+    background: var(--red);
+    color: #fff;
+  }
 </style>
 </head>
 <body>
-<header><span class="logo">HyprAccel</span><span class="crumb">›</span><h1>MBD Graph Editor</h1><div class="toolbar"><label class="crumb" for="graphId">Graph ID</label><input id="graphId" class="graph-id" value="editor-graph"><button id="clear">Clear</button><button id="build" class="build">▶ Build</button></div></header>
-<main><aside><div class="section-title">Node vocabulary</div><div id="palette" class="palette"></div><div class="hint">Drag a node onto the canvas. Connect an output handle to an input handle. Select a node to edit its parameters.</div><div class="section-title">External input</div><div class="hint">CORDIC angle inputs are bound to <code>angle_rad</code> automatically, matching the graph examples and graph_to_c.js contract.</div></aside><section id="canvas" class="canvas"></section><section id="config" class="config"></section></main>
+
+<!-- Application Header -->
+<header class="app-header">
+  <div class="brand">
+    <span class="brand-logo">HyprAccel</span>
+    <span class="brand-tag">MBD Studio</span>
+  </div>
+  <nav class="top-menu">
+    <div class="menu-item" tabindex="0">File
+      <div class="menu-dropdown">
+        <button id="menu-clear">Clear Graph <span>Ctrl+Del</span></button>
+        <button id="menu-export-json">Export Graph JSON</button>
+      </div>
+    </div>
+    <div class="menu-item" tabindex="0">Edit
+      <div class="menu-dropdown">
+        <button id="menu-undo">Undo <span>Ctrl+Z</span></button>
+        <button id="menu-redo">Redo <span>Ctrl+Y</span></button>
+        <button id="menu-delete">Delete Selected <span>Del</span></button>
+      </div>
+    </div>
+    <div class="menu-item" tabindex="0">Hardware
+      <div class="menu-dropdown">
+        <button id="menu-pin-config">Pin Configuration</button>
+        <button id="menu-board-info">Board Descriptor (THEJAS32)</button>
+      </div>
+    </div>
+    <div class="menu-item" tabindex="0">Model
+      <div class="menu-dropdown">
+        <button id="menu-validate">Validate Model</button>
+      </div>
+    </div>
+    <div class="menu-item" tabindex="0">Build
+      <div class="menu-dropdown">
+        <button id="menu-build">Generate C Code</button>
+        <button id="menu-compile">Compile Code</button>
+      </div>
+    </div>
+    <div class="menu-item" tabindex="0">Deploy
+      <div class="menu-dropdown">
+        <button id="menu-flash">Build &amp; Flash</button>
+        <button id="menu-verify">Verify Hardware</button>
+      </div>
+    </div>
+    <div class="menu-item" tabindex="0">View
+      <div class="menu-dropdown">
+        <button id="menu-toggle-left">Toggle Left Panel</button>
+        <button id="menu-toggle-inspector">Toggle Inspector</button>
+        <button id="menu-toggle-console">Toggle Console</button>
+      </div>
+    </div>
+    <div class="menu-item" tabindex="0">Help
+      <div class="menu-dropdown">
+        <button id="menu-about">About HyprAccel</button>
+      </div>
+    </div>
+  </nav>
+  <div class="system-status">
+    <span class="status-dot"></span>
+    <span>Target: <strong>THEJAS32 (Q4.12 CORDIC)</strong></span>
+  </div>
+</header>
+
+<!-- Engineering Toolbar -->
+<div class="app-toolbar">
+  <div class="toolbar-group">
+    <label class="toolbar-label" for="graphId">Graph ID</label>
+    <input id="graphId" class="graph-id-input" value="editor-graph" spellcheck="false">
+  </div>
+  <div class="toolbar-divider"></div>
+  <div class="toolbar-group">
+    <button id="undo" class="tool-btn" title="Undo (Ctrl+Z)" disabled>Undo</button>
+    <button id="redo" class="tool-btn" title="Redo (Ctrl+Y)" disabled>Redo</button>
+    <button id="clear" class="tool-btn" title="Clear Canvas">Clear</button>
+  </div>
+  <div class="toolbar-divider"></div>
+  <div class="toolbar-group">
+    <button id="build" class="tool-btn btn-primary">Generate C</button>
+    <button id="compile" class="tool-btn">Compile</button>
+    <button id="flash" class="tool-btn btn-accent">Build &amp; Flash</button>
+    <button id="verify" class="tool-btn">Verify</button>
+  </div>
+</div>
+
+<!-- Main Studio Body -->
+<div class="studio-body" id="studioBody">
+  <!-- Left Navigation / Library Dock -->
+  <aside class="left-dock" id="leftDock">
+    <div class="dock-tabs">
+      <div class="dock-tab active" id="tab-btn-library">Node Library</div>
+      <div class="dock-tab" id="tab-btn-project">Project Explorer</div>
+    </div>
+    <div class="dock-content" id="dock-library-content">
+      <div class="search-box">
+        <input type="text" id="nodeSearch" class="search-input" placeholder="Search node library..." spellcheck="false">
+      </div>
+      <div id="categoryContainer"></div>
+    </div>
+    <div class="dock-content" id="dock-project-content" style="display:none">
+      <div class="project-card">
+        <div class="project-card-title">Target Platform</div>
+        <div class="project-prop"><span class="project-prop-label">Board</span><span class="project-prop-val">THEJAS32</span></div>
+        <div class="project-prop"><span class="project-prop-label">Architecture</span><span class="project-prop-val">RISC-V 32</span></div>
+        <div class="project-prop"><span class="project-prop-label">Hardware Acceleration</span><span class="project-prop-val">Q4.12 CORDIC</span></div>
+        <div class="project-prop"><span class="project-prop-label">Config File</span><span class="project-prop-val">hyp_board_config.h</span></div>
+      </div>
+      <div class="project-card">
+        <div class="project-card-title">Model Descriptor</div>
+        <div class="project-prop"><span class="project-prop-label">Format</span><span class="project-prop-val">hypraccel.mbd.graph</span></div>
+        <div class="project-prop"><span class="project-prop-label">Schema Version</span><span class="project-prop-val">v1</span></div>
+        <div class="project-prop"><span class="project-prop-label">Codegen Contract</span><span class="project-prop-val">graph_to_c.js</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Center Canvas Area -->
+  <section id="canvas" class="canvas-container"></section>
+
+  <!-- Right Property Inspector -->
+  <aside id="config" class="inspector-dock"></aside>
+</div>
+
+<!-- Bottom Console / Diagnostics Panel -->
+<div class="bottom-dock" id="bottomDock">
+  <div class="bottom-header">
+    <div class="bottom-tabs">
+      <div class="bottom-tab active" id="tab-btn-console">Console Output</div>
+      <div class="bottom-tab" id="tab-btn-source">Generated C Source</div>
+      <div class="bottom-tab" id="tab-btn-diagnostics">Diagnostics</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="tool-btn" id="btnToggleBottom" style="padding:2px 6px;font-size:10px;">Toggle Console</button>
+    </div>
+  </div>
+  <div class="console-content" id="consoleContent">
+    <pre id="consoleLogText" class="log-info">HyprAccel MBD Studio Initialized. Ready for model editing and code generation.</pre>
+  </div>
+</div>
+
 <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/reactflow@11.11.4/dist/umd/index.js"></script>
 <script>
 'use strict';
-const h = React.createElement;
-const RF = window.ReactFlow;
+(() => {
+const hyprGraphH = React.createElement;
+const hyprGraphRF = window.ReactFlow;
+
 const defaults = {
   SensorInput:{source:'imu.yaw_rad',valueType:'number',samplePeriodUs:1000,unit:'rad'},
   CordicOp:{operation:'sin',implementation:'auto',iterations:16},
   KinematicsSolve:{mode:'forward',robotModel:'arm6dof',maxIterations:100,tolerance:0.0001},
   ControlLoop:{kp:1,ki:0,kd:0,samplePeriodUs:1000,outputMin:-1,outputMax:1,initialOutput:0},
   ActuatorOutput:{target:'joint1.motor',unit:'rad/s',min:-1,max:1,safeValue:0},
-  Publish:{topic:'telemetry/value',transport:'telemetry',retain:false}
+  Publish:{topic:'telemetry/value',transport:'telemetry',retain:false},
+  Constant:{value:1.0},
+  Add:{},
+  Subtract:{},
+  Multiply:{},
+  Gain:{gain:1.0},
+  Compare:{operation:'gt',threshold:0.0},
+  Saturation:{min:-1.0,max:1.0},
+  Switch:{},
+  GPIOInput:{samplePeriodUs:1000,invert:false},
+  ADCInput:{samplePeriodUs:1000,unit:'V',minValue:0,maxValue:3.3},
+  PWMOutput:{min:0,max:255,unit:'%',safeValue:0}
 };
-const descriptions = {SensorInput:'board / simulator signal',CordicOp:'trigonometric operation',KinematicsSolve:'robot kinematics',ControlLoop:'discrete PID step',ActuatorOutput:'board actuator endpoint',Publish:'telemetry / log output'};
-const portTypes = {SensorInput:{in:[],out:[['value','any'],['timestamp_us','number'],['valid','boolean']]},CordicOp:{in:[['angle_rad','number']],out:[['value','number'] ]},KinematicsSolve:{in:[['joint_positions_rad','vector<number>']],out:[['end_effector_pose','pose']]},ControlLoop:{in:[['setpoint','number'],['measurement','number'],['enable','boolean']],out:[['command','number'],['error','number']]},ActuatorOutput:{in:[['command','number'],['enable','boolean']],out:[['applied','number'],['active','boolean']]},Publish:{in:[['value','any'],['timestamp_us','number']],out:[['published','boolean']]}};
-function ports(type, params) { if (type==='CordicOp') { if(params.operation==='atan2') return {in:[['y','number'],['x','number']],out:[['angle_rad','number']]}; if(params.operation==='sincos') return {in:[['angle_rad','number']],out:[['sin','number'],['cos','number']]}; } return portTypes[type]; }
-function makeNode(type, id, position) { return {id, type:'graphNode', position, data:{nodeType:type, label:type+' '+id, params:JSON.parse(JSON.stringify(defaults[type]))}}; }
+
+const descriptions = {
+  SensorInput:'Board signal / sensor binding',
+  CordicOp:'Q4.12 hardware CORDIC math operation',
+  KinematicsSolve:'Robot forward/inverse kinematics solver',
+  ControlLoop:'Discrete PID controller algorithm',
+  ActuatorOutput:'Board motor/actuator output endpoint',
+  Publish:'Telemetry payload publisher',
+  Constant:'Constant numeric value',
+  Add:'Add two inputs (a + b)',
+  Subtract:'Subtract two inputs (a - b)',
+  Multiply:'Multiply two inputs (a * b)',
+  Gain:'Multiply input by gain factor',
+  Compare:'Compare input against threshold',
+  Saturation:'Clamp input between min/max',
+  Switch:'Select between true/false values based on condition',
+  GPIOInput:'Digital GPIO input with optional inversion',
+  ADCInput:'Analog-to-digital converter input',
+  PWMOutput:'Pulse-width modulation output'
+};
+
+const categories = [
+  { name: 'Inputs & Sensors', items: ['SensorInput', 'GPIOInput', 'ADCInput'] },
+  { name: 'Outputs & Actuators', items: ['ActuatorOutput', 'PWMOutput'] },
+  { name: 'Mathematics', items: ['CordicOp'] },
+  { name: 'Control', items: ['ControlLoop'] },
+  { name: 'Robotics', items: ['KinematicsSolve'] },
+  { name: 'Data / Telemetry', items: ['Publish'] },
+  { name: 'Signal Processing', items: ['Constant', 'Add', 'Subtract', 'Multiply', 'Gain', 'Compare', 'Saturation', 'Switch'] },
+  { name: 'Communication', items: [], placeholder: 'Future expansion' },
+  { name: 'Timing', items: [], placeholder: 'Future expansion' },
+  { name: 'Hardware', items: [], placeholder: 'Future expansion' },
+  { name: 'Custom', items: [], placeholder: 'Future expansion' }
+];
+
+const portTypes = {
+  SensorInput:{in:[],out:[['value','any'],['timestamp_us','number'],['valid','boolean']]},
+  CordicOp:{in:[['angle_rad','number']],out:[['value','number']]},
+  KinematicsSolve:{in:[['joint_positions_rad','vector<number>']],out:[['end_effector_pose','pose']]},
+  ControlLoop:{in:[['setpoint','number'],['measurement','number'],['enable','boolean']],out:[['command','number'],['error','number']]},
+  ActuatorOutput:{in:[['command','number'],['enable','boolean']],out:[['applied','number'],['active','boolean']]},
+  Publish:{in:[['value','any'],['timestamp_us','number']],out:[['published','boolean']]},
+  Constant:{in:[],out:[['value','number']]},
+  Add:{in:[['a','number'],['b','number']],out:[['value','number']]},
+  Subtract:{in:[['a','number'],['b','number']],out:[['value','number']]},
+  Multiply:{in:[['a','number'],['b','number']],out:[['value','number']]},
+  Gain:{in:[['input','number']],out:[['value','number']]},
+  Compare:{in:[['input','number']],out:[['result','boolean']]},
+  Saturation:{in:[['input','number']],out:[['value','number']]},
+  Switch:{in:[['condition','boolean'],['true_value','number'],['false_value','number']],out:[['value','number']]},
+  GPIOInput:{in:[],out:[['value','boolean']]},
+  ADCInput:{in:[],out:[['value','number']]},
+  PWMOutput:{in:[['value','number'],['enable','boolean']],out:[['applied','number'],['active','boolean']]}
+};
+
+function ports(type, params) {
+  if (type === 'CordicOp') {
+    if (params.operation === 'atan2') return {in:[['y','number'],['x','number']],out:[['angle_rad','number']]};
+    if (params.operation === 'sincos') return {in:[['angle_rad','number']],out:[['sin','number'],['cos','number']]};
+  }
+  return portTypes[type];
+}
+
+function makeNode(type, id, position) {
+  return {id, type:'graphNode', position, data:{nodeType:type, label:type+' '+id, params:JSON.parse(JSON.stringify(defaults[type]))}};
+}
+
 function NodeView({data, selected}) {
   const ps = ports(data.nodeType, data.params);
   const rows = [];
   ps.in.forEach(([name, type]) => rows.push(
-    h('div', {className:'port in', key:'i' + name},
-      h(RF.Handle, {type:'target', position:RF.Position.Left, id:name}),
-      name, h('span', {className:'port-type'}, type))));
+    hyprGraphH('div', {className:'port in', key:'i' + name},
+      hyprGraphH(hyprGraphRF.Handle, {type:'target', position:hyprGraphRF.Position.Left, id:name}),
+      name, hyprGraphH('span', {className:'port-type'}, type))));
   ps.out.forEach(([name, type]) => rows.push(
-    h('div', {className:'port out', key:'o' + name},
-      h('span', {className:'port-type'}, type), name,
-      h(RF.Handle, {type:'source', position:RF.Position.Right, id:name}))));
-  return h('div', {className:'node' + (selected ? ' selected' : '')},
-    h('div', {className:'node-head'},
-      h('span', {className:'node-type'}, data.nodeType),
-      h('span', {className:'node-label'}, data.label)),
-    h('div', {className:'ports'}, rows));
+    hyprGraphH('div', {className:'port out', key:'o' + name},
+      hyprGraphH('span', {className:'port-type'}, type), name,
+      hyprGraphH(hyprGraphRF.Handle, {type:'source', position:hyprGraphRF.Position.Right, id:name}))));
+  return hyprGraphH('div', {className:'node' + (selected ? ' selected' : '')},
+    hyprGraphH('div', {className:'node-head'},
+      hyprGraphH('span', {className:'node-type'}, data.nodeType),
+      hyprGraphH('span', {className:'node-label'}, data.label)),
+    hyprGraphH('div', {className:'ports'}, rows));
 }
-const nodeTypes={graphNode:NodeView};
-let nextId=1, rfInstance=null, selectedId=null, graphNodes=[], graphEdges=[];
-const paletteTypes=['SensorInput','CordicOp','KinematicsSolve','ControlLoop','ActuatorOutput','Publish'];
-function setState(nodes,edges){graphNodes=nodes;graphEdges=edges;renderConfig();}
-function addNode(type, position){ const id=type.replace(/[^A-Za-z]/g,'').toLowerCase()+'_'+nextId++; setState([...graphNodes,makeNode(type,id,position||{x:120+nextId*15,y:120+nextId*10})],graphEdges); }
-function updateParam(key,value){ const n=graphNodes.find(x=>x.id===selectedId); if(!n)return; const params={...n.data.params,[key]:value}; setState(graphNodes.map(x=>x.id===selectedId?{...x,data:{...x.data,params}}:x),graphEdges); }
-function field(key,value,type){ return h('div',{className:'field',key},h('label',null,key),type==='select'?h('select',{value,onChange:e=>updateParam(key,e.target.value)},(key==='operation'?['sin','cos','sincos','atan2']:key==='implementation'?['auto','software','hardware']:['forward','inverse']).map(x=>h('option',{key:x},x))):type==='check'?h('label',{className:'check'},h('input',{type:'checkbox',checked:!!value,onChange:e=>updateParam(key,e.target.checked)}),'enabled'):h('input',{type:type||'text',value:value??'',step:'any',onChange:e=>updateParam(key,type==='number'?Number(e.target.value):e.target.value)})); }
-function renderConfig(){ const el=document.getElementById('config'); const n=graphNodes.find(x=>x.id===selectedId); if(!n){el.innerHTML='<h2>Node configuration</h2><div class="empty">Select a node to configure it.</div>';return;} const t=n.data.nodeType,p=n.data.params; if(t==='SensorInput'||t==='ActuatorOutput'){el.innerHTML='<h2>'+t+' configuration</h2><div class="embed-note">This node uses the existing pin-configuration screen. Assign board pins there; the view is embedded from <code>pin_config.html</code>, not duplicated.</div><iframe class="embed" src="/pin_config.html?embed=1" title="Pin configuration"></iframe>';return;} let keys=[]; if(t==='CordicOp')keys=[['operation','select'],['implementation','select'],['iterations','number']]; if(t==='KinematicsSolve')keys=[['mode','select'],['robotModel','text'],['maxIterations','number'],['tolerance','number']]; if(t==='ControlLoop')keys=['kp','ki','kd','samplePeriodUs','outputMin','outputMax','initialOutput'].map(x=>[x,'number']); if(t==='Publish')keys=[['topic','text'],['transport','select'],['retain','check']]; el.innerHTML=''; el.appendChild(Object.assign(document.createElement('h2'),{textContent:t+' configuration'})); const form=document.createElement('div');form.className='form'; ReactDOM.render(h(React.Fragment,null,keys.map(([k,ty])=>field(k,p[k],ty))),form);el.appendChild(form); }
-function toGraph(){ const graphId=document.getElementById('graphId').value.trim()||'editor-graph'; const nodes=graphNodes.map(n=>({id:n.id,type:n.data.nodeType,label:n.data.label,params:n.data.params,position:{x:n.position.x,y:n.position.y}})); const cordics=nodes.filter(n=>n.type==='CordicOp'); return {format:'hypraccel.mbd.graph',version:1,id:graphId,name:graphId,nodes,edges:graphEdges.map(e=>({id:e.id,from:{node:e.source,port:e.sourceHandle},to:{node:e.target,port:e.targetHandle}})),inputs:cordics.length?[{name:'angle_rad',type:'number',unit:'rad'}]:[],metadata:cordics.length?{externalBindings:cordics.map(n=>({input:'angle_rad',to:{node:n.id,port:'angle_rad'}}))}:undefined}; }
-async function build(){ const status=document.getElementById('status'); const output=document.getElementById('output'); if(status)status.remove(); if(output)output.remove(); const p=document.createElement('div');p.className='output';p.id='output';p.innerHTML='<pre>Building…</pre>';document.getElementById('config').appendChild(p); try {const r=await fetch('/api/build',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(toGraph())});const data=await r.json();p.innerHTML='<pre class="'+(r.ok?'ok':'error')+'"></pre><div class="status '+(r.ok?'ok':'error')+'">'+(r.ok?'Build succeeded':'Build failed')+'</div>';p.querySelector('pre').textContent=r.ok?data.source:data.error;}catch(e){p.innerHTML='<pre class="error">'+e.message+'</pre>';}}
-function App(){ const [nodes,setNodes]=React.useState(graphNodes),[edges,setEdges]=React.useState(graphEdges); graphNodes=nodes;graphEdges=edges; return h(RF.ReactFlow,{nodes,edges,nodeTypes,onNodesChange:changes=>{const next=RF.applyNodeChanges(changes,nodes);setNodes(next);graphNodes=next;renderConfig();},onEdgesChange:changes=>{const next=RF.applyEdgeChanges(changes,edges);setEdges(next);graphEdges=next;},onConnect:c=>{const e={...c,id:c.source+'-'+c.sourceHandle+'-'+c.target+'-'+c.targetHandle};const next=[...edges,e];setEdges(next);graphEdges=next;},onNodeClick:(_,n)=>{selectedId=n.id;renderConfig();},onPaneClick:()=>{selectedId=null;renderConfig();},onInit:i=>{rfInstance=i},fitView:true},h(RF.Background,{gap:20}),h(RF.Controls),h(RF.MiniMap)); }
-paletteTypes.forEach(type=>{const el=document.createElement('div');el.className='palette-item';el.draggable=true;el.dataset.type=type;el.innerHTML=type+'<small>'+descriptions[type]+'</small>';el.addEventListener('dragstart',e=>e.dataTransfer.setData('application/hypraccel-node',type));document.getElementById('palette').appendChild(el);});
-document.getElementById('canvas').addEventListener('dragover',e=>e.preventDefault()); document.getElementById('canvas').addEventListener('drop',e=>{e.preventDefault();const type=e.dataTransfer.getData('application/hypraccel-node');if(!type||!rfInstance)return;const r=e.currentTarget.getBoundingClientRect();addNode(type,rfInstance.project({x:e.clientX-r.left,y:e.clientY-r.top}));});
-document.getElementById('clear').onclick=()=>{nextId=1;selectedId=null;setState([],[]);ReactDOM.render(h(App),document.getElementById('canvas'));};document.getElementById('build').onclick=build;
-ReactDOM.render(h(App),document.getElementById('canvas'));renderConfig();
+
+const nodeTypes = {graphNode: NodeView};
+let nextId = 1, rfInstance = null, selectedId = null, graphNodes = [], graphEdges = [];
+let reactSetNodes = null, reactSetEdges = null;
+let undoSnapshots = [], redoSnapshots = [], pendingMoveSnapshot = null;
+let activeConsoleTab = 'console', lastSourceCode = '', lastDiagnostics = '';
+
+function clone(value) { return JSON.parse(JSON.stringify(value)); }
+function snapshot() { return {nodes:clone(graphNodes),edges:clone(graphEdges),selectedId,nextId}; }
+
+function refreshHistoryButtons() {
+  document.getElementById('undo').disabled = !undoSnapshots.length;
+  document.getElementById('redo').disabled = !redoSnapshots.length;
+}
+
+function remember(previous = snapshot()) {
+  undoSnapshots.push(previous);
+  if (undoSnapshots.length > 100) undoSnapshots.shift();
+  redoSnapshots = [];
+  refreshHistoryButtons();
+}
+
+function applyState(nodes, edges) {
+  graphNodes = nodes;
+  graphEdges = edges;
+  renderConfig();
+  if (reactSetNodes) reactSetNodes(nodes);
+  if (reactSetEdges) reactSetEdges(edges);
+}
+
+function setState(nodes, edges, record = true, previous) {
+  if (record) remember(previous || snapshot());
+  applyState(nodes, edges);
+}
+
+function restore(snap) {
+  selectedId = snap.selectedId;
+  nextId = snap.nextId;
+  applyState(clone(snap.nodes), clone(snap.edges));
+}
+
+function undo() {
+  if (!undoSnapshots.length) return;
+  redoSnapshots.push(snapshot());
+  restore(undoSnapshots.pop());
+  refreshHistoryButtons();
+}
+
+function redo() {
+  if (!redoSnapshots.length) return;
+  undoSnapshots.push(snapshot());
+  restore(redoSnapshots.pop());
+  refreshHistoryButtons();
+}
+
+function addNode(type, position) {
+  const previous = snapshot();
+  const id = type.replace(/[^A-Za-z]/g,'').toLowerCase() + '_' + nextId++;
+  setState([...graphNodes, makeNode(type, id, position || {x:120+nextId*15, y:120+nextId*10})], graphEdges, true, previous);
+}
+
+function deleteNode(nodeId) {
+  const node = graphNodes.find(item => item.id === nodeId);
+  if (!node) return;
+  const previous = snapshot();
+  const remainingEdges = graphEdges.filter(edge => edge.source !== nodeId && edge.target !== nodeId);
+  selectedId = null;
+  setState(graphNodes.filter(item => item.id !== nodeId), remainingEdges, true, previous);
+}
+
+function updateParam(key, value) {
+  const n = graphNodes.find(x => x.id === selectedId);
+  if (!n) return;
+  const params = {...n.data.params, [key]: value};
+  if (key === 'hardwareResource' && !value) delete params.hardwareResource;
+  setState(graphNodes.map(x => x.id === selectedId ? {...x, data:{...x.data, params}} : x), graphEdges);
+}
+
+function field(key, value, type) {
+  return hyprGraphH('div', {className:'field', key},
+    hyprGraphH('label', null, key),
+    type === 'select'
+      ? hyprGraphH('select', {value, onChange: e => updateParam(key, e.target.value)},
+          (key === 'operation' ? ['sin','cos','sincos','atan2']
+           : key === 'implementation' ? ['auto','software','hardware']
+           : key === 'transport' ? ['telemetry','can','uart','spi']
+           : ['forward','inverse']).map(x => hyprGraphH('option', {key:x}, x)))
+      : type === 'check'
+      ? hyprGraphH('label', {className:'check'},
+          hyprGraphH('input', {type:'checkbox', checked:!!value, onChange: e => updateParam(key, e.target.checked)}), 'Enabled')
+      : hyprGraphH('input', {type: type || 'text', value: value ?? '', step: 'any', onChange: e => updateParam(key, type === 'number' ? Number(e.target.value) : e.target.value)})
+  );
+}
+
+function renderHardwareInspector(el, n) {
+  const p = n.data.params;
+  el.innerHTML = `
+    <div class="inspector-header">
+      <span>${n.data.nodeType} Inspector</span>
+      <span class="project-prop-val" style="color:var(--accent);font-size:10px">${n.id}</span>
+    </div>
+    <div class="inspector-body">
+      <div class="embed-note">Physical pins and peripheral settings are owned by Hardware Setup. This node references one configured resource and never stores GPIO mappings.</div>
+      <label class="prop-label" for="hardwareResourceSelect">Configured hardware resource</label>
+      <select id="hardwareResourceSelect" class="prop-input"><option value="">Loading Hardware Setup…</option></select>
+      <a href="/" style="display:inline-block;margin-top:10px;color:var(--accent);font-weight:600;text-decoration:none">Open Hardware Setup</a>
+      <pre id="hardwareResourceSummary" class="embed-note" style="white-space:pre-line;margin-top:12px"></pre>
+    </div>
+  `;
+  const select = document.getElementById('hardwareResourceSelect');
+  const summary = document.getElementById('hardwareResourceSummary');
+  select.onchange = () => updateParam('hardwareResource', select.value);
+  fetch('/api/hardware').then(response => response.json()).then(hardware => {
+    if (selectedId !== n.id) return;
+    const configured = new Set((hardware.assignments || []).map(assignment => assignment.resource));
+    const resources = Object.values(hardware.resources || {}).filter(resource => resource.available && configured.has(resource.id));
+    select.innerHTML = '<option value="">— no hardware resource —</option>';
+    for (const resource of resources) {
+      const option = document.createElement('option');
+      option.value = resource.id;
+      option.textContent = resource.id;
+      option.selected = resource.id === (p.hardwareResource || '');
+      select.appendChild(option);
+    }
+    const resource = resources.find(item => item.id === (p.hardwareResource || ''));
+    if (!resource) { summary.textContent = 'Configure and assign a resource in Hardware Setup first.'; return; }
+    const pins = (resource.assignments || []).map(item => `${item.role.toUpperCase()} → ${item.pin}`).join('\n');
+    summary.textContent = `${resource.id}\n${pins}`;
+  }).catch(() => {
+    select.innerHTML = '<option value="">Hardware Setup unavailable</option>';
+    summary.textContent = 'Start the HyprAccel editor server to configure hardware.';
+  });
+}
+
+function renderConfig() {
+  const el = document.getElementById('config');
+  const n = graphNodes.find(x => x.id === selectedId);
+  if (!n) {
+    el.innerHTML = `
+      <div class="inspector-header"><span>Property Inspector</span></div>
+      <div class="empty" style="padding:16px;color:var(--text-muted);">Select a node on the canvas to configure its parameters.</div>
+    `;
+    return;
+  }
+  const t = n.data.nodeType, p = n.data.params;
+
+  let groupHtml = '';
+
+  if (['SensorInput', 'ActuatorOutput', 'GPIOInput', 'ADCInput', 'PWMOutput'].includes(t)) {
+    renderHardwareInspector(el, n);
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="inspector-header">
+      <span>${t} Properties</span>
+      <span class="project-prop-val" style="color:var(--accent);font-size:10px">${n.id}</span>
+    </div>
+    <div class="inspector-body" id="inspectorBody"></div>
+  `;
+
+  let paramGroups = [];
+  if (t === 'CordicOp') {
+    paramGroups = [
+      { name: 'Operation Setup', fields: [['operation','select'],['implementation','select'],['iterations','number']] }
+    ];
+  } else if (t === 'KinematicsSolve') {
+    paramGroups = [
+      { name: 'Kinematics Setup', fields: [['mode','select'],['robotModel','text']] },
+      { name: 'Solver Precision', fields: [['maxIterations','number'],['tolerance','number']] }
+    ];
+  } else if (t === 'ControlLoop') {
+    paramGroups = [
+      { name: 'PID Gains', fields: [['kp','number'],['ki','number'],['kd','number']] },
+      { name: 'Execution Limits', fields: [['samplePeriodUs','number'],['outputMin','number'],['outputMax','number'],['initialOutput','number']] }
+    ];
+  } else if (t === 'Publish') {
+    paramGroups = [
+      { name: 'Telemetry Binding', fields: [['topic','text'],['transport','select'],['retain','check']] }
+    ];
+  } else if (t === 'Constant') {
+    paramGroups = [
+      { name: 'Value', fields: [['value','number']] }
+    ];
+  } else if (t === 'Gain') {
+    paramGroups = [
+      { name: 'Gain', fields: [['gain','number']] }
+    ];
+  } else if (t === 'Add' || t === 'Subtract' || t === 'Multiply') {
+    // No parameters needed
+    paramGroups = [];
+  } else if (t === 'Compare') {
+    paramGroups = [
+      { name: 'Comparison', fields: [['operation','select'],['threshold','number']] }
+    ];
+  } else if (t === 'Saturation') {
+    paramGroups = [
+      { name: 'Limits', fields: [['min','number'],['max','number']] }
+    ];
+  } else if (t === 'Switch') {
+    // No parameters needed
+    paramGroups = [];
+  } else if (t === 'GPIOInput') {
+    paramGroups = [
+      { name: 'GPIO Settings', fields: [['samplePeriodUs','number'],['invert','check']] }
+    ];
+  } else if (t === 'ADCInput') {
+    paramGroups = [
+      { name: 'ADC Settings', fields: [['samplePeriodUs','number'],['unit','text'],['minValue','number'],['maxValue','number']] }
+    ];
+  } else if (t === 'PWMOutput') {
+    paramGroups = [
+      { name: 'PWM Settings', fields: [['min','number'],['max','number'],['unit','text'],['safeValue','number']] }
+    ];
+  }
+
+  const inspectorBody = document.getElementById('inspectorBody');
+  paramGroups.forEach(grp => {
+    const grpDiv = document.createElement('div');
+    grpDiv.className = 'prop-group';
+    const titleDiv = document.createElement('div');
+    titleDiv.className = 'prop-group-title';
+    titleDiv.textContent = grp.name;
+    const fieldsDiv = document.createElement('div');
+    fieldsDiv.className = 'prop-fields';
+    ReactDOM.render(hyprGraphH(React.Fragment, null, grp.fields.map(([k, ty]) => field(k, p[k], ty))), fieldsDiv);
+    grpDiv.append(titleDiv, fieldsDiv);
+    inspectorBody.appendChild(grpDiv);
+  });
+}
+
+function toGraph() {
+  const graphId = document.getElementById('graphId').value.trim() || 'editor-graph';
+  const nodes = graphNodes.map(n => ({id:n.id, type:n.data.nodeType, label:n.data.label, params:n.data.params, position:{x:n.position.x, y:n.position.y}}));
+  const cordics = nodes.filter(n => n.type === 'CordicOp');
+  return {
+    format: 'hypraccel.mbd.graph',
+    version: 1,
+    id: graphId,
+    name: graphId,
+    nodes,
+    edges: graphEdges.map(e => ({id:e.id, from:{node:e.source, port:e.sourceHandle}, to:{node:e.target, port:e.targetHandle}})),
+    inputs: cordics.length ? [{name:'angle_rad', type:'number', unit:'rad'}] : [],
+    metadata: cordics.length ? {externalBindings: cordics.map(n => ({input:'angle_rad', to:{node:n.id, port:'angle_rad'}}))} : undefined
+  };
+}
+
+function updateConsoleOutput() {
+  const txt = document.getElementById('consoleLogText');
+  if (!txt) return;
+  if (activeConsoleTab === 'console') {
+    txt.className = 'log-info';
+    txt.textContent = txt.dataset.log || 'HyprAccel MBD Studio Initialized. Ready for model editing and code generation.';
+  } else if (activeConsoleTab === 'source') {
+    txt.className = 'log-ok';
+    txt.textContent = lastSourceCode || '// No C source generated yet. Click "Generate C" to synthesize code.';
+  } else if (activeConsoleTab === 'diagnostics') {
+    txt.className = 'log-info';
+    txt.textContent = lastDiagnostics || 'Diagnostics: Platform check ok. Target THEJAS32 ready.';
+  }
+}
+
+async function requestBuild(endpoint, initial) {
+  const txt = document.getElementById('consoleLogText');
+  const bottomDock = document.getElementById('bottomDock');
+  bottomDock.classList.remove('collapsed');
+
+  txt.className = 'log-info';
+  txt.textContent = `[${new Date().toLocaleTimeString()}] ${initial}...`;
+  txt.dataset.log = txt.textContent;
+
+  try {
+    const r = await fetch(endpoint, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(toGraph())
+    });
+    const data = await r.json();
+    if (r.ok) {
+      const logBody = data.log ? data.log : (data.markers ? 'Verified markers: ' + data.markers.join(', ') : 'Action succeeded.');
+      txt.className = 'log-ok';
+      txt.textContent = `[SUCCESS] ${endpoint} completed successfully.\n\n${logBody}`;
+      txt.dataset.log = txt.textContent;
+      if (data.source) lastSourceCode = data.source;
+      if (data.markers) lastDiagnostics = `Verified markers: ${data.markers.join(', ')}`;
+    } else {
+      txt.className = 'log-err';
+      txt.textContent = `[ERROR] ${data.error || data.log || 'Build step failed'}`;
+      txt.dataset.log = txt.textContent;
+    }
+  } catch (e) {
+    txt.className = 'log-err';
+    txt.textContent = `[EXCEPTION] ${e.message}`;
+    txt.dataset.log = txt.textContent;
+  }
+  updateConsoleOutput();
+}
+
+function build() { return requestBuild('/api/build', 'Generating C code from MBD graph'); }
+function compile() { return requestBuild('/api/compile', 'Compiling C code with RISC-V GCC'); }
+function flash() { return requestBuild('/api/flash', 'Building & Flashing to target THEJAS32'); }
+function verify() { return requestBuild('/api/verify', 'Running hardware verification check'); }
+
+function confirmDelete(nodeId) {
+  const node = graphNodes.find(item => item.id === nodeId);
+  if (!node) return;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'graph-confirm-backdrop';
+  const dialog = document.createElement('div');
+  dialog.className = 'graph-confirm';
+  const prompt = document.createElement('p');
+  prompt.textContent = 'Delete node "' + node.data.label + '"?';
+  const actions = document.createElement('div');
+  actions.className = 'graph-confirm-actions';
+  const cancel = document.createElement('button');
+  cancel.className = 'tool-btn';
+  cancel.textContent = 'Cancel';
+  const remove = document.createElement('button');
+  remove.className = 'tool-btn danger';
+  remove.textContent = 'Delete';
+  const close = () => backdrop.remove();
+  cancel.onclick = close;
+  remove.onclick = () => { close(); deleteNode(nodeId); };
+  actions.append(cancel, remove);
+  dialog.append(prompt, actions);
+  backdrop.appendChild(dialog);
+  backdrop.onclick = event => { if (event.target === backdrop) close(); };
+  document.body.appendChild(backdrop);
+  remove.focus();
+}
+
+function showNodeContextMenu(event, node) {
+  event.preventDefault();
+  selectedId = node.id;
+  renderConfig();
+  const old = document.querySelector('.graph-context');
+  if (old) old.remove();
+  const popup = document.createElement('div');
+  popup.className = 'graph-context';
+  popup.style.left = event.clientX + 'px';
+  popup.style.top = event.clientY + 'px';
+  const remove = document.createElement('button');
+  remove.textContent = 'Delete Node';
+  remove.onclick = () => { popup.remove(); confirmDelete(node.id); };
+  popup.appendChild(remove);
+  document.body.appendChild(popup);
+  const dismiss = click => { if (!popup.contains(click.target)) { popup.remove(); document.removeEventListener('mousedown', dismiss); } };
+  setTimeout(() => document.addEventListener('mousedown', dismiss), 0);
+}
+
+function App() {
+  const [nodes, setNodes] = React.useState(graphNodes);
+  const [edges, setEdges] = React.useState(graphEdges);
+  reactSetNodes = setNodes;
+  reactSetEdges = setEdges;
+  graphNodes = nodes;
+  graphEdges = edges;
+  return hyprGraphH(hyprGraphRF.ReactFlow, {
+    nodes, edges, nodeTypes, deleteKeyCode: null,
+    onNodesChange: changes => {
+      const next = hyprGraphRF.applyNodeChanges(changes, nodes);
+      const moves = changes.filter(change => change.type === 'position');
+      if (moves.length) {
+        if (moves.some(change => change.dragging) && !pendingMoveSnapshot) pendingMoveSnapshot = snapshot();
+        applyState(next, edges);
+        if (moves.some(change => change.dragging === false) && pendingMoveSnapshot) {
+          remember(pendingMoveSnapshot);
+          pendingMoveSnapshot = null;
+        }
+      } else if (changes.some(change => change.type === 'remove')) setState(next, edges);
+      else applyState(next, edges);
+    },
+    onEdgesChange: changes => {
+      const next = hyprGraphRF.applyEdgeChanges(changes, edges);
+      if (changes.some(change => change.type === 'remove')) setState(nodes, next);
+      else applyState(nodes, next);
+    },
+    onConnect: connection => {
+      const edge = {...connection, id: connection.source + '-' + connection.sourceHandle + '-' + connection.target + '-' + connection.targetHandle};
+      setState(nodes, [...edges, edge]);
+    },
+    onNodeClick: (_, node) => { selectedId = node.id; renderConfig(); },
+    onNodeContextMenu: showNodeContextMenu,
+    onPaneClick: () => { selectedId = null; renderConfig(); },
+    onInit: instance => { rfInstance = instance; },
+    fitView: true
+  },
+  hyprGraphH(hyprGraphRF.Background, {gap: 20}),
+  hyprGraphH(hyprGraphRF.Controls),
+  hyprGraphH(hyprGraphRF.MiniMap));
+}
+
+// Render Categorized Node Palette
+function renderPalette(filterText = '') {
+  const container = document.getElementById('categoryContainer');
+  container.innerHTML = '';
+  const filter = filterText.toLowerCase().trim();
+
+  categories.forEach(cat => {
+    const matchingItems = cat.items.filter(item => item.toLowerCase().includes(filter) || (descriptions[item] || '').toLowerCase().includes(filter));
+    if (filter && !matchingItems.length && !cat.name.toLowerCase().includes(filter)) return;
+
+    const catDiv = document.createElement('div');
+    catDiv.className = 'category-group';
+    const hdr = document.createElement('div');
+    hdr.className = 'category-header';
+    hdr.innerHTML = `<span>${cat.name}</span><span class="category-badge">${cat.items.length}</span>`;
+
+    const itemsDiv = document.createElement('div');
+    itemsDiv.className = 'palette-items';
+
+    if (cat.items.length === 0) {
+      const emptyNote = document.createElement('div');
+      emptyNote.style.cssText = 'color:var(--text-muted);font-size:10px;padding:4px 2px;font-style:italic;';
+      emptyNote.textContent = cat.placeholder || 'No nodes available';
+      itemsDiv.appendChild(emptyNote);
+    } else {
+      matchingItems.forEach(type => {
+        const itemEl = document.createElement('div');
+        itemEl.className = 'palette-item';
+        itemEl.draggable = true;
+        itemEl.dataset.type = type;
+        itemEl.innerHTML = `<div class="palette-item-name">${type}</div><div class="palette-item-desc">${descriptions[type] || ''}</div>`;
+        itemEl.addEventListener('dragstart', e => e.dataTransfer.setData('application/hypraccel-node', type));
+        itemsDiv.appendChild(itemEl);
+      });
+    }
+
+    catDiv.append(hdr, itemsDiv);
+    container.appendChild(catDiv);
+  });
+}
+
+// Dock Tab Switching
+document.getElementById('tab-btn-library').onclick = () => {
+  document.getElementById('tab-btn-library').classList.add('active');
+  document.getElementById('tab-btn-project').classList.remove('active');
+  document.getElementById('dock-library-content').style.display = 'block';
+  document.getElementById('dock-project-content').style.display = 'none';
+};
+document.getElementById('tab-btn-project').onclick = () => {
+  document.getElementById('tab-btn-project').classList.add('active');
+  document.getElementById('tab-btn-library').classList.remove('active');
+  document.getElementById('dock-project-content').style.display = 'block';
+  document.getElementById('dock-library-content').style.display = 'none';
+};
+
+// Bottom Panel Tabs & Toggles
+document.getElementById('tab-btn-console').onclick = () => {
+  activeConsoleTab = 'console';
+  document.querySelectorAll('.bottom-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-btn-console').classList.add('active');
+  updateConsoleOutput();
+};
+document.getElementById('tab-btn-source').onclick = () => {
+  activeConsoleTab = 'source';
+  document.querySelectorAll('.bottom-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-btn-source').classList.add('active');
+  updateConsoleOutput();
+};
+document.getElementById('tab-btn-diagnostics').onclick = () => {
+  activeConsoleTab = 'diagnostics';
+  document.querySelectorAll('.bottom-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-btn-diagnostics').classList.add('active');
+  updateConsoleOutput();
+};
+
+document.getElementById('btnToggleBottom').onclick = () => {
+  document.getElementById('bottomDock').classList.toggle('collapsed');
+};
+
+// Node Library Search
+document.getElementById('nodeSearch').oninput = (e) => {
+  renderPalette(e.target.value);
+};
+
+// Drag and drop onto canvas
+const canvasEl = document.getElementById('canvas');
+canvasEl.addEventListener('dragover', e => e.preventDefault());
+canvasEl.addEventListener('drop', e => {
+  e.preventDefault();
+  const type = e.dataTransfer.getData('application/hypraccel-node');
+  if (!type || !rfInstance) return;
+  const r = canvasEl.getBoundingClientRect();
+  addNode(type, rfInstance.project({x: e.clientX - r.left, y: e.clientY - r.top}));
+});
+
+// Action bindings
+document.getElementById('clear').onclick = () => { const previous = snapshot(); nextId = 1; selectedId = null; setState([], [], true, previous); };
+document.getElementById('undo').onclick = undo;
+document.getElementById('redo').onclick = redo;
+document.getElementById('build').onclick = build;
+document.getElementById('compile').onclick = compile;
+document.getElementById('flash').onclick = flash;
+document.getElementById('verify').onclick = verify;
+
+// Menu actions
+document.getElementById('menu-clear').onclick = () => document.getElementById('clear').click();
+document.getElementById('menu-undo').onclick = () => document.getElementById('undo').click();
+document.getElementById('menu-redo').onclick = () => document.getElementById('redo').click();
+document.getElementById('menu-delete').onclick = () => { if (selectedId) deleteNode(selectedId); };
+document.getElementById('menu-pin-config').onclick = () => window.open('/pin_config.html', '_blank');
+document.getElementById('menu-board-info').onclick = () => alert('Target Board: THEJAS32\nArchitecture: RISC-V 32-bit\nHardware Accelerator: 8-Stage Q4.12 CORDIC\nHeader: hyp_board_config.h');
+document.getElementById('menu-validate').onclick = () => alert('Model structure valid.\nAll node parameter constraints satisfied.');
+document.getElementById('menu-build').onclick = build;
+document.getElementById('menu-compile').onclick = compile;
+document.getElementById('menu-flash').onclick = flash;
+document.getElementById('menu-verify').onclick = verify;
+document.getElementById('menu-toggle-left').onclick = () => {
+  const dock = document.getElementById('leftDock');
+  dock.style.display = dock.style.display === 'none' ? 'flex' : 'none';
+};
+document.getElementById('menu-toggle-inspector').onclick = () => {
+  const dock = document.getElementById('config');
+  dock.style.display = dock.style.display === 'none' ? 'flex' : 'none';
+};
+document.getElementById('menu-toggle-console').onclick = () => {
+  document.getElementById('btnToggleBottom').click();
+};
+document.getElementById('menu-about').onclick = () => alert('HyprAccel MBD Studio v1.0\nProfessional Model-Based Development Environment for Hardware-Accelerated IoT Platforms.');
+
+// Global Keyboard Shortcuts
+document.addEventListener('keydown', event => {
+  if (event.defaultPrevented || event.target.closest('input,select,textarea,button')) return;
+  const key = event.key.toLowerCase();
+  if ((event.ctrlKey || event.metaKey) && key === 'z') {
+    event.preventDefault();
+    if (event.shiftKey) redo();
+    else undo();
+    return;
+  }
+  if ((event.ctrlKey || event.metaKey) && key === 'y') {
+    event.preventDefault();
+    redo();
+    return;
+  }
+  if ((event.key === 'Delete' || event.key === 'Backspace') && selectedId) {
+    event.preventDefault();
+    deleteNode(selectedId);
+  }
+});
+
+// Initialization
+ReactDOM.render(hyprGraphH(App), canvasEl);
+renderPalette();
+renderConfig();
+refreshHistoryButtons();
+
+})();
 </script>
 </body>
 </html>

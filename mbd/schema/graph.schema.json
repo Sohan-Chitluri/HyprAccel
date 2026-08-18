@@ -31,6 +31,7 @@
   },
   "$defs": {
     "identifier": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
+    "hardwareResourceId": { "type": "string", "pattern": "^(gpio|uart|spi|i2c|pwm|adc)\\.[A-Za-z0-9_-]+$" },
     "graphInput": {
       "type": "object", "additionalProperties": false,
       "required": ["name", "type"],
@@ -45,7 +46,7 @@
       "required": ["id", "type", "params"],
       "properties": {
         "id": { "$ref": "#/$defs/identifier" },
-        "type": { "enum": ["SensorInput", "CordicOp", "KinematicsSolve", "ControlLoop", "ActuatorOutput", "Publish"] },
+        "type": { "enum": ["SensorInput", "CordicOp", "KinematicsSolve", "ControlLoop", "ActuatorOutput", "Publish", "Constant", "Add", "Subtract", "Multiply", "Gain", "Compare", "Saturation", "Switch", "GPIOInput", "ADCInput", "PWMOutput"] },
         "label": { "type": "string", "minLength": 1 },
         "params": { "type": "object" },
         "position": {
@@ -62,11 +63,22 @@
         { "$ref": "#/$defs/kinematicsNode" },
         { "$ref": "#/$defs/controlLoopNode" },
         { "$ref": "#/$defs/actuatorOutputNode" },
-        { "$ref": "#/$defs/publishNode" }
+        { "$ref": "#/$defs/publishNode" },
+        { "$ref": "#/$defs/constantNode" },
+        { "$ref": "#/$defs/addNode" },
+        { "$ref": "#/$defs/subtractNode" },
+        { "$ref": "#/$defs/multiplyNode" },
+        { "$ref": "#/$defs/gainNode" },
+        { "$ref": "#/$defs/compareNode" },
+        { "$ref": "#/$defs/saturationNode" },
+        { "$ref": "#/$defs/switchNode" },
+        { "$ref": "#/$defs/gpioInputNode" },
+        { "$ref": "#/$defs/adcInputNode" },
+        { "$ref": "#/$defs/pwmOutputNode" }
       ]
     },
     "sensorInputNode": {
-      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "SensorInput" }, "params": { "type": "object", "additionalProperties": false, "required": ["source", "valueType", "samplePeriodUs"], "properties": { "source": { "type": "string", "minLength": 1 }, "valueType": { "enum": ["number", "boolean", "vector<number>", "pose", "any"] }, "samplePeriodUs": { "type": "integer", "minimum": 1 }, "unit": { "type": "string" } } } } }]
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "SensorInput" }, "params": { "type": "object", "additionalProperties": false, "required": ["source", "valueType", "samplePeriodUs"], "properties": { "source": { "type": "string", "minLength": 1 }, "valueType": { "enum": ["number", "boolean", "vector<number>", "pose", "any"] }, "samplePeriodUs": { "type": "integer", "minimum": 1 }, "unit": { "type": "string" }, "hardwareResource": { "$ref": "#/$defs/hardwareResourceId" } } } } }]
     },
     "cordicNode": {
       "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "CordicOp" }, "params": { "type": "object", "additionalProperties": false, "required": ["operation"], "properties": { "operation": { "enum": ["sin", "cos", "sincos", "atan2"] }, "implementation": { "enum": ["auto", "software", "hardware"] }, "iterations": { "type": "integer", "minimum": 1, "maximum": 32 } } } } }]
@@ -78,10 +90,43 @@
       "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "ControlLoop" }, "params": { "type": "object", "additionalProperties": false, "required": ["kp", "ki", "kd", "samplePeriodUs", "outputMin", "outputMax"], "properties": { "kp": { "type": "number" }, "ki": { "type": "number" }, "kd": { "type": "number" }, "samplePeriodUs": { "type": "integer", "minimum": 1 }, "outputMin": { "type": "number" }, "outputMax": { "type": "number" }, "initialOutput": { "type": "number" } } } } }]
     },
     "actuatorOutputNode": {
-      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "ActuatorOutput" }, "params": { "type": "object", "additionalProperties": false, "required": ["target", "unit", "min", "max"], "properties": { "target": { "type": "string", "minLength": 1 }, "unit": { "type": "string", "minLength": 1 }, "min": { "type": "number" }, "max": { "type": "number" }, "safeValue": { "type": "number" } } } } }]
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "ActuatorOutput" }, "params": { "type": "object", "additionalProperties": false, "required": ["target", "unit", "min", "max"], "properties": { "target": { "type": "string", "minLength": 1 }, "unit": { "type": "string", "minLength": 1 }, "min": { "type": "number" }, "max": { "type": "number" }, "safeValue": { "type": "number" }, "hardwareResource": { "$ref": "#/$defs/hardwareResourceId" } } } } }]
     },
     "publishNode": {
       "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "Publish" }, "params": { "type": "object", "additionalProperties": false, "required": ["topic", "transport"], "properties": { "topic": { "type": "string", "minLength": 1 }, "transport": { "enum": ["telemetry", "log", "host"] }, "retain": { "type": "boolean" } } } } }]
+    },
+    "constantNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "Constant" }, "params": { "type": "object", "additionalProperties": false, "required": ["value"], "properties": { "value": { "type": "number" } } } } }]
+    },
+    "addNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "Add" }, "params": { "type": "object", "additionalProperties": false } } }]
+    },
+    "subtractNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "Subtract" }, "params": { "type": "object", "additionalProperties": false } } }]
+    },
+    "multiplyNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "Multiply" }, "params": { "type": "object", "additionalProperties": false } } }]
+    },
+    "gainNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "Gain" }, "params": { "type": "object", "additionalProperties": false, "required": ["gain"], "properties": { "gain": { "type": "number" } } } } }]
+    },
+    "compareNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "Compare" }, "params": { "type": "object", "additionalProperties": false, "required": ["operation"], "properties": { "operation": { "enum": ["gt", "lt", "ge", "le", "eq", "ne"] }, "threshold": { "type": "number" } } } } }]
+    },
+    "saturationNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "Saturation" }, "params": { "type": "object", "additionalProperties": false, "required": ["min", "max"], "properties": { "min": { "type": "number" }, "max": { "type": "number" } } } } }]
+    },
+    "switchNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "Switch" }, "params": { "type": "object", "additionalProperties": false } } }]
+    },
+    "gpioInputNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "GPIOInput" }, "params": { "type": "object", "additionalProperties": false, "required": ["hardwareResource"], "properties": { "hardwareResource": { "type": "string", "pattern": "^gpio\\.[A-Za-z0-9_-]+$" }, "samplePeriodUs": { "type": "integer", "minimum": 1 }, "invert": { "type": "boolean" } } } } }]
+    },
+    "adcInputNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "ADCInput" }, "params": { "type": "object", "additionalProperties": false, "required": ["hardwareResource"], "properties": { "hardwareResource": { "type": "string", "pattern": "^adc\\.[A-Za-z0-9_-]+$" }, "samplePeriodUs": { "type": "integer", "minimum": 1 }, "unit": { "type": "string" }, "minValue": { "type": "number" }, "maxValue": { "type": "number" } } } } }]
+    },
+    "pwmOutputNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "PWMOutput" }, "params": { "type": "object", "additionalProperties": false, "required": ["hardwareResource", "min", "max"], "properties": { "hardwareResource": { "type": "string", "pattern": "^pwm\\.[A-Za-z0-9_-]+$" }, "min": { "type": "number" }, "max": { "type": "number" }, "unit": { "type": "string" }, "safeValue": { "type": "number" } } } } }]
     },
     "endpoint": {
       "type": "object", "additionalProperties": false,

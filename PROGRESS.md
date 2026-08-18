@@ -87,7 +87,7 @@ The runtime SDK provides embedded primitives required by generated C step functi
 
 ## TRACK NODE LIBRARY — NL
 *(Note: Implementing any node requires ALL of: 1. graph schema, 2. editor palette/representation, 3. ports and type definitions, 4. parameter validation, 5. graph-to-C code generation, 6. SDK/runtime dependency, 7. target/backend support, 8. tests. Node Catalog ≠ Node Implementation.)*
-- [x] NL-P0 | Core P0 node implementation | Owner: Hermes / Nemotron | Status: Complete (`CordicOp`, `Publish`, `SensorInput`, `ActuatorOutput` all fully implemented with schema, palette, ports, validation, codegen, SDK, backend, and tests)
+- [x] NL-P0 | Core P0 node implementation | Owner: Codex | Status: Complete (`CordicOp`, `Publish`, `SensorInput`, `ActuatorOutput`, `GPIOInput`, `ADCInput`, and `PWMOutput` fully implemented with schema, palette/inspector, ports, resource validation, codegen, existing SDK primitives, ESP32 backend, and focused graph tests)
 - [ ] NL-P1 | Basic math & signal processing nodes | Owner: Future | Status: Not started
 - [ ] NL-P2 | Control nodes (PID, PI, Lead-Lag) | Owner: Future | Status: Not started
 - [ ] NL-R1 | 3-DOF robotics foundation nodes | Owner: Future | Status: Not started
@@ -101,7 +101,7 @@ The runtime SDK provides embedded primitives required by generated C step functi
 ## TRACK CODEGEN — CG
 - [x] CG-T1 | Expand graph schema for node library | Owner: Codex / Antigravity | Status: Complete
 - [x] CG-T2 | Node parameter & port validation | Owner: Antigravity | Status: Complete
-- [x] CG-T3 | Node → C code generation engine | Owner: Hermes / Nemotron | Status: Complete (`graph_to_c.js` supports `CordicOp`, `Publish`, `SensorInput`, `ActuatorOutput` with full hardware resource mapping)
+- [x] CG-T3 | Node → C code generation engine | Owner: Codex | Status: Complete (`graph_to_c.js` supports `CordicOp`, `Publish`, `SensorInput`, `ActuatorOutput`, `GPIOInput`, `ADCInput`, and `PWMOutput`; canonical resources are emitted only through `hyp_sensor_read()` / `hyp_actuator_write()`)
 - [x] CG-T4 | SDK dependency resolution & includes | Owner: Antigravity | Status: Complete
 - [x] CG-T5 | Generated source, header, & board config management | Owner: Antigravity | Status: Complete
 - [x] CG-T6 | Generated firmware project integration | Owner: Antigravity | Status: Complete

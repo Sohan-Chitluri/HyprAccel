@@ -262,9 +262,13 @@ function validateGraphHardwareResources(graph) {
     const hardware = readHardwareConfig();
     const configured = new Set((hardware.assignments || []).map(assignment => assignment.resource));
     for (const node of graph.nodes || []) {
-        if (!node || !['SensorInput', 'ActuatorOutput'].includes(node.type)) continue;
+        if (!node || !['SensorInput', 'ActuatorOutput', 'GPIOInput', 'ADCInput', 'PWMOutput'].includes(node.type)) continue;
         const resourceId = node.params && node.params.hardwareResource;
         if (!resourceId) continue;
+        const expectedType = { SensorInput: null, ActuatorOutput: null, GPIOInput: 'gpio', ADCInput: 'adc', PWMOutput: 'pwm' }[node.type];
+        if (expectedType && !resourceId.startsWith(`${expectedType}.`)) {
+            throw new Error(`Node '${node.id}' requires a ${expectedType} hardware resource, got '${resourceId}'.`);
+        }
         if (!hardware.resources || !hardware.resources[resourceId] || !configured.has(resourceId)) {
             throw new Error(`Node '${node.id}' references hardware resource '${resourceId}', which is not configured in Hardware Setup.`);
         }
