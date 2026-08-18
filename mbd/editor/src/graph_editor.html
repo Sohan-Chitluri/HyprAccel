@@ -529,7 +529,7 @@
     display: flex;
     flex-direction: column;
     z-index: 5;
-    transition: height 0.2s ease;
+    min-height: 28px;
   }
   .bottom-dock.collapsed {
     height: 28px;
@@ -542,7 +542,11 @@
     align-items: center;
     padding: 0 12px;
     justify-content: space-between;
+    flex-shrink: 0;
+    position: relative;
   }
+  .bottom-resize-handle { position: absolute; left: 0; right: 0; top: -4px; height: 8px; cursor: ns-resize; z-index: 2; }
+  .bottom-resize-handle:hover { background: var(--accent); opacity: .7; }
   .bottom-tabs {
     display: flex;
     gap: 4px;
@@ -571,9 +575,11 @@
   }
   .console-content pre {
     margin: 0;
-    white-space: pre-wrap;
-    word-break: break-all;
+    white-space: pre;
+    word-break: normal;
   }
+  .source-actions { display: none; gap: 8px; padding: 0 0 8px; }
+  .console-content.source-active .source-actions { display: flex; }
   .log-ok { color: var(--green); }
   .log-err { color: var(--red); }
   .log-info { color: var(--accent); }
@@ -663,7 +669,7 @@
     <div class="menu-item" tabindex="0">Hardware
       <div class="menu-dropdown">
         <button id="menu-pin-config">Pin Configuration</button>
-        <button id="menu-board-info">Board Descriptor (THEJAS32)</button>
+        <button id="menu-board-info">Board Descriptor</button>
       </div>
     </div>
     <div class="menu-item" tabindex="0">Model
@@ -698,7 +704,7 @@
   </nav>
   <div class="system-status">
     <span class="status-dot"></span>
-    <span>Target: <strong>THEJAS32 (Q4.12 CORDIC)</strong></span>
+    <span>Target: <strong id="targetLabel">Loading target…</strong></span>
   </div>
 </header>
 
@@ -740,9 +746,9 @@
     <div class="dock-content" id="dock-project-content" style="display:none">
       <div class="project-card">
         <div class="project-card-title">Target Platform</div>
-        <div class="project-prop"><span class="project-prop-label">Board</span><span class="project-prop-val">THEJAS32</span></div>
-        <div class="project-prop"><span class="project-prop-label">Architecture</span><span class="project-prop-val">RISC-V 32</span></div>
-        <div class="project-prop"><span class="project-prop-label">Hardware Acceleration</span><span class="project-prop-val">Q4.12 CORDIC</span></div>
+        <div class="project-prop"><span class="project-prop-label">Board</span><span class="project-prop-val" id="projectBoard">Loading…</span></div>
+        <div class="project-prop"><span class="project-prop-label">Architecture</span><span class="project-prop-val" id="projectArchitecture">Loading…</span></div>
+        <div class="project-prop"><span class="project-prop-label">Hardware Acceleration</span><span class="project-prop-val" id="projectAccelerators">Loading…</span></div>
         <div class="project-prop"><span class="project-prop-label">Config File</span><span class="project-prop-val">hyp_board_config.h</span></div>
       </div>
       <div class="project-card">
@@ -764,6 +770,7 @@
 <!-- Bottom Console / Diagnostics Panel -->
 <div class="bottom-dock" id="bottomDock">
   <div class="bottom-header">
+    <div class="bottom-resize-handle" id="bottomResizeHandle" title="Drag to resize"></div>
     <div class="bottom-tabs">
       <div class="bottom-tab active" id="tab-btn-console">Console Output</div>
       <div class="bottom-tab" id="tab-btn-source">Generated C Source</div>
@@ -774,6 +781,7 @@
     </div>
   </div>
   <div class="console-content" id="consoleContent">
+    <div class="source-actions" id="sourceActions"><button class="tool-btn" id="copySource">Copy C Source</button></div>
     <pre id="consoleLogText" class="log-info">HyprAccel MBD Studio Initialized. Ready for model editing and code generation.</pre>
   </div>
 </div>
@@ -896,6 +904,8 @@ let nextId = 1, rfInstance = null, selectedId = null, graphNodes = [], graphEdge
 let reactSetNodes = null, reactSetEdges = null;
 let undoSnapshots = [], redoSnapshots = [], pendingMoveSnapshot = null;
 let activeConsoleTab = 'console', lastSourceCode = '', lastDiagnostics = '';
+let currentHardware = null;
+let previousHardwareBoard = null;
 
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
 function snapshot() { return {nodes:clone(graphNodes),edges:clone(graphEdges),selectedId,nextId}; }
@@ -975,9 +985,11 @@ function field(key, value, type) {
     type === 'select'
       ? hyprGraphH('select', {value, onChange: e => updateParam(key, e.target.value)},
           (key === 'operation' ? ['sin','cos','sincos','atan2']
-           : key === 'implementation' ? ['auto','software','hardware']
+           : key === 'implementation' ? [['auto','Automatic'],['software','Software'],['hardware','Hardware Accelerator']]
            : key === 'transport' ? ['telemetry','can','uart','spi']
-           : ['forward','inverse']).map(x => hyprGraphH('option', {key:x}, x)))
+           : ['forward','inverse']).map(x => Array.isArray(x)
+             ? hyprGraphH('option', {key:x[0], value:x[0]}, x[1])
+             : hyprGraphH('option', {key:x, value:x}, x)))
       : type === 'check'
       ? hyprGraphH('label', {className:'check'},
           hyprGraphH('input', {type:'checkbox', checked:!!value, onChange: e => updateParam(key, e.target.checked)}), key === 'retain' ? 'Enable retained message' : 'Enabled')
@@ -1120,6 +1132,27 @@ function renderConfig() {
     grpDiv.append(titleDiv, fieldsDiv);
     inspectorBody.appendChild(grpDiv);
   });
+
+  if (t === 'CordicOp') {
+    const resourceGroup = document.createElement('div');
+    resourceGroup.className = 'prop-group';
+    resourceGroup.innerHTML = '<div class="prop-group-title">Accelerator Resource</div><div class="prop-fields"><label class="field"><span>Configured resource</span><select id="cordicResourceSelect"><option value="">Loading…</option></select></label></div>';
+    inspectorBody.appendChild(resourceGroup);
+    const select = resourceGroup.querySelector('#cordicResourceSelect');
+    select.onchange = () => updateParam('hardwareResource', select.value);
+    fetch('/api/hardware').then(response => response.json()).then(hardware => {
+      if (selectedId !== n.id) return;
+      const resources = Object.values(hardware.resources || {}).filter(resource => resource.type === 'accelerator' && resource.available && resource.configuration && Object.keys(resource.configuration).length > 0);
+      select.innerHTML = '<option value="">— no accelerator resource —</option>';
+      resources.forEach(resource => {
+        const option = document.createElement('option');
+        option.value = resource.id;
+        option.textContent = resource.id;
+        option.selected = resource.id === (p.hardwareResource || '');
+        select.appendChild(option);
+      });
+    }).catch(() => { select.innerHTML = '<option value="">Hardware Setup unavailable</option>'; });
+  }
 }
 
 function toGraph() {
@@ -1134,13 +1167,17 @@ function toGraph() {
     nodes,
     edges: graphEdges.map(e => ({id:e.id, from:{node:e.source, port:e.sourceHandle}, to:{node:e.target, port:e.targetHandle}})),
     inputs: cordics.length ? [{name:'angle_rad', type:'number', unit:'rad'}] : [],
-    metadata: cordics.length ? {externalBindings: cordics.map(n => ({input:'angle_rad', to:{node:n.id, port:'angle_rad'}}))} : undefined
+    metadata: {
+      targetBoard: currentHardware && currentHardware.board ? currentHardware.board : undefined,
+      ...(cordics.length ? {externalBindings: cordics.map(n => ({input:'angle_rad', to:{node:n.id, port:'angle_rad'}}))} : {})
+    }
   };
 }
 
 function updateConsoleOutput() {
   const txt = document.getElementById('consoleLogText');
   if (!txt) return;
+  document.getElementById('consoleContent').classList.toggle('source-active', activeConsoleTab === 'source');
   if (activeConsoleTab === 'console') {
     txt.className = 'log-info';
     txt.textContent = txt.dataset.log || 'HyprAccel MBD Studio Initialized. Ready for model editing and code generation.';
@@ -1149,7 +1186,30 @@ function updateConsoleOutput() {
     txt.textContent = lastSourceCode || '// No C source generated yet. Click "Generate C" to synthesize code.';
   } else if (activeConsoleTab === 'diagnostics') {
     txt.className = 'log-info';
-    txt.textContent = lastDiagnostics || 'Diagnostics: Platform check ok. Target THEJAS32 ready.';
+    txt.textContent = lastDiagnostics || 'Diagnostics: Platform check ok.';
+  }
+}
+
+async function syncHardwareTarget() {
+  try {
+    const [hardwareResponse, boardsResponse] = await Promise.all([fetch('/api/hardware'), fetch('/api/boards')]);
+    const hardware = await hardwareResponse.json();
+    const boards = await boardsResponse.json();
+    currentHardware = hardware;
+    const board = boards[hardware.board];
+    const label = board ? board.name : (hardware.board || 'No board selected');
+    document.getElementById('targetLabel').textContent = label;
+    document.getElementById('projectBoard').textContent = label;
+    document.getElementById('projectArchitecture').textContent = board ? (board.architecture || '—') : '—';
+    document.getElementById('projectAccelerators').textContent = board && board.accelerators && board.accelerators.length ? board.accelerators.join(', ') : '—';
+    document.getElementById('menu-board-info').textContent = board ? `Board Descriptor (${label})` : 'Board Descriptor';
+    if (previousHardwareBoard && previousHardwareBoard !== hardware.board) {
+      lastDiagnostics = `Hardware target changed from ${previousHardwareBoard} to ${hardware.board || 'none'}. Existing graph resource bindings must be reviewed; no resources were remapped.`;
+      if (activeConsoleTab === 'diagnostics') updateConsoleOutput();
+    }
+    previousHardwareBoard = hardware.board || null;
+  } catch (_) {
+    document.getElementById('targetLabel').textContent = 'Hardware Setup unavailable';
   }
 }
 
@@ -1362,6 +1422,32 @@ document.getElementById('btnToggleBottom').onclick = () => {
   document.getElementById('bottomDock').classList.toggle('collapsed');
 };
 
+document.getElementById('bottomResizeHandle').addEventListener('pointerdown', event => {
+  const dock = document.getElementById('bottomDock');
+  if (dock.classList.contains('collapsed')) dock.classList.remove('collapsed');
+  const startY = event.clientY;
+  const startHeight = dock.getBoundingClientRect().height;
+  const move = moveEvent => {
+    const next = Math.max(28, Math.min(window.innerHeight - 120, startHeight + startY - moveEvent.clientY));
+    dock.style.height = `${next}px`;
+  };
+  const stop = () => {
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', stop);
+  };
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', stop, {once:true});
+  event.preventDefault();
+});
+
+document.getElementById('copySource').onclick = async () => {
+  try {
+    await navigator.clipboard.writeText(lastSourceCode || '');
+    lastDiagnostics = 'Generated C source copied to the clipboard.';
+    updateConsoleOutput();
+  } catch (_) { lastDiagnostics = 'Clipboard access was unavailable.'; }
+};
+
 // Node Library Search
 document.getElementById('nodeSearch').oninput = (e) => {
   renderPalette(e.target.value);
@@ -1393,7 +1479,7 @@ document.getElementById('menu-undo').onclick = () => document.getElementById('un
 document.getElementById('menu-redo').onclick = () => document.getElementById('redo').click();
 document.getElementById('menu-delete').onclick = () => { if (selectedId) deleteNode(selectedId); };
 document.getElementById('menu-pin-config').onclick = () => window.open('/pin_config.html', '_blank');
-document.getElementById('menu-board-info').onclick = () => alert('Target Board: THEJAS32\nArchitecture: RISC-V 32-bit\nHardware Accelerator: 8-Stage Q4.12 CORDIC\nHeader: hyp_board_config.h');
+document.getElementById('menu-board-info').onclick = () => alert(`Target Board: ${currentHardware && currentHardware.board ? currentHardware.board : 'none'}\nHardware resources are owned by Hardware Setup.\nHeader: hyp_board_config.h`);
 document.getElementById('menu-validate').onclick = () => alert('Model structure valid.\nAll node parameter constraints satisfied.');
 document.getElementById('menu-build').onclick = build;
 document.getElementById('menu-compile').onclick = compile;
@@ -1438,6 +1524,8 @@ ReactDOM.render(hyprGraphH(App), canvasEl);
 renderPalette();
 renderConfig();
 refreshHistoryButtons();
+syncHardwareTarget();
+window.setInterval(syncHardwareTarget, 1000);
 
 })();
 </script>

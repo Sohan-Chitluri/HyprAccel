@@ -31,7 +31,7 @@
   },
   "$defs": {
     "identifier": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
-    "hardwareResourceId": { "type": "string", "pattern": "^(gpio|uart|spi|i2c|pwm|adc)\\.[A-Za-z0-9_-]+$" },
+    "hardwareResourceId": { "type": "string", "pattern": "^(gpio|uart|spi|i2c|pwm|adc|accelerator)\\.[A-Za-z0-9_-]+$" },
     "graphInput": {
       "type": "object", "additionalProperties": false,
       "required": ["name", "type"],
@@ -81,7 +81,7 @@
       "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "SensorInput" }, "params": { "type": "object", "additionalProperties": false, "required": ["source", "valueType", "samplePeriodUs"], "properties": { "source": { "type": "string", "minLength": 1 }, "valueType": { "enum": ["number", "boolean", "vector<number>", "pose", "any"] }, "samplePeriodUs": { "type": "integer", "minimum": 1 }, "unit": { "type": "string" }, "hardwareResource": { "$ref": "#/$defs/hardwareResourceId" } } } } }]
     },
     "cordicNode": {
-      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "CordicOp" }, "params": { "type": "object", "additionalProperties": false, "required": ["operation"], "properties": { "operation": { "enum": ["sin", "cos", "sincos", "atan2"] }, "implementation": { "enum": ["auto", "software", "hardware"] }, "iterations": { "type": "integer", "minimum": 1, "maximum": 32 } } } } }]
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "CordicOp" }, "params": { "type": "object", "additionalProperties": false, "required": ["operation"], "properties": { "operation": { "enum": ["sin", "cos", "sincos", "atan2"] }, "implementation": { "enum": ["auto", "software", "hardware"] }, "iterations": { "type": "integer", "minimum": 1, "maximum": 32 }, "hardwareResource": { "$ref": "#/$defs/hardwareResourceId" } } } } }]
     },
     "kinematicsNode": {
       "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "KinematicsSolve" }, "params": { "type": "object", "additionalProperties": false, "required": ["mode", "robotModel"], "properties": { "mode": { "enum": ["forward", "inverse"] }, "robotModel": { "type": "string", "minLength": 1 }, "maxIterations": { "type": "integer", "minimum": 1 }, "tolerance": { "type": "number", "exclusiveMinimum": 0 } } } } }]

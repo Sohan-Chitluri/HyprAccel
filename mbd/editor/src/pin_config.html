@@ -25,10 +25,10 @@
   select:focus { outline: none; border-color: var(--accent); }
 
   /* ── Main layout ── */
-  main { display: grid; grid-template-columns: 300px 1fr 340px; flex: 1; overflow: hidden; }
+  main { display: grid; grid-template-columns: 300px minmax(0, 1fr) 340px; flex: 1; overflow: hidden; min-height: 0; }
 
   /* ── Left panel: peripheral tree ── */
-  .panel { display: flex; flex-direction: column; border-right: 1px solid var(--border); overflow: hidden; }
+  .panel { display: flex; flex-direction: column; border-right: 1px solid var(--border); overflow: hidden; min-height: 0; }
   .panel-header { padding: 10px 16px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); border-bottom: 1px solid var(--border); flex-shrink: 0; }
   .panel-body { overflow-y: auto; flex: 1; padding: 8px; }
 
@@ -45,7 +45,8 @@
   .periph-group-hdr .chevron { margin-left: auto; transition: transform .2s; }
   .periph-group-hdr.open .chevron { transform: rotate(90deg); }
   .periph-items { display: none; }
-  .periph-group-hdr.open + .periph-items { display: block; }
+  .periph-group-hdr.open + .periph-items,
+  .resource-group[open] > .periph-items { display: block; }
 
   /* pin items */
   .pin-item { display: flex; align-items: center; padding: 6px 12px 6px 28px; font-size: 12px; gap: 8px; cursor: grab; border-top: 1px solid var(--border); transition: background .12s; }
@@ -56,8 +57,8 @@
   .drag-handle { color: var(--muted); font-size: 10px; }
 
   /* ── Centre panel: node assignment grid ── */
-  .centre { display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--border); }
-  .drop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; overflow-y: auto; flex: 1; }
+  .centre { display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--border); min-width: 0; min-height: 0; }
+  .drop-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 12px; padding: 16px; overflow-y: auto; overflow-x: hidden; flex: 1 1 auto; min-height: 0; }
 
   .node-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: 10px; overflow: hidden; transition: border-color .15s; }
   .node-card.drag-over { border-color: var(--accent); box-shadow: 0 0 0 2px #58a6ff33; }
@@ -90,7 +91,7 @@
   .btn:disabled { opacity: .4; cursor: not-allowed; }
 
   .output-code { flex: 1; overflow-y: auto; padding: 14px; }
-  .output-code pre { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 11px; line-height: 1.7; white-space: pre-wrap; color: #e6edf3; }
+  .output-code pre { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 11px; line-height: 1.7; white-space: pre; color: #e6edf3; }
   .output-code .line-kw  { color: #ff7b72; }
   .output-code .line-def { color: #79c0ff; }
   .output-code .line-val { color: #a5d6ff; }
@@ -277,11 +278,11 @@ const PRESETS = [
     },
     {
         id: 'cordic_fpga_link',
-        name: 'CORDIC FPGA Link',
+        name: 'Accelerator / CORDIC',
         icon: '⚡',
-        nodeType: 'SensorInput',
+        nodeType: 'Accelerator',
         status: 'ready',
-        description: 'CORDIC accelerator and HW/SW routing are implemented; Verilator/simulation is available. Physical FPGA transport/deployment is deferred.',
+        description: 'Configure the board-declared CORDIC accelerator with Automatic, Software, or Hardware Accelerator routing.',
         boardConfigs: null
     }
 ];
@@ -331,8 +332,24 @@ function applyPreset(presetId) {
     const preset = PRESETS.find(p => p.id === presetId);
     if (!preset) return;
 
-    if (preset.status === 'ready') {
-        setStatus('ok', `⚡ ${preset.name}: accelerator, hardware/software routing, and Verilator simulation are available. Physical FPGA transport/deployment remains deferred.`);
+    if (preset.id === 'cordic_fpga_link') {
+        if (!currentBoard) {
+            setStatus('err', '❌ Please select a board first before configuring an accelerator.');
+            return;
+        }
+        const bd = boards[currentBoard];
+        const accelerator = (bd.accelerators || []).find(name => String(name).toUpperCase() === 'CORDIC');
+        if (!accelerator) {
+            setStatus('err', `❌ No CORDIC accelerator is declared by ${bd.name || currentBoard}.`);
+            return;
+        }
+        const resourceId = `accelerator.${String(accelerator).toLowerCase()}`;
+        resourceConfigurations[resourceId] = {
+            ...(resourceConfigurations[resourceId] || {}),
+            implementation: 'auto'
+        };
+        schedulePersist();
+        setStatus('ok', `⚡ Configured ${resourceId} — Implementation: Automatic. Select Software or Hardware Accelerator in the CordicOp inspector.`);
         return;
     }
 
@@ -505,13 +522,14 @@ function resourceDefaults(type) {
     if (type === 'uart') return { baudRate: 115200 };
     if (type === 'pwm') return { frequencyHz: 50, resolutionBits: 16 };
     if (type === 'adc') return { attenuationDb: 11 };
+    if (type === 'accelerator') return { implementation: 'auto' };
     return { direction: 'input' };
 }
 
 function renderResourceConfig(pins) {
     const host = document.getElementById('resourceConfig');
     host.innerHTML = '<div class="panel-header" style="padding:0 0 6px">Hardware resource configuration</div>';
-    const types = ['spi', 'i2c', 'uart', 'pwm', 'adc'];
+    const types = ['spi', 'i2c', 'uart', 'pwm', 'adc', 'accelerator'];
     for (const type of types) {
         const data = pins[type];
         const entries = Array.isArray(data) ? data.map(pin => [pin, null]) : Object.entries(data || {});
@@ -545,7 +563,8 @@ function hardwarePayload() {
             node: nd.label, role: slot.role, pin: slot.pin,
             resource: slot.peripheral || 'gpio'
         }))),
-        configurations: resourceConfigurations
+        configurations: resourceConfigurations,
+        devices: savedHardware && Array.isArray(savedHardware.devices) ? savedHardware.devices : []
     };
 }
 
@@ -577,6 +596,8 @@ function schedulePersist() {
     window.clearTimeout(persistTimer);
     persistTimer = window.setTimeout(() => {
         fetch('/api/hardware', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(hardwarePayload()) })
+            .then(response => response.ok ? response.json() : response.json().then(body => Promise.reject(new Error(body.error || 'validation failed'))))
+            .then(result => { savedHardware = result.hardware || savedHardware; })
             .catch(() => setStatus('warn', 'Hardware configuration could not be saved.'));
     }, 200);
 }
@@ -633,6 +654,9 @@ function renderPeripheralTree(pins) {
                 el.dataset.bus = ['spi', 'i2c', 'uart'].includes(sec.key) ? resource.instance : '';
                 el.dataset.role = role;
                 el.dataset.pin = pin;
+                el.dataset.resource = ['spi', 'i2c', 'uart'].includes(sec.key)
+                    ? `${sec.key}.${resource.instance}`
+                    : `${sec.key}.${pin}`;
                 el.id = `pitem-${sec.key}-${resource.instance}-${role}`.replace(/[^A-Za-z0-9_-]/g, '_');
                 el.draggable = true;
                 el.innerHTML = `<span class="drag-handle">⠿</span><span class="pin-name">${pin}</span><span class="pin-role">${resource.instance}.${role.toUpperCase()}</span>`;
@@ -743,18 +767,31 @@ function clearSlot(nodeId, role) {
 let dragging = null;
 
 function onPinDragStart(e) {
+    const item = e.currentTarget;
     dragging = {
-        pin:    e.currentTarget.dataset.pin,
-        periph: e.currentTarget.dataset.periph,
-        bus:    e.currentTarget.dataset.bus,
-        role:   e.currentTarget.dataset.role,
+        pin: item.dataset.pin, periph: item.dataset.periph,
+        bus: item.dataset.bus, role: item.dataset.role,
+        resource: item.dataset.resource
     };
+    const payload = JSON.stringify({
+        pin: dragging.pin, role: dragging.role, resource: dragging.resource,
+        resourceId: dragging.resource,
+        peripheral: dragging.periph, instance: dragging.bus || null
+    });
+    e.dataTransfer.setData('application/hypraccel-resource', payload);
+    e.dataTransfer.setData('text/plain', payload);
     e.dataTransfer.effectAllowed = 'copy';
 }
 
 function onDrop(e, nodeId, slotRole) {
-    if (!dragging) return;
-    const { pin, periph, bus, role } = dragging;
+    let transfer = null;
+    try { transfer = JSON.parse(e.dataTransfer.getData('application/hypraccel-resource') || e.dataTransfer.getData('text/plain')); } catch (_) {}
+    const source = transfer || dragging;
+    if (!source) return;
+    const { pin, role } = source;
+    const periph = source.peripheral || source.periph;
+    const bus = source.instance || source.bus;
+    const resource = source.resourceId || source.resource || (bus ? `${periph}.${bus}` : (periph === 'pwm' || periph === 'adc' ? `${periph}.${pin}` : `gpio.${pin}`));
     dragging = null;
     if (slotRole !== role) {
         setStatus('warn', `⚠ ${pin} is a ${role.toUpperCase()} signal; drop it on the ${role.toUpperCase()} slot.`);
@@ -779,7 +816,7 @@ function onDrop(e, nodeId, slotRole) {
     if (slot) {
         if (slot.pin) delete assignments[slot.pin]; // evict previous occupant
         slot.pin        = pin;
-        slot.peripheral = bus ? `${periph}.${bus}` : (periph === 'pwm' || periph === 'adc' ? `${periph}.${pin}` : periph);
+        slot.peripheral = resource;
     }
     renderGrid();
     setStatus('ok', `Assigned ${pin} → ${nd.label}.${slotRole}`);

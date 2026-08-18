@@ -18,6 +18,7 @@ const { execFileSync, execSync, spawnSync } = require('child_process');
 
 const app  = express();
 const PORT = Number(process.env.HYPRACCEL_EDITOR_PORT || 3737);
+const HOST = process.env.HYPRACCEL_EDITOR_HOST || '127.0.0.1';
 
 const REPO_ROOT    = path.resolve(__dirname, '../../');
 const BOARDS_YAML  = path.join(REPO_ROOT, 'boards/boards.yaml');
@@ -178,7 +179,46 @@ function defaultResourceConfig(board) {
         resources[`gpio.${pin}`] = { id: `gpio.${pin}`, type: 'gpio', instance: pin, available: true,
             assignments: [{ role: 'gpio', pin }], configuration: {} };
     }
+    for (const accelerator of board.accelerators || []) {
+        const name = String(accelerator).toLowerCase();
+        resources[`accelerator.${name}`] = {
+            id: `accelerator.${name}`, type: 'accelerator', instance: name,
+            available: true, assignments: [], configuration: {}
+        };
+    }
     return resources;
+}
+
+function normalizeDeviceProfiles(board, devices = []) {
+    if (devices == null) return [];
+    if (!Array.isArray(devices)) throw new Error('Hardware devices must be an array.');
+    const parsed = parseSimpleYaml(fs.readFileSync(BOARDS_YAML, 'utf8'));
+    const resources = defaultResourceConfig(parsed.boards[board]);
+    const ids = new Set();
+    return devices.map((device, index) => {
+        if (!device || typeof device !== 'object' || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(String(device.id || ''))) {
+            throw new Error(`Device ${index + 1} has an invalid id.`);
+        }
+        const id = String(device.id);
+        if (ids.has(id)) throw new Error(`Device '${id}' is duplicated.`);
+        ids.add(id);
+        if (!Array.isArray(device.connections)) throw new Error(`Device '${id}' connections must be an array.`);
+        const names = new Set();
+        const connections = device.connections.map((connection, connectionIndex) => {
+            if (!connection || typeof connection !== 'object' || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(String(connection.name || ''))) {
+                throw new Error(`Device '${id}' connection ${connectionIndex + 1} has an invalid name.`);
+            }
+            const name = String(connection.name);
+            if (names.has(name)) throw new Error(`Device '${id}' connection '${name}' is duplicated.`);
+            names.add(name);
+            const resource = String(connection.resource || '');
+            if (!resources[resource]) throw new Error(`Device '${id}' references unknown hardware resource '${resource}'.`);
+            const valid = resources[resource].assignments.some(signal => signal.pin === connection.pin);
+            if (!valid) throw new Error(`Device '${id}' connection '${name}' uses invalid pin '${connection.pin}' for '${resource}'.`);
+            return { name, resource, pin: String(connection.pin), ...(connection.role ? { role: String(connection.role) } : {}) };
+        });
+        return { id, name: String(device.name || id), profile: String(device.profile || ''), connections };
+    });
 }
 
 function readHardwareConfig() {
@@ -187,7 +227,7 @@ function readHardwareConfig() {
         if (!stored.board || !Array.isArray(stored.assignments)) return stored;
         const configurations = Object.fromEntries(Object.entries(stored.resources || {})
             .map(([id, resource]) => [id, resource.configuration || {}]));
-        const migrated = projectHardware(stored.board, stored.assignments, configurations);
+        const migrated = projectHardware(stored.board, stored.assignments, configurations, stored.devices);
         if (JSON.stringify(stored) !== JSON.stringify(migrated)) writeHardwareConfig(migrated);
         return migrated;
     }
@@ -199,7 +239,7 @@ function writeHardwareConfig(config) {
     fs.writeFileSync(HARDWARE_CONFIG, JSON.stringify(config, null, 2) + '\n', 'utf8');
 }
 
-function projectHardware(boardKey, assignments, configurations = {}) {
+function projectHardware(boardKey, assignments, configurations = {}, devices = []) {
     const parsed = parseSimpleYaml(fs.readFileSync(BOARDS_YAML, 'utf8'));
     const board = parsed.boards[boardKey];
     if (!board) throw new Error(`Unknown board '${boardKey}'.`);
@@ -243,16 +283,19 @@ function projectHardware(boardKey, assignments, configurations = {}) {
         if (!configuration || typeof configuration !== 'object' || Array.isArray(configuration)) throw new Error(`Invalid configuration for '${id}'.`);
         resources[id].configuration = configuration;
     }
-    return { version: 1, board: boardKey, resources, assignments: normalized };
+    // Keep the legacy function extraction used by scratch/test_hardware_model.js
+    // independent when no profile layer is supplied.
+    const normalizedDevices = devices && devices.length ? normalizeDeviceProfiles(boardKey, devices) : [];
+    return { version: 1, board: boardKey, resources, assignments: normalized, devices: normalizedDevices };
 }
 
 app.get('/api/hardware', (_req, res) => res.json(readHardwareConfig()));
 
 app.post('/api/hardware', (req, res) => {
     try {
-        const { board, assignments, configurations } = req.body || {};
+        const { board, assignments, configurations, devices } = req.body || {};
         if (!board || !Array.isArray(assignments)) return res.status(400).json({ error: 'Missing board or assignments.' });
-        const hardware = projectHardware(board, assignments, configurations);
+        const hardware = projectHardware(board, assignments, configurations, devices);
         writeHardwareConfig(hardware);
         res.json({ success: true, hardware });
     } catch (err) { res.status(400).json({ error: err.message }); }
@@ -260,12 +303,21 @@ app.post('/api/hardware', (req, res) => {
 
 function validateGraphHardwareResources(graph) {
     const hardware = readHardwareConfig();
+    const graphBoard = graph.metadata && graph.metadata.targetBoard;
+    if (graphBoard && graphBoard !== hardware.board) {
+        throw new Error(`Graph target '${graphBoard}' is stale; Hardware Setup target is '${hardware.board || 'none'}'. Review hardware resource bindings before building.`);
+    }
     const configured = new Set((hardware.assignments || []).map(assignment => assignment.resource));
+    for (const [id, resource] of Object.entries(hardware.resources || {})) {
+        if (resource.type === 'accelerator' && resource.configuration && Object.keys(resource.configuration).length > 0) {
+            configured.add(id);
+        }
+    }
     for (const node of graph.nodes || []) {
-        if (!node || !['SensorInput', 'ActuatorOutput', 'GPIOInput', 'ADCInput', 'PWMOutput'].includes(node.type)) continue;
+        if (!node || !['SensorInput', 'ActuatorOutput', 'GPIOInput', 'ADCInput', 'PWMOutput', 'CordicOp'].includes(node.type)) continue;
         const resourceId = node.params && node.params.hardwareResource;
         if (!resourceId) continue;
-        const expectedType = { SensorInput: null, ActuatorOutput: null, GPIOInput: 'gpio', ADCInput: 'adc', PWMOutput: 'pwm' }[node.type];
+        const expectedType = { SensorInput: null, ActuatorOutput: null, GPIOInput: 'gpio', ADCInput: 'adc', PWMOutput: 'pwm', CordicOp: 'accelerator' }[node.type];
         if (expectedType && !resourceId.startsWith(`${expectedType}.`)) {
             throw new Error(`Node '${node.id}' requires a ${expectedType} hardware resource, got '${resourceId}'.`);
         }
@@ -285,12 +337,12 @@ function validateGraphHardwareResources(graph) {
  * ----------------------------------------------------------------------- */
 app.post('/api/generate', (req, res) => {
     try {
-        const { board, assignments, configurations } = req.body;
+        const { board, assignments, configurations, devices } = req.body;
         if (!board || !Array.isArray(assignments)) {
             return res.status(400).json({ error: 'Missing board or assignments.' });
         }
 
-        const hardware = projectHardware(board, assignments, configurations);
+        const hardware = projectHardware(board, assignments, configurations, devices);
         writeHardwareConfig(hardware);
 
         /* Run the existing codegen script */
@@ -592,7 +644,7 @@ app.post('/api/verify', (req, res) => {
 });
 
 if (require.main === module) {
-    app.listen(PORT, () => {
+    app.listen(PORT, HOST, () => {
         console.log(`HyprAccel MBD Editor  →  http://localhost:${PORT}`);
         console.log(`Boards YAML           →  ${BOARDS_YAML}`);
         console.log(`Codegen output        →  ${CODEGEN_OUT}/hyp_board_config.h`);

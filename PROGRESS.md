@@ -27,9 +27,9 @@
 
 ## TRACK MBD — Model-Based Design Engine
 - [x] MBD-T1  | node vocabulary | Owner: Codex | Status: Complete
-- [x] MBD-T1a | pin config screen | Owner: Antigravity | Status: Complete (standalone pin_config.html + Express server; board→real pins from boards.yaml; drag-drop to SensorInput/ActuatorOutput slots; conflict detection)
+- [x] MBD-T1a | pin config screen | Owner: Codex/Luna | Status: Complete (standalone pin_config.html + Express server; board→real pins from boards.yaml; grouped resource-row drag/drop with canonical DataTransfer payloads; conflict detection)
 - [x] MBD-T1b | pin→codegen wire | Owner: Antigravity | Status: Complete (POST /api/generate injects HYP_PIN_* #defines into hyp_board_config.h; tested: assign SPI1MOSI → header reflects it)
-- [x] MBD-T1c | pin assignment presets | Owner: Antigravity/Sonnet | Status: Complete (Quick Select preset panel uses canonical board-declared resources, including dynamic pwm.<pin> resolution; CORDIC card now reflects implemented accelerator/routing/simulation with physical FPGA deployment deferred; validated against boards.yaml with conflict detection)
+- [x] MBD-T1c | pin assignment presets | Owner: Codex/Luna | Status: Complete (Quick Select preset panel uses canonical board-declared resources, including dynamic pwm.<pin> resolution; Accelerator / CORDIC config derives accelerator.cordic from the selected board and exposes Automatic/Software/Hardware Accelerator routing)
 - [x] MBD-T1d | Hardware signal model & validation | Owner: Antigravity | Status: Complete (Canonical semantic roles SPI [sck, mosi, miso, cs], UART [tx, rx], I2C [sda, scl], PWM [output], ADC [input], GPIO [gpio]; hardwareResourceId schema constraints; legacy signal-role migration; generic peripheral resolution; C macro sanitization; validation rules for unknown resources, invalid signal roles, duplicate pins, and unconfigured resources; verified by scratch/test_hardware_model.js)
 - [x] MBD-T2  | graph data model | Owner: Codex | Status: Complete
 - [x] MBD-T3  | graph→C codegen | Owner: Codex | Status: Complete (Generates `hyp_graph_<id>_step()` in C for CordicOp and Publish nodes)
@@ -145,9 +145,11 @@ The runtime SDK provides embedded primitives required by generated C step functi
 
 - [x] HW-UX-T1 | Hardware Setup v2 foundation / resource grouping (Board → Peripheral → Semantic Signals → Physical Pins) | Owner: Antigravity/Sonnet | Status: Complete (Hardware Setup renders board-model-driven collapsible peripheral/resource groups while preserving canonical resource IDs and physical-pin conflict handling)
 - [x] HW-UX-T2 | Peripheral / semantic signal sections (GPIO, SPI, I2C, UART, PWM, ADC grouped under resources) | Owner: Antigravity/Sonnet | Status: Complete (SPI/I2C/UART instances and GPIO/PWM/ADC resources are nested under data-driven collapsible groups; drag/drop semantic signal slots remain supported)
-- [ ] HW-UX-T3 | Project target board selector integration (single project-level board state shared by Hardware Setup, Graph Editor, Codegen, Build/Deploy) | Owner: Antigravity | Status: Not started
+- [x] HW-UX-T3 | Project target board selector integration (single project-level board state shared by Hardware Setup, Graph Editor, Codegen, Build/Deploy) | Owner: Codex/Luna | Status: Complete (Graph Editor reads the persisted Hardware Setup board, updates its target header/project view, and build validation rejects stale graph target metadata)
 - [ ] HW-UX-T4 | KiCad schematic import UI (expose SCH-T1..T4 importer via Hardware Setup: "Manual Configuration" OR "Import KiCad Schematic") | Owner: Antigravity | Status: Not started
 - [ ] HW-UX-T5 | Schematic import preview and apply workflow (detected MCU, resources, signals, resolved pins, warnings/errors) | Owner: Antigravity | Status: Not started
 - [ ] HW-UX-T6 | Pinout visualization / CubeMX-style board view (physical pins, assigned peripherals, semantic roles, conflicts, available pins) | Owner: Antigravity | Status: Not started
-- [ ] HW-UX-T7 | Hardware Setup ↔ Graph Editor integration polish (shared canonical hardware state; graph references resources, not independent pin mappings) | Owner: Antigravity | Status: Not started
+- [x] HW-UX-T7 | Hardware Setup ↔ Graph Editor integration polish (shared canonical hardware state; graph references resources, not independent pin mappings) | Owner: Codex/Luna | Status: Complete (bounded independently scrollable assignment list, grouped-resource drag/drop with canonical IDs, shared target/resource refresh, and Accelerator / CORDIC resource binding)
 - [ ] HW-UX-T8 | Hardware Setup validation/error UX (surface existing canonical validation: duplicate pins, invalid roles, invalid combinations, unknown resources, unconfigured resources, unresolved schematic MCU, conflicting assignments) | Owner: Antigravity | Status: Not started
+
+*HW-UX-T7 architectural note:* A minimal persisted `hardware.devices` profile layer is documented in `mbd/docs/hardware_setup_model.md` and validated server-side for named canonical resource connections. It is intentionally not a device database, arbitrary-device UI, node category, or codegen system.
