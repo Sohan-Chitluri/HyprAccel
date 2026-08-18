@@ -8,6 +8,8 @@
 #ifndef HYP_ESP32_HW_H
 #define HYP_ESP32_HW_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif

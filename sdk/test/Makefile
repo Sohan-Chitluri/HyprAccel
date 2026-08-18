@@ -42,7 +42,7 @@ HDRS = $(SRC_DIR)/hyp_cordic_ref.h $(INC_DIR)/hyprccel.h
 SDK_OBJS = $(BUILD)/hyp_cordic_ref.o $(BUILD)/hyp_thejas.o $(BUILD)/hyp_esp32.o $(BUILD)/hyp_router.o
 BOARD_CONFIG_TEST = $(BUILD)/test_board_config_consumption
 
-.PHONY: all test bench dump clean objs rtl-backend-test board-config-test
+.PHONY: all test bench dump clean objs rtl-backend-test board-config-test sensor-actuator-test
 
 all: $(TARGET) objs $(BOARD_CONFIG_TEST)
 
@@ -75,6 +75,10 @@ board-config-test: $(BOARD_CONFIG_TEST)
 	$(BOARD_CONFIG_TEST)
 	@echo ""
 	@echo ">>> Exit code: $$?"
+
+sensor-actuator-test: test_sensor_actuator.c $(INC_DIR)/hyprccel.h | $(BUILD)
+	$(CC) $(CFLAGS) -o $(BUILD)/test_sensor_actuator test_sensor_actuator.c
+	$(BUILD)/test_sensor_actuator
 
 bench: $(TARGET)
 	@echo ""

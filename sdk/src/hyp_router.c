@@ -110,7 +110,7 @@ int hyp_sensor_read(const char *resource_id, void *out_value, uint32_t value_siz
     (void)resource_id;
     (void)out_value;
     (void)value_size;
-    return -1; // Not implemented for this target
+    return HYP_RUNTIME_UNSUPPORTED_RESOURCE;
 #endif
 }
 
@@ -122,6 +122,6 @@ int hyp_actuator_write(const char *resource_id, const void *in_value, uint32_t v
     (void)resource_id;
     (void)in_value;
     (void)value_size;
-    return -1; // Not implemented for this target
+    return HYP_RUNTIME_UNSUPPORTED_RESOURCE;
 #endif
 }

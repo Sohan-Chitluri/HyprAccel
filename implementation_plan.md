@@ -154,8 +154,8 @@ The runtime SDK provides embedded primitives required by generated C step functi
 - **`CORE-T1..T7` | Core SDK Engine**: `Complete`. `hyp_cordic_ref()`, `hyp_cordic_rtl()`, `hyp_router_dispatch()`, and `hyp_publish()` are complete and verified.
 
 #### Runtime Primitives (Specification & Implementation Status)
-- **`SDK-T1` | `hyp_sensor_read`**: `Not started` (Specification stage). Generic peripheral sensor read primitive for GPIO/ADC/SPI/I2C.
-- **`SDK-T2` | `hyp_actuator_write`**: `Not started` (Specification stage). Generic peripheral actuator write primitive for GPIO/PWM/DAC/SPI.
+- **`SDK-T1` | `hyp_sensor_read`**: `Complete` (Antigravity/Sonnet). Resolves canonical `hardwareResourceId` values against generated ESP32 configuration; supports GPIO/ADC/UART reads and reports configured SPI/I2C as explicitly unsupported.
+- **`SDK-T2` | `hyp_actuator_write`**: `Complete` (Antigravity/Sonnet). Resolves canonical `hardwareResourceId` values against generated ESP32 configuration; supports GPIO/PWM/UART writes and reports configured SPI/I2C as explicitly unsupported.
 - **`SDK-T3` | `hyp_pid_step` & PID State**: `Not started` (Specification stage). PID control loop calculation with anti-windup and state structures.
 - **`SDK-T4` | Kinematics Runtime**: `Not started` (Specification stage). Forward/Inverse kinematics matrix and vector routines.
 - **`SDK-T5` | Encoder Runtime**: `Not started` (Specification stage). Quadrature encoder pulse counting and velocity estimation routines.
@@ -181,7 +181,7 @@ Node implementations are organized into functional phases.
 > 8. Unit & integration tests
 
 #### Phased Node Taxonomy
-- **`NL-P0` | Foundation Nodes**: `Partial`. `CordicOp` & `Publish` are Fully Implemented (1..8). `SensorInput` & `ActuatorOutput` have schema, palette, ports, validation, and pin binding complete, but C codegen is Pending (`MBD-GAP1`).
+- **`NL-P0` | Foundation Nodes**: `Complete` for `CordicOp`, `Publish`, `SensorInput`, and `ActuatorOutput`; the latter two use the SDK-T1/T2 runtime primitives and graph codegen paths.
 - **`NL-P1` | Basic Math & Signal Processing**: `Not started`. `Constant`, `Add`, `Subtract`, `Multiply`, `Gain`, `Clamp`, `Saturation`.
 - **`NL-P2` | Control Nodes**: `Not started`. `PID`, `PI`, `Lead-Lag` controller blocks.
 - **`NL-R1` | 3-DOF Robotics Foundation**: `Not started`. 3-DOF arm forward/inverse kinematics, joint position/velocity, planar transformations.
@@ -199,7 +199,7 @@ The code generation pipeline compiles graphical block diagrams into target-execu
 
 - **`CG-T1` | Expand Graph Schema**: `Complete`. `mbd/schema/graph.schema.json` defines nodes, ports, parameters, and `hardwareResourceId` regex.
 - **`CG-T2` | Node & Port Parameter Validation**: `Complete`. `scratch/test_hardware_model.js` and Express `/api/build` validate node types, pin conflicts, and parameters.
-- **`CG-T3` | Node → C Code Generation**: `Partial`. `mbd/codegen/graph_to_c.js` generates `hyp_graph_<id>_step()` for `CordicOp` and `Publish`.
+- **`CG-T3` | Node → C Code Generation**: `Complete` for the current P0 nodes; `mbd/codegen/graph_to_c.js` emits SensorInput/ActuatorOutput primitive calls.
 - **`CG-T4` | SDK Dependency Resolution**: `Complete`. Injects `#include "hyprccel.h"` and `#include "hyp_board_config.h"` into generated C.
 - **`CG-T5` | Generated Source & Header Management**: `Complete`. Materializes source code cleanly into `mbd/esp32/generated/`.
 - **`CG-T6` | Generated Firmware Project Integration**: `Complete`. Target main loop calls graph step function at regular execution intervals.
@@ -208,7 +208,7 @@ The code generation pipeline compiles graphical block diagrams into target-execu
 
 > [!WARNING]
 > **Critical Code Generation Gap (`MBD-GAP1`)**:
-> `SensorInput` and `ActuatorOutput` nodes are configured in the pin setup screen and graph editor, but `graph_to_c.js` currently omits C code generation for peripheral reads and writes.
+> `SensorInput` and `ActuatorOutput` now emit SDK-T1/T2 calls. Physical peripheral execution remains target-dependent and is not claimed by host tests.
 
 ---
 
@@ -268,6 +268,7 @@ MBD Node Resource Binding (SCH-T7)
 - **`SCH-T5` | Conflict & Unconnected Pin Detection**: `Not started` (Future Roadmap).
 - **`SCH-T6` | Schematic ↔ Hardware Setup Consistency**: `Not started` (Future Roadmap).
 - **`SCH-T7` | MBD Node → Schematic Resource Binding**: `Partial`. Hardware resource ID binding is implemented in graph editor and schema (`hardwareResourceId`); schematic parsing input is Future Roadmap.
+- **`SCH-T8` | EasyEDA .tel Netlist Import**: `Partial`. EasyEDA `.tel` adapter and ESP32 pad→GPIO recovery are implemented; fixture-backed verification against `Netlist_Schematic1_2026-08-18.tel` is pending until the real file is available in the workspace.
 
 ---
 

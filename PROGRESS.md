@@ -76,8 +76,8 @@ The runtime SDK provides embedded primitives required by generated C step functi
 - **`CORE-T1..T7` | Core SDK Engine**: `Complete`. `hyp_cordic_ref()`, `hyp_cordic_rtl()`, `hyp_router_dispatch()`, and `hyp_publish()` are complete and verified.
 
 #### Runtime Primitives (Specification & Implementation Status)
-- **`SDK-T1` | `hyp_sensor_read`**: `Complete` (Owner: Hermes / Nemotron — Generic peripheral sensor read primitive for GPIO/ADC/SPI/I2C/UART implemented in `hyprccel.h`, `hyp_router.c`, and ESP32 backend `hyp_esp32_hw.cpp`; test in `sdk/test/test_sensor_actuator.c`)
-- **`SDK-T2` | `hyp_actuator_write`**: `Complete` (Owner: Hermes / Nemotron — Generic peripheral actuator write primitive for GPIO/PWM/UART/SPI implemented in `hyprccel.h`, `hyp_router.c`, and ESP32 backend `hyp_esp32_hw.cpp`; test in `sdk/test/test_sensor_actuator.c`)
+- **`SDK-T1` | `hyp_sensor_read`**: `Complete` (Owner: Antigravity/Sonnet — Public contract, canonical `hardwareResourceId` resolution, GPIO/ADC/UART ESP32 reads, and explicit SPI/I2C unsupported handling; test in `sdk/test/test_sensor_actuator.c`)
+- **`SDK-T2` | `hyp_actuator_write`**: `Complete` (Owner: Antigravity/Sonnet — Public contract, canonical `hardwareResourceId` resolution, GPIO/PWM/UART ESP32 writes, and explicit SPI/I2C unsupported handling; test in `sdk/test/test_sensor_actuator.c`)
 - **`SDK-T3` | `hyp_pid_step` & PID State**: `Not started` (Specification stage). PID control loop calculation with anti-windup and state structures.
 - **`SDK-T4` | Kinematics Runtime**: `Not started` (Specification stage). Forward/Inverse kinematics matrix and vector routines.
 - **`SDK-T5` | Encoder Runtime**: `Not started` (Specification stage). Quadrature encoder pulse counting and velocity estimation routines.
@@ -123,6 +123,7 @@ The runtime SDK provides embedded primitives required by generated C step functi
 - [ ] SCH-T5 | Conflict & unconnected resource detection | Owner: Future | Status: Not started (Future Roadmap)
 - [ ] SCH-T6 | Schematic ↔ Hardware Setup consistency validator | Owner: Future | Status: Not started (Future Roadmap)
 - [/] SCH-T7 | MBD Node → schematic resource binding | Owner: Antigravity | Status: Partial (Graph schema & UI binding complete; schematic parser side Future Roadmap)
+- [/] SCH-T8 | EasyEDA .tel netlist import | Owner: Codex | Status: Partial (EasyEDA `.tel` adapter and ESP32 physical pin recovery added; real fixture `Netlist_Schematic1_2026-08-18.tel` is not present in this workspace, so full fixture-backed verification is pending)
 
 ## TRACK SIM — Simulation Infrastructure & Plant Models
 - [ ] SIM-T1 | Gazebo 6-DOF arm URDF | Owner: Antigravity | Status: Not started

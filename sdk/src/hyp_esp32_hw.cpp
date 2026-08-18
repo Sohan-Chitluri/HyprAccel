@@ -9,6 +9,7 @@
 #include <SPI.h>
 #include <Wire.h>
 #include <string.h>
+#include "hyprccel.h"
 #include "hyp_esp32_hw.h"
 
 #if defined(ARDUINO)
@@ -878,7 +879,7 @@ static int parse_resource_id(const char *resource_id, char *type_out, size_t typ
     if (!resource_id || !type_out || !instance_out) return -1;
     
     const char *dot = strchr(resource_id, '.');
-    if (!dot) return -1;
+    if (!dot || dot == resource_id || dot[1] == '\0' || strchr(dot + 1, '.') != NULL) return -1;
     
     size_t type_len = dot - resource_id;
     if (type_len >= type_size) return -1;
@@ -1045,9 +1046,50 @@ static int get_pin_for_resource(const char *resource_type, const char *instance)
     return -1; /* resource not configured in board config */
 }
 
+/* Bus resources do not map to one GPIO. Resolve their existence from the
+ * generated board configuration before attempting an operation. */
+static bool is_configured_bus_resource(const char *resource_type, const char *instance) {
+    if (!resource_type || !instance) return false;
+    if (strcmp(resource_type, "uart") == 0) {
+#ifdef HYP_RESOURCE_UART_UART0
+        if (strcmp(instance, "UART0") == 0) return true;
+#endif
+#ifdef HYP_RESOURCE_UART_UART1
+        if (strcmp(instance, "UART1") == 0) return true;
+#endif
+#ifdef HYP_RESOURCE_UART_UART2
+        if (strcmp(instance, "UART2") == 0) return true;
+#endif
+        return false;
+    }
+    if (strcmp(resource_type, "spi") == 0) {
+#ifdef HYP_RESOURCE_SPI_HSPI
+        if (strcmp(instance, "HSPI") == 0) return true;
+#endif
+#ifdef HYP_RESOURCE_SPI_VSPI
+        if (strcmp(instance, "VSPI") == 0) return true;
+#endif
+        return false;
+    }
+    if (strcmp(resource_type, "i2c") == 0) {
+#ifdef HYP_RESOURCE_I2C_I2C0
+        if (strcmp(instance, "I2C0") == 0) return true;
+#endif
+        return false;
+    }
+    return false;
+}
+
+static HardwareSerial *serial_for_resource(const char *instance) {
+    if (strcmp(instance, "UART0") == 0) return &Serial;
+    if (strcmp(instance, "UART1") == 0) return &Serial1;
+    if (strcmp(instance, "UART2") == 0) return &Serial2;
+    return NULL;
+}
+
 int hyp_esp32_sensor_read(const char *resource_id, void *out_value, uint32_t value_size) {
     if (!resource_id || !out_value || value_size == 0) {
-        return -1; // Invalid arguments
+        return HYP_RUNTIME_INVALID_ARGUMENT;
     }
     
     char resource_type[32];
@@ -1055,66 +1097,73 @@ int hyp_esp32_sensor_read(const char *resource_id, void *out_value, uint32_t val
     
     if (parse_resource_id(resource_id, resource_type, sizeof(resource_type), 
                           instance, sizeof(instance)) != 0) {
-        return -2; // Invalid resource ID format
+        return HYP_RUNTIME_INVALID_RESOURCE_ID;
     }
     
     // Handle different sensor types
     if (strcmp(resource_type, "adc") == 0) {
         // ADC read - returns 12-bit value (0-4095) or voltage
         int pin = get_pin_for_resource(resource_type, instance);
-        if (pin < 0) return -3; // Resource not configured
+        if (pin < 0) return HYP_RUNTIME_RESOURCE_NOT_CONFIGURED;
         
-        if (value_size >= sizeof(uint16_t)) {
+        if (value_size == sizeof(uint16_t)) {
             uint16_t *out = (uint16_t *)out_value;
             *out = analogRead(pin);
             return 0;
-        } else if (value_size >= sizeof(float)) {
+        } else if (value_size == sizeof(float)) {
             float *out = (float *)out_value;
             uint16_t raw = analogRead(pin);
             // Convert to voltage (assuming 3.3V reference, 12-bit ADC)
             *out = (raw * 3.3f) / 4095.0f;
             return 0;
         }
-        return -4; // Buffer too small
+        return HYP_RUNTIME_BUFFER_TOO_SMALL;
     }
     
     if (strcmp(resource_type, "gpio") == 0) {
         // Digital GPIO read - returns boolean (0 or 1)
         int pin = get_pin_for_resource(resource_type, instance);
-        if (pin < 0) return -3;
+        if (pin < 0) return HYP_RUNTIME_RESOURCE_NOT_CONFIGURED;
         
-        if (value_size >= sizeof(uint8_t)) {
+        if (value_size == sizeof(uint8_t)) {
             uint8_t *out = (uint8_t *)out_value;
             *out = digitalRead(pin) ? 1 : 0;
             return 0;
         }
-        return -4;
+        if (value_size == sizeof(float)) {
+            float *out = (float *)out_value;
+            *out = digitalRead(pin) ? 1.0f : 0.0f;
+            return HYP_RUNTIME_OK;
+        }
+        return HYP_RUNTIME_BUFFER_TOO_SMALL;
     }
     
     if (strcmp(resource_type, "uart") == 0) {
-        // UART read - returns bytes read or -1 on timeout
-        // This is a simplified implementation
-        if (value_size >= sizeof(int)) {
-            int *out = (int *)out_value;
-            // For now, just check if data is available
-            if (strcmp(instance, "gps") == 0) {
-                *out = Serial2.available();
-                return 0;
-            } else if (strcmp(instance, "modbus") == 0) {
-                *out = Serial1.available();
-                return 0;
-            }
+        if (!is_configured_bus_resource(resource_type, instance)) {
+            return HYP_RUNTIME_RESOURCE_NOT_CONFIGURED;
         }
-        return -5; // Unsupported UART instance
+        HardwareSerial *serial = serial_for_resource(instance);
+        if (!serial) return HYP_RUNTIME_UNSUPPORTED_INSTANCE;
+        // Report bytes currently available; this primitive does not consume data.
+        if (value_size == sizeof(int)) {
+            int *out = (int *)out_value;
+            *out = serial->available();
+            return HYP_RUNTIME_OK;
+        }
+        return HYP_RUNTIME_BUFFER_TOO_SMALL;
     }
-    
-    // Add I2C, SPI support as needed
-    return -6; // Unsupported resource type
+
+    if (strcmp(resource_type, "spi") == 0 || strcmp(resource_type, "i2c") == 0) {
+        return is_configured_bus_resource(resource_type, instance)
+            ? HYP_RUNTIME_UNSUPPORTED_RESOURCE : HYP_RUNTIME_RESOURCE_NOT_CONFIGURED;
+    }
+
+    return HYP_RUNTIME_UNSUPPORTED_RESOURCE;
 }
 
 int hyp_esp32_actuator_write(const char *resource_id, const void *in_value, uint32_t value_size) {
     if (!resource_id || !in_value || value_size == 0) {
-        return -1; // Invalid arguments
+        return HYP_RUNTIME_INVALID_ARGUMENT;
     }
     
     char resource_type[32];
@@ -1122,16 +1171,16 @@ int hyp_esp32_actuator_write(const char *resource_id, const void *in_value, uint
     
     if (parse_resource_id(resource_id, resource_type, sizeof(resource_type),
                           instance, sizeof(instance)) != 0) {
-        return -2; // Invalid resource ID format
+        return HYP_RUNTIME_INVALID_RESOURCE_ID;
     }
     
     // Handle different actuator types
     if (strcmp(resource_type, "pwm") == 0) {
         // PWM write - expects duty cycle (0-65535 for 16-bit, or 0-255 for 8-bit)
         int pin = get_pin_for_resource(resource_type, instance);
-        if (pin < 0) return -3;
+        if (pin < 0) return HYP_RUNTIME_RESOURCE_NOT_CONFIGURED;
         
-        if (value_size >= sizeof(uint16_t)) {
+        if (value_size == sizeof(uint16_t)) {
             uint16_t duty = *(const uint16_t *)in_value;
 #if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
             ledcWrite(pin, duty);
@@ -1141,46 +1190,52 @@ int hyp_esp32_actuator_write(const char *resource_id, const void *in_value, uint
             ledcWrite(pin, duty); // This won't work on older Arduino cores without channel
 #endif
             return 0;
-        } else if (value_size >= sizeof(float)) {
+        } else if (value_size == sizeof(float)) {
             // Accept float 0.0-1.0 as duty cycle fraction
             float duty_frac = *(const float *)in_value;
-            if (duty_frac < 0.0f) duty_frac = 0.0f;
-            if (duty_frac > 1.0f) duty_frac = 1.0f;
+            if (duty_frac < 0.0f || duty_frac > 1.0f) return HYP_RUNTIME_INVALID_ARGUMENT;
             uint16_t duty = (uint16_t)(duty_frac * 65535.0f);
 #if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
             ledcWrite(pin, duty);
 #endif
             return 0;
         }
-        return -4;
+        return HYP_RUNTIME_BUFFER_TOO_SMALL;
     }
     
     if (strcmp(resource_type, "gpio") == 0) {
         // Digital GPIO write - expects boolean (0 or 1)
         int pin = get_pin_for_resource(resource_type, instance);
-        if (pin < 0) return -3;
+        if (pin < 0) return HYP_RUNTIME_RESOURCE_NOT_CONFIGURED;
         
-        if (value_size >= sizeof(uint8_t)) {
+        if (value_size == sizeof(uint8_t)) {
             uint8_t val = *(const uint8_t *)in_value;
             digitalWrite(pin, val ? HIGH : LOW);
             return 0;
         }
-        return -4;
+        if (value_size == sizeof(float)) {
+            float value = *(const float *)in_value;
+            if (value != 0.0f && value != 1.0f) return HYP_RUNTIME_INVALID_ARGUMENT;
+            digitalWrite(pin, value != 0.0f ? HIGH : LOW);
+            return HYP_RUNTIME_OK;
+        }
+        return HYP_RUNTIME_BUFFER_TOO_SMALL;
     }
     
     if (strcmp(resource_type, "uart") == 0) {
-        // UART write - expects byte array
-        if (strcmp(instance, "gps") == 0) {
-            // GPS typically doesn't receive commands, but for completeness
-            Serial2.write((const uint8_t *)in_value, value_size);
-            return 0;
-        } else if (strcmp(instance, "modbus") == 0) {
-            Serial1.write((const uint8_t *)in_value, value_size);
-            return 0;
+        if (!is_configured_bus_resource(resource_type, instance)) {
+            return HYP_RUNTIME_RESOURCE_NOT_CONFIGURED;
         }
-        return -5;
+        HardwareSerial *serial = serial_for_resource(instance);
+        if (!serial) return HYP_RUNTIME_UNSUPPORTED_INSTANCE;
+        serial->write((const uint8_t *)in_value, value_size);
+        return HYP_RUNTIME_OK;
     }
-    
-    // Add SPI, I2C support as needed
-    return -6; // Unsupported resource type
+
+    if (strcmp(resource_type, "spi") == 0 || strcmp(resource_type, "i2c") == 0) {
+        return is_configured_bus_resource(resource_type, instance)
+            ? HYP_RUNTIME_UNSUPPORTED_RESOURCE : HYP_RUNTIME_RESOURCE_NOT_CONFIGURED;
+    }
+
+    return HYP_RUNTIME_UNSUPPORTED_RESOURCE;
 }

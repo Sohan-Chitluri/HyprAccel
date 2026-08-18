@@ -17,6 +17,15 @@ extern "C" {
 #include <stdint.h>
 #include <stddef.h>
 
+/* Runtime primitive result codes. Zero means the operation completed. */
+#define HYP_RUNTIME_OK                       0
+#define HYP_RUNTIME_INVALID_ARGUMENT       -1
+#define HYP_RUNTIME_INVALID_RESOURCE_ID    -2
+#define HYP_RUNTIME_RESOURCE_NOT_CONFIGURED -3
+#define HYP_RUNTIME_BUFFER_TOO_SMALL       -4
+#define HYP_RUNTIME_UNSUPPORTED_RESOURCE   -5
+#define HYP_RUNTIME_UNSUPPORTED_INSTANCE  -6
+
 /**
  * hyp_target_t — Execution backend selection
  */
@@ -93,7 +102,7 @@ void hyp_publish(const char *topic, const void *data, uint32_t size);
  * @param resource_id  Hardware resource identifier (e.g., "adc.channel0")
  * @param out_value    Pointer to output buffer for the read value
  * @param value_size   Size of the output buffer in bytes
- * @return 0 on success, negative error code on failure
+ * @return HYP_RUNTIME_OK on success, otherwise a HYP_RUNTIME_* error code
  */
 int hyp_sensor_read(const char *resource_id, void *out_value, uint32_t value_size);
 
@@ -107,7 +116,7 @@ int hyp_sensor_read(const char *resource_id, void *out_value, uint32_t value_siz
  * @param resource_id  Hardware resource identifier (e.g., "pwm.motor0")
  * @param in_value     Pointer to the input value to write
  * @param value_size   Size of the input value in bytes
- * @return 0 on success, negative error code on failure
+ * @return HYP_RUNTIME_OK on success, otherwise a HYP_RUNTIME_* error code
  */
 int hyp_actuator_write(const char *resource_id, const void *in_value, uint32_t value_size);
 
