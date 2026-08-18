@@ -28,7 +28,12 @@ const GRAPH_CODEGEN = path.join(REPO_ROOT, 'mbd/codegen/graph_to_c.js');
 const ESP32_PROJECT = path.join(REPO_ROOT, 'mbd/esp32');
 const ESP32_GENERATED = path.join(ESP32_PROJECT, 'generated');
 const ESP32_PORT = process.env.HYPRACCEL_ESP32_PORT || '';
-const HARDWARE_CONFIG = path.join(REPO_ROOT, '.hypraccel', 'hardware.json');
+const HYPRACCEL_DIR = path.join(REPO_ROOT, '.hypraccel');
+/* The environment overrides are intentionally test-only seams.  Production
+ * always uses the repository-local store, never a copy under ~/ or /tmp. */
+const PROJECTS_ROOT = process.env.HYPRACCEL_PROJECTS_ROOT || path.join(HYPRACCEL_DIR, 'projects');
+const HARDWARE_CONFIG = process.env.HYPRACCEL_HARDWARE_CONFIG || path.join(HYPRACCEL_DIR, 'hardware.json');
+const PROJECT_ID = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 const RESOURCE_SIGNAL_ROLES = Object.freeze({
     spi: new Set(['sck', 'mosi', 'miso', 'cs']),
     uart: new Set(['tx', 'rx']),
@@ -251,22 +256,70 @@ function normalizeDeviceProfiles(board, devices = []) {
     });
 }
 
-function readHardwareConfig() {
+function assertProjectId(id) {
+    if (typeof id !== 'string' || !PROJECT_ID.test(id)) {
+        throw new Error('Project id must start with a letter and contain only letters, numbers, hyphens, or underscores.');
+    }
+    return id;
+}
+
+function projectPaths(id) {
+    id = assertProjectId(id);
+    const projectDir = path.resolve(PROJECTS_ROOT, id);
+    const root = path.resolve(PROJECTS_ROOT) + path.sep;
+    if (!projectDir.startsWith(root)) throw new Error('Invalid project path.');
+    return {
+        projectDir,
+        manifest: path.join(projectDir, 'project.json'),
+        hardware: path.join(projectDir, 'hardware', 'hardware.json'),
+        graph: path.join(projectDir, 'graph', 'graph.json'),
+        generated: path.join(projectDir, 'generated'),
+        platformio: path.join(projectDir, 'platformio.ini'),
+        buildDir: path.join(projectDir, 'build'),
+        buildLog: path.join(projectDir, 'build', 'build.log')
+    };
+}
+
+function readJson(file, label) {
     try {
-        const stored = JSON.parse(fs.readFileSync(HARDWARE_CONFIG, 'utf8'));
+        return JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch (err) {
+        if (err.code === 'ENOENT') return null;
+        throw new Error(`Could not read ${label}: ${err.message}`);
+    }
+}
+
+function writeJson(file, value) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(value, null, 2) + '\n', 'utf8');
+}
+
+function requestedProjectId(req) {
+    const candidate = req.query && (req.query.projectId || req.query.project)
+        || req.body && req.body.projectId;
+    return candidate == null || candidate === '' ? null : assertProjectId(candidate);
+}
+
+function hardwareConfigPath(projectId) {
+    return projectId ? projectPaths(projectId).hardware : HARDWARE_CONFIG;
+}
+
+function readHardwareConfig(projectId = null) {
+    try {
+        const configPath = projectId ? hardwareConfigPath(projectId) : HARDWARE_CONFIG;
+        const stored = JSON.parse(fs.readFileSync(configPath, 'utf8'));
         if (!stored.board || !Array.isArray(stored.assignments)) return stored;
         const configurations = Object.fromEntries(Object.entries(stored.resources || {})
             .map(([id, resource]) => [id, resource.configuration || {}]));
         const migrated = projectHardware(stored.board, stored.assignments, configurations, stored.devices);
-        if (JSON.stringify(stored) !== JSON.stringify(migrated)) writeHardwareConfig(migrated);
+        if (JSON.stringify(stored) !== JSON.stringify(migrated)) writeHardwareConfig(migrated, projectId);
         return migrated;
     }
     catch (_) { return { version: 1, board: null, resources: {}, assignments: [] }; }
 }
 
-function writeHardwareConfig(config) {
-    fs.mkdirSync(path.dirname(HARDWARE_CONFIG), { recursive: true });
-    fs.writeFileSync(HARDWARE_CONFIG, JSON.stringify(config, null, 2) + '\n', 'utf8');
+function writeHardwareConfig(config, projectId = null) {
+    writeJson(hardwareConfigPath(projectId), config);
 }
 
 function projectHardware(boardKey, assignments, configurations = {}, devices = []) {
@@ -322,20 +375,146 @@ function projectHardware(boardKey, assignments, configurations = {}, devices = [
     return { version: 1, board: boardKey, resources, assignments: normalized, devices: normalizedDevices };
 }
 
-app.get('/api/hardware', (_req, res) => res.json(readHardwareConfig()));
+/* --------------------------------------------------------------------------
+ * Persistent project store
+ *
+ * project.json is a manifest, not another copy of hardware or graph state.
+ * The board lives only in hardware/hardware.json and the graph id lives only
+ * in graph/graph.json.  API responses derive those convenient summary fields.
+ * ----------------------------------------------------------------------- */
+function canonicalHardware(payload) {
+    if (!payload || typeof payload !== 'object' || !payload.board) {
+        throw new Error('Hardware state must include a board.');
+    }
+    const configurations = payload.configurations || Object.fromEntries(
+        Object.entries(payload.resources || {}).map(([id, resource]) => [id, resource.configuration || {}])
+    );
+    return projectHardware(payload.board, payload.assignments || [], configurations, payload.devices);
+}
+
+function assertGraphDocument(graph) {
+    if (!graph || typeof graph !== 'object' || graph.format !== 'hypraccel.mbd.graph' || graph.version !== 1 ||
+        typeof graph.id !== 'string' || !PROJECT_ID.test(graph.id) || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
+        throw new Error('Graph must be a hypraccel.mbd.graph version 1 document with a valid id, nodes, and edges.');
+    }
+    return graph;
+}
+
+function readProjectManifest(id) {
+    const paths = projectPaths(id);
+    const manifest = readJson(paths.manifest, 'project manifest');
+    if (!manifest) {
+        const err = new Error(`Project '${id}' was not found.`);
+        err.code = 'ENOENT';
+        throw err;
+    }
+    if (manifest.id !== id || manifest.format !== 'hypraccel.project' || manifest.version !== 1) {
+        throw new Error(`Project '${id}' has an invalid manifest.`);
+    }
+    return manifest;
+}
+
+function projectResponse(id, includeComponents = true) {
+    const manifest = readProjectManifest(id);
+    const paths = projectPaths(id);
+    const hardware = readJson(paths.hardware, 'project hardware');
+    const graph = readJson(paths.graph, 'project graph');
+    const response = {
+        ...manifest,
+        board: hardware && hardware.board || null,
+        graphId: graph && graph.id || null,
+        components: { hardware: Boolean(hardware), graph: Boolean(graph) }
+    };
+    if (includeComponents) {
+        response.hardware = hardware;
+        response.graph = graph;
+    }
+    return response;
+}
+
+function createProject(input) {
+    const id = assertProjectId(input && input.id);
+    if (!input || typeof input.name !== 'string' || !input.name.trim() || input.name.trim().length > 120) {
+        throw new Error('Project name must be a non-empty string no longer than 120 characters.');
+    }
+    const paths = projectPaths(id);
+    if (fs.existsSync(paths.projectDir)) throw new Error(`Project '${id}' already exists.`);
+    const now = new Date().toISOString();
+    const manifest = {
+        format: 'hypraccel.project', version: 1, id, name: input.name.trim(),
+        hardware: { path: 'hardware/hardware.json' },
+        graph: { path: 'graph/graph.json' },
+        createdAt: now, updatedAt: now
+    };
+    fs.mkdirSync(paths.projectDir, { recursive: true });
+    try {
+        writeJson(paths.manifest, manifest);
+        if (input.hardware != null) writeHardwareConfig(canonicalHardware(input.hardware), id);
+        if (input.graph != null) writeJson(paths.graph, assertGraphDocument(input.graph));
+        return projectResponse(id);
+    } catch (err) {
+        fs.rmSync(paths.projectDir, { recursive: true, force: true });
+        throw err;
+    }
+}
+
+function updateProject(id, input) {
+    const paths = projectPaths(id);
+    const manifest = readProjectManifest(id);
+    if (!input || typeof input !== 'object') throw new Error('Project update body must be an object.');
+    if (Object.prototype.hasOwnProperty.call(input, 'id') && input.id !== id) {
+        throw new Error('Project id cannot be changed.');
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'name')) {
+        if (typeof input.name !== 'string' || !input.name.trim() || input.name.trim().length > 120) {
+            throw new Error('Project name must be a non-empty string no longer than 120 characters.');
+        }
+        manifest.name = input.name.trim();
+    }
+    if (input.hardware != null) writeHardwareConfig(canonicalHardware(input.hardware), id);
+    if (input.graph != null) writeJson(paths.graph, assertGraphDocument(input.graph));
+    manifest.updatedAt = new Date().toISOString();
+    writeJson(paths.manifest, manifest);
+    return projectResponse(id);
+}
+
+function writeProjectGraph(id, graph) {
+    readProjectManifest(id);
+    const paths = projectPaths(id);
+    writeJson(paths.graph, assertGraphDocument(graph));
+    const manifest = readProjectManifest(id);
+    manifest.updatedAt = new Date().toISOString();
+    writeJson(paths.manifest, manifest);
+    return projectResponse(id);
+}
+
+function writeProjectBuildLog(id, content) {
+    if (!id) return;
+    readProjectManifest(id);
+    const paths = projectPaths(id);
+    fs.mkdirSync(paths.buildDir, { recursive: true });
+    fs.writeFileSync(paths.buildLog, content, 'utf8');
+}
+
+app.get('/api/hardware', (req, res) => {
+    try { res.json(readHardwareConfig(requestedProjectId(req))); }
+    catch (err) { res.status(400).json({ error: err.message }); }
+});
 
 app.post('/api/hardware', (req, res) => {
     try {
         const { board, assignments, configurations, devices } = req.body || {};
         if (!board || !Array.isArray(assignments)) return res.status(400).json({ error: 'Missing board or assignments.' });
         const hardware = projectHardware(board, assignments, configurations, devices);
-        writeHardwareConfig(hardware);
+        const projectId = requestedProjectId(req);
+        if (projectId) readProjectManifest(projectId);
+        writeHardwareConfig(hardware, projectId);
         res.json({ success: true, hardware });
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-function validateGraphHardwareResources(graph) {
-    const hardware = readHardwareConfig();
+function validateGraphHardwareResources(graph, projectId = null) {
+    const hardware = readHardwareConfig(projectId);
     const graphBoard = graph.metadata && graph.metadata.targetBoard;
     if (graphBoard && graphBoard !== hardware.board) {
         throw new Error(`Graph target '${graphBoard}' is stale; Hardware Setup target is '${hardware.board || 'none'}'. Review hardware resource bindings before building.`);
@@ -360,6 +539,140 @@ function validateGraphHardwareResources(graph) {
     }
 }
 
+function sendProjectError(res, err) {
+    if (err && err.code === 'ENOENT') return res.status(404).json({ error: err.message });
+    return res.status(400).json({ error: err.message || 'Project operation failed.' });
+}
+
+function touchProject(id) {
+    const paths = projectPaths(id);
+    const manifest = readProjectManifest(id);
+    manifest.updatedAt = new Date().toISOString();
+    writeJson(paths.manifest, manifest);
+}
+
+function listProjectFiles(directory) {
+    try {
+        return fs.readdirSync(directory, { withFileTypes: true })
+            .filter(entry => entry.isFile())
+            .map(entry => entry.name)
+            .sort();
+    } catch (_) { return []; }
+}
+
+function projectSourcePath(id, relativePath) {
+    if (typeof relativePath !== 'string' || !relativePath || path.isAbsolute(relativePath)) {
+        throw new Error('A relative project source path is required.');
+    }
+    const paths = projectPaths(id);
+    const absolute = path.resolve(paths.projectDir, relativePath);
+    if (!absolute.startsWith(paths.projectDir + path.sep)) throw new Error('Invalid project source path.');
+    return absolute;
+}
+
+/* Persistent-project CRUD and component APIs. */
+app.get('/api/projects', (_req, res) => {
+    try {
+        if (!fs.existsSync(PROJECTS_ROOT)) return res.json({ projects: [] });
+        const projects = fs.readdirSync(PROJECTS_ROOT, { withFileTypes: true })
+            .filter(entry => entry.isDirectory() && PROJECT_ID.test(entry.name))
+            .map(entry => projectResponse(entry.name, false))
+            .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+        res.json({ projects });
+    } catch (err) { sendProjectError(res, err); }
+});
+
+app.post('/api/projects', (req, res) => {
+    try { res.status(201).json({ project: createProject(req.body || {}) }); }
+    catch (err) { sendProjectError(res, err); }
+});
+
+app.get('/api/projects/:id/status', (req, res) => {
+    try {
+        const id = assertProjectId(req.params.id);
+        const project = projectResponse(id, false);
+        const paths = projectPaths(id);
+        res.json({
+            project,
+            generated: listProjectFiles(paths.generated),
+            build: {
+                log: fs.existsSync(paths.buildLog) ? 'build/build.log' : null,
+                environments: fs.existsSync(paths.buildDir) ? fs.readdirSync(paths.buildDir, { withFileTypes: true })
+                    .filter(entry => entry.isDirectory()).map(entry => entry.name).sort() : []
+            }
+        });
+    } catch (err) { sendProjectError(res, err); }
+});
+
+app.get('/api/projects/:id/source', (req, res) => {
+    try {
+        const id = assertProjectId(req.params.id);
+        readProjectManifest(id);
+        const source = projectSourcePath(id, req.query.path);
+        if (!fs.existsSync(source) || !fs.statSync(source).isFile()) return res.status(404).json({ error: 'Project source file not found.' });
+        res.json({ path: req.query.path, content: fs.readFileSync(source, 'utf8') });
+    } catch (err) { sendProjectError(res, err); }
+});
+
+app.get('/api/projects/:id/hardware', (req, res) => {
+    try {
+        const id = assertProjectId(req.params.id);
+        readProjectManifest(id);
+        const hardware = readJson(projectPaths(id).hardware, 'project hardware');
+        if (!hardware) return res.status(404).json({ error: 'Project hardware has not been configured.' });
+        res.json(hardware);
+    } catch (err) { sendProjectError(res, err); }
+});
+
+app.put('/api/projects/:id/hardware', (req, res) => {
+    try {
+        const id = assertProjectId(req.params.id);
+        readProjectManifest(id);
+        const hardware = canonicalHardware(req.body);
+        writeHardwareConfig(hardware, id);
+        touchProject(id);
+        res.json({ success: true, hardware });
+    } catch (err) { sendProjectError(res, err); }
+});
+
+app.get('/api/projects/:id/graph', (req, res) => {
+    try {
+        const id = assertProjectId(req.params.id);
+        readProjectManifest(id);
+        const graph = readJson(projectPaths(id).graph, 'project graph');
+        if (!graph) return res.status(404).json({ error: 'Project graph has not been configured.' });
+        res.json(graph);
+    } catch (err) { sendProjectError(res, err); }
+});
+
+app.put('/api/projects/:id/graph', (req, res) => {
+    try {
+        const id = assertProjectId(req.params.id);
+        const project = writeProjectGraph(id, req.body);
+        res.json({ success: true, graph: project.graph, project });
+    } catch (err) { sendProjectError(res, err); }
+});
+
+app.get('/api/projects/:id', (req, res) => {
+    try { res.json(projectResponse(assertProjectId(req.params.id))); }
+    catch (err) { sendProjectError(res, err); }
+});
+
+app.put('/api/projects/:id', (req, res) => {
+    try { res.json({ project: updateProject(assertProjectId(req.params.id), req.body) }); }
+    catch (err) { sendProjectError(res, err); }
+});
+
+app.delete('/api/projects/:id', (req, res) => {
+    try {
+        const id = assertProjectId(req.params.id);
+        const paths = projectPaths(id);
+        readProjectManifest(id);
+        fs.rmSync(paths.projectDir, { recursive: true, force: false });
+        res.json({ success: true, id });
+    } catch (err) { sendProjectError(res, err); }
+});
+
 /* --------------------------------------------------------------------------
  * POST /api/generate
  * Body: { board: "thejas32", assignments: [ { node: "SensorInput[0]", peripheral: "spi0", pin: "SPI0MOSI", role: "mosi" }, ... ] }
@@ -376,7 +689,10 @@ app.post('/api/generate', (req, res) => {
         }
 
         const hardware = projectHardware(board, assignments, configurations, devices);
-        writeHardwareConfig(hardware);
+        const projectId = requestedProjectId(req);
+        if (projectId) readProjectManifest(projectId);
+        writeHardwareConfig(hardware, projectId);
+        if (projectId) touchProject(projectId);
 
         /* Run the existing codegen script */
         const cmd = `node "${CODEGEN_JS}" "${board}" "${BOARDS_YAML}" "${CODEGEN_OUT}"`;
@@ -437,20 +753,24 @@ app.post('/api/generate', (req, res) => {
  * generated C; this endpoint only supplies its temporary JSON/C file paths.
  * ----------------------------------------------------------------------- */
 app.post('/api/build', (req, res) => {
-    const graph = req.body;
+    const graph = req.body && req.body.graph ? req.body.graph : req.body;
     if (!graph || typeof graph !== 'object' || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
         return res.status(400).json({ error: 'Body must be a graph with nodes and edges arrays.' });
     }
 
     let tempDir;
     try {
-        validateGraphHardwareResources(graph);
+        const projectId = requestedProjectId(req);
+        if (projectId) readProjectManifest(projectId);
+        validateGraphHardwareResources(graph, projectId);
         tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hypraccel-mbd-build-'));
         const graphPath = path.join(tempDir, 'graph.json');
         const outputPath = path.join(tempDir, 'graph.c');
         fs.writeFileSync(graphPath, JSON.stringify(graph, null, 2), 'utf8');
         execFileSync(process.execPath, [GRAPH_CODEGEN, graphPath, outputPath], { encoding: 'utf8', stdio: 'pipe' });
-        res.json({ success: true, graph, source: fs.readFileSync(outputPath, 'utf8') });
+        const source = fs.readFileSync(outputPath, 'utf8');
+        if (projectId) writeProjectGraph(projectId, graph);
+        res.json({ success: true, graph, source });
     } catch (err) {
         const detail = err.stderr ? String(err.stderr).trim() : err.message;
         res.status(422).json({ error: detail || 'Graph code generation failed.' });
@@ -532,10 +852,10 @@ function graphStepSymbol(graph) {
     return `hyp_graph_${graph.id.replace(/-/g, '_')}_step`;
 }
 
-function materializeEsp32(graph) {
+function materializeEsp32(graph, projectId = null) {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hypraccel-esp32-'));
     try {
-        validateGraphHardwareResources(graph);
+        validateGraphHardwareResources(graph, projectId);
         const graphPath = path.join(tempDir, 'graph.json');
         const graphSource = path.join(tempDir, 'graph.c');
         fs.writeFileSync(graphPath, JSON.stringify(graph, null, 2), 'utf8');
@@ -601,7 +921,16 @@ void loop()
     delay(1000);
 }
 `, 'utf8');
-        return { source, generatedDir: ESP32_GENERATED };
+        if (projectId) {
+            const paths = projectPaths(projectId);
+            readProjectManifest(projectId);
+            fs.mkdirSync(paths.generated, { recursive: true });
+            for (const file of fs.readdirSync(ESP32_GENERATED)) {
+                fs.copyFileSync(path.join(ESP32_GENERATED, file), path.join(paths.generated, file));
+            }
+            fs.copyFileSync(path.join(ESP32_PROJECT, 'platformio.ini'), paths.platformio);
+        }
+        return { source, generatedDir: projectId ? projectPaths(projectId).generated : ESP32_GENERATED };
     } finally {
         fs.rmSync(tempDir, { recursive: true, force: true });
     }
@@ -616,6 +945,17 @@ function validGraphBody(req, res) {
     return graph;
 }
 
+function captureProjectBuildArtifacts(projectId, log) {
+    if (!projectId) return;
+    writeProjectBuildLog(projectId, log);
+    const firmware = path.join(ESP32_PROJECT, '.pio', 'build', 'esp32dev', 'firmware.bin');
+    if (fs.existsSync(firmware)) {
+        const destination = path.join(projectPaths(projectId).buildDir, 'esp32dev', 'firmware.bin');
+        fs.mkdirSync(path.dirname(destination), { recursive: true });
+        fs.copyFileSync(firmware, destination);
+    }
+}
+
 app.get('/api/esp32/ports', (_req, res) => {
     res.json({ configuredPort: ESP32_PORT || null, candidates: serialCandidates() });
 });
@@ -624,10 +964,13 @@ app.post('/api/compile', (req, res) => {
     const graph = validGraphBody(req, res);
     if (!graph) return;
     try {
-        const generated = materializeEsp32(graph);
+        const projectId = requestedProjectId(req);
+        if (projectId) readProjectManifest(projectId);
+        const generated = materializeEsp32(graph, projectId);
         const compile = commandResult(platformioCommand(), ['run', '--project-dir', ESP32_PROJECT]);
         const status = compile.ok ? 200 : 422;
-        fs.writeFileSync(path.join(REPO_ROOT, '.hypraccel', 'build.log'), compile.output, 'utf8');
+        fs.writeFileSync(path.join(HYPRACCEL_DIR, 'build.log'), compile.output, 'utf8');
+        captureProjectBuildArtifacts(projectId, compile.output);
         res.status(status).json({ success: compile.ok, stage: 'Compiling', source: generated.source, log: compile.output });
     } catch (err) {
         const detail = err.stderr ? String(err.stderr).trim() : err.message;
@@ -639,20 +982,26 @@ app.post('/api/flash', (req, res) => {
     const graph = validGraphBody(req, res);
     if (!graph) return;
     try {
-        const generated = materializeEsp32(graph);
+        const projectId = requestedProjectId(req);
+        if (projectId) readProjectManifest(projectId);
+        const generated = materializeEsp32(graph, projectId);
         const compile = commandResult(platformioCommand(), ['run', '--project-dir', ESP32_PROJECT]);
         if (!compile.ok) {
-            fs.writeFileSync(path.join(REPO_ROOT, '.hypraccel', 'build.log'), compile.output, 'utf8');
+            fs.writeFileSync(path.join(HYPRACCEL_DIR, 'build.log'), compile.output, 'utf8');
+            captureProjectBuildArtifacts(projectId, compile.output);
             return res.status(422).json({ success: false, stage: 'Compiling', source: generated.source, log: compile.output });
         }
         const selection = selectedSerialPort(req.body.port);
         if (selection.error) {
-            fs.writeFileSync(path.join(REPO_ROOT, '.hypraccel', 'build.log'), `${compile.output}\n${selection.error}`, 'utf8');
+            const log = `${compile.output}\n${selection.error}`;
+            fs.writeFileSync(path.join(HYPRACCEL_DIR, 'build.log'), log, 'utf8');
+            captureProjectBuildArtifacts(projectId, log);
             return res.status(422).json({ success: false, stage: 'Flashing', source: generated.source, log: `${compile.output}\n${selection.error}` });
         }
         const flash = commandResult(platformioCommand(), ['run', '--project-dir', ESP32_PROJECT, '--target', 'upload', '--upload-port', selection.port]);
         const logContent = `${compile.output}\n\n${flash.output}`;
-        fs.writeFileSync(path.join(REPO_ROOT, '.hypraccel', 'build.log'), logContent, 'utf8');
+        fs.writeFileSync(path.join(HYPRACCEL_DIR, 'build.log'), logContent, 'utf8');
+        captureProjectBuildArtifacts(projectId, logContent);
         res.status(flash.ok ? 200 : 422).json({ success: flash.ok, stage: flash.ok ? 'Flashed' : 'Flashing', source: generated.source, port: selection.port, log: logContent });
     } catch (err) {
         const detail = err.stderr ? String(err.stderr).trim() : err.message;
@@ -666,16 +1015,20 @@ app.post('/api/verify', (req, res) => {
     const graph = validGraphBody(req, res);
     if (!graph) return;
     try {
+        const projectId = requestedProjectId(req);
+        if (projectId) readProjectManifest(projectId);
         const selection = selectedSerialPort(req.body.port);
         if (selection.error) {
-            fs.writeFileSync(path.join(REPO_ROOT, '.hypraccel', 'build.log'), selection.error, 'utf8');
+            fs.writeFileSync(path.join(HYPRACCEL_DIR, 'build.log'), selection.error, 'utf8');
+            writeProjectBuildLog(projectId, selection.error);
             return res.status(422).json({ success: false, stage: 'Verifying', log: selection.error });
         }
         const markers = graphVerificationMarkers(graph);
         const monitor = commandResult('timeout', ['10s', platformioCommand(), 'device', 'monitor', '--port', selection.port, '--baud', '115200'], { timeout: 15000 });
         const missing = markers.filter(marker => !monitor.output.includes(marker));
         const verified = missing.length === 0;
-        fs.writeFileSync(path.join(REPO_ROOT, '.hypraccel', 'build.log'), monitor.output, 'utf8');
+        fs.writeFileSync(path.join(HYPRACCEL_DIR, 'build.log'), monitor.output, 'utf8');
+        writeProjectBuildLog(projectId, monitor.output);
         res.status(verified ? 200 : 422).json({
             success: verified,
             stage: 'Verifying',
@@ -689,56 +1042,36 @@ app.post('/api/verify', (req, res) => {
     }
 });
 
-/* --------------------------------------------------------------------------
- * Project Workspace Endpoints
- * ----------------------------------------------------------------------- */
+/* Legacy workspace aliases now require an explicit persistent project.  They
+ * intentionally do not recreate the former singleton .hypraccel/project.json. */
 app.post('/api/project/generate', (req, res) => {
-    const graph = req.body;
-    if (!graph || !graph.id) return res.status(400).json({ error: 'Valid graph required' });
     try {
-        const hardware = readHardwareConfig();
-        const projectMetadata = {
-            id: graph.id,
-            name: graph.name || graph.id,
-            board: hardware.board,
-            timestamp: Date.now()
-        };
-        fs.mkdirSync(path.join(REPO_ROOT, '.hypraccel'), { recursive: true });
-        fs.writeFileSync(path.join(REPO_ROOT, '.hypraccel', 'project.json'), JSON.stringify(projectMetadata, null, 2), 'utf8');
-        fs.writeFileSync(path.join(REPO_ROOT, '.hypraccel', 'graph.json'), JSON.stringify(graph, null, 2), 'utf8');
-
-        // Materialize the deployable source tree
-        materializeEsp32(graph);
-
-        res.json({ success: true, project: projectMetadata });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+        const projectId = requestedProjectId(req);
+        if (!projectId) return res.status(400).json({ error: 'projectId is required; use /api/projects to create a project.' });
+        const graph = req.body.graph || req.body;
+        writeProjectGraph(projectId, graph);
+        materializeEsp32(graph, projectId);
+        res.json({ success: true, project: projectResponse(projectId) });
+    } catch (err) { sendProjectError(res, err); }
 });
 
 app.get('/api/project', (req, res) => {
     try {
-        let project = {};
-        try { project = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, '.hypraccel', 'project.json'), 'utf8')); } catch (_) {}
-        let graph = null;
-        try { graph = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, '.hypraccel', 'graph.json'), 'utf8')); } catch (_) {}
-        res.json({ ...project, graph });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+        const projectId = requestedProjectId(req);
+        if (!projectId) return res.status(400).json({ error: 'projectId is required; use /api/projects.' });
+        res.json(projectResponse(projectId));
+    } catch (err) { sendProjectError(res, err); }
 });
 
 app.get('/api/project/file', (req, res) => {
     try {
-        const relPath = req.query.path;
-        if (!relPath || relPath.includes('..')) return res.status(400).json({ error: 'Invalid path' });
-        const absPath = path.join(REPO_ROOT, relPath);
-        if (!fs.existsSync(absPath)) return res.status(404).json({ error: 'File not found' });
-        const content = fs.readFileSync(absPath, 'utf8');
-        res.json({ content });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+        const projectId = requestedProjectId(req);
+        if (!projectId) return res.status(400).json({ error: 'projectId is required; use /api/projects/:id/source.' });
+        readProjectManifest(projectId);
+        const source = projectSourcePath(projectId, req.query.path);
+        if (!fs.existsSync(source) || !fs.statSync(source).isFile()) return res.status(404).json({ error: 'File not found.' });
+        res.json({ content: fs.readFileSync(source, 'utf8') });
+    } catch (err) { sendProjectError(res, err); }
 });
 
 if (require.main === module) {

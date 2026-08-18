@@ -142,6 +142,8 @@ The runtime SDK provides embedded primitives required by generated C step functi
 | DESK-T2 | Persistent graph storage and versioning | [ ] Planned |
 | DESK-T3 | Telemetry dash for live hardware monitoring | [ ] Planned |
 
+- [x] DESK-T1a | Project workspace persistence foundation (Task 1/4) | Owner: Codex | Repository-local `.hypraccel/projects/<id>/` manifests with canonical hardware/graph components, project CRUD/component/source/status APIs, scoped hardware/build persistence, and focused API regression coverage. |
+
 ## TRACK PLATFORM — Telemetry & Tooling
 - [x] PLAT-T1 | Telemetry dashboard | Owner: Antigravity | Status: Complete
 - [x] PLAT-T2 | Siemens comparison | Owner: Gemini CLI | Status: Complete
