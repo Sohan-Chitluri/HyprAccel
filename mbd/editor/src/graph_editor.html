@@ -701,6 +701,16 @@
     background: var(--red);
     color: #fff;
   }
+  .graph-file-dialog { width: min(520px, calc(100vw - 32px)); }
+  .graph-file-dialog h3 { margin: 0; padding: 16px; font-size: 14px; }
+  .graph-file-dialog .path { padding: 0 16px 10px; color: var(--text-muted); font: 11px var(--font-mono); }
+  .graph-file-list { margin: 0 12px 12px; max-height: 280px; overflow: auto; border: 1px solid var(--border); border-radius: 6px; }
+  .graph-file-row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 10px; border: 0; border-bottom: 1px solid var(--border); color: var(--text); background: transparent; text-align: left; cursor: pointer; }
+  .graph-file-row:last-child { border-bottom: 0; }
+  .graph-file-row:hover, .graph-file-row.selected { background: rgba(56,189,248,.12); }
+  .graph-file-row small { margin-left: auto; color: var(--text-muted); font: 10px var(--font-mono); }
+  .graph-file-dialog .field { display: block; padding: 0 16px 14px; }
+  .graph-file-dialog .field input { width: 100%; margin-top: 6px; box-sizing: border-box; }
 </style>
 </head>
 <body>
@@ -714,7 +724,13 @@
   <nav class="top-menu">
     <div class="menu-item" tabindex="0">File
       <div class="menu-dropdown">
-        <button id="menu-save">Save Graph <span>Ctrl+S</span></button>
+        <button id="menu-new-graph">New Graph</button>
+        <button id="menu-open-graph">Open Graph… <span>Ctrl+O</span></button>
+        <button id="menu-save">Save <span>Ctrl+S</span></button>
+        <button id="menu-save-as">Save As… <span>Ctrl+Shift+S</span></button>
+        <button id="menu-rename-graph">Rename Graph</button>
+        <button id="menu-delete-graph">Delete Graph</button>
+        <div style="height:1px; background:var(--border); margin:4px 0;"></div>
         <button id="menu-clear">Clear Graph <span>Ctrl+Del</span></button>
         <button id="menu-export-json">Export Graph JSON</button>
       </div>
@@ -772,10 +788,7 @@
 
 <!-- Engineering Toolbar -->
 <div class="app-toolbar">
-  <div class="toolbar-group">
-    <label class="toolbar-label" for="graphId">Graph ID</label>
-    <input id="graphId" class="graph-id-input" value="editor-graph" spellcheck="false">
-  </div>
+  <div class="toolbar-group"><span class="toolbar-label">Graph</span><strong id="activeGraphLabel" class="graph-id-input" style="display:inline-block;min-width:130px;">No graph</strong></div>
   <div class="toolbar-divider"></div>
   <div class="toolbar-group">
     <button id="undo" class="tool-btn" title="Undo (Ctrl+Z)" disabled>Undo</button>
@@ -1007,7 +1020,11 @@ let activeConsoleTab = 'console', lastSourceCode = '', lastDiagnostics = '';
 let currentHardware = null;
 let previousHardwareBoard = null;
 const graphQueryProjectId = new URLSearchParams(window.location.search).get('projectId') || new URLSearchParams(window.location.search).get('project');
+const graphQueryGraphId = new URLSearchParams(window.location.search).get('graphId');
 let activeProjectId = graphQueryProjectId || localStorage.getItem('hypraccel_active_project_id') || null;
+let activeGraphId = graphQueryGraphId || null;
+let activeGraphName = activeGraphId || null;
+let activeGraphPersisted = false;
 let savedGraph = null;
 let graphSaveState = activeProjectId ? 'loading' : 'none';
 
@@ -1023,6 +1040,22 @@ function markGraphUnsaved() {
   if (!activeProjectId || graphSaveState === 'loading') return;
   const matchesSaved = savedGraph && JSON.stringify(toGraph()) === JSON.stringify(savedGraph);
   setGraphSaveState(matchesSaved ? 'saved' : 'unsaved');
+}
+
+function graphIdFromName(name) {
+  const words = String(name || '').trim().replace(/([a-z0-9])([A-Z])/g, '$1-$2').replace(/[^A-Za-z0-9]+/g, '_').replace(/^[_-]+|[_-]+$/g, '');
+  if (!words) return '';
+  return /^[A-Za-z]/.test(words) ? words.slice(0, 64) : `graph_${words}`.slice(0, 64);
+}
+function updateGraphLabel() {
+  const label = document.getElementById('activeGraphLabel');
+  if (label) label.textContent = activeGraphId ? `${activeGraphName || activeGraphId} (${activeGraphId}.json)` : 'No graph';
+}
+function syncGraphUrl() {
+  const url = new URL(window.location);
+  if (activeProjectId) url.searchParams.set('projectId', activeProjectId);
+  if (activeGraphId) url.searchParams.set('graphId', activeGraphId); else url.searchParams.delete('graphId');
+  window.history.replaceState({}, '', url);
 }
 
 function log(msg, type = 'info') {
@@ -1051,17 +1084,17 @@ function remember(previous = snapshot()) {
   refreshHistoryButtons();
 }
 
-function applyState(nodes, edges) {
+function applyState(nodes, edges, forceInspector = false) {
   graphNodes = nodes;
   graphEdges = edges;
-  renderConfig();
+  renderConfig(forceInspector);
   if (reactSetNodes) reactSetNodes(nodes);
   if (reactSetEdges) reactSetEdges(edges);
 }
 
-function setState(nodes, edges, record = true, previous) {
+function setState(nodes, edges, record = true, previous, forceInspector = true) {
   if (record) remember(previous || snapshot());
-  applyState(nodes, edges);
+  applyState(nodes, edges, forceInspector);
   markGraphUnsaved();
 }
 
@@ -1069,7 +1102,7 @@ function restore(snap) {
   selectedId = snap.selectedId;
   selectedEdgeId = snap.selectedEdgeId || null;
   nextId = snap.nextId;
-  applyState(clone(snap.nodes), clone(snap.edges));
+  applyState(clone(snap.nodes), clone(snap.edges), true);
   markGraphUnsaved();
 }
 
@@ -1114,17 +1147,18 @@ function deleteEdge(edgeId) {
 function selectEdge(edgeId) {
   selectedId = null;
   selectedEdgeId = edgeId;
-  applyState(graphNodes.map(item => ({...item, selected:false})), graphEdges.map(item => ({...item, selected:item.id === edgeId})));
+  applyState(graphNodes.map(item => ({...item, selected:false})), graphEdges.map(item => ({...item, selected:item.id === edgeId})), true);
 }
 
 function clearEdgeSelection() {
   selectedEdgeId = null;
-  applyState(graphNodes, graphEdges.map(item => ({...item, selected:false})));
+  applyState(graphNodes, graphEdges.map(item => ({...item, selected:false})), true);
 }
 
 function updateParam(key, value) {
   const n = graphNodes.find(x => x.id === selectedId);
   if (!n) return;
+  if (n.data.params && n.data.params[key] === value) return;
   remember();
   const params = {...n.data.params, [key]: value};
   if (key === 'hardwareResource' && !value) delete params.hardwareResource;
@@ -1133,61 +1167,96 @@ function updateParam(key, value) {
   markGraphUnsaved();
 }
 
-function getSelectOptions(key) {
-  if (key === 'operation') return ['sin','cos','sincos','atan2'];
+function getSelectOptions(key, nodeType) {
+  if (key === 'operation') {
+    if (nodeType === 'Compare') return [['gt','> (greater than)'],['lt','< (less than)'],['ge','>= (greater or equal)'],['le','<= (less or equal)'],['eq','== (equal)'],['ne','!= (not equal)']];
+    return ['sin','cos','sincos','atan2'];
+  }
   if (key === 'implementation') return [['auto','Automatic'],['software','Software'],['hardware','Hardware Accelerator']];
-  if (key === 'transport') return ['telemetry','can','uart','spi'];
+  if (key === 'transport') return ['telemetry','log','host'];
   if (key === 'mode') return ['forward','inverse'];
+  if (key === 'valueType') return ['number','boolean','vector<number>','pose','any'];
   if (key === 'dataBits') return [5,6,7,8];
   if (key === 'parity') return ['none','even','odd'];
   if (key === 'stopBits') return [1,2];
   return ['forward','inverse'];
 }
 
-function field(key, value, type) {
+function field(key, value, type, nodeType) {
   const label = key === 'retain' ? 'Retain' : key;
+  if (type === 'select') {
+    return hyprGraphH('div', {className:'field', key},
+      hyprGraphH('label', null, label),
+      hyprGraphH('select', {value, onChange: e => updateParam(key, e.target.value)},
+        getSelectOptions(key, nodeType).map(x => Array.isArray(x)
+          ? hyprGraphH('option', {key:x[0], value:x[0]}, x[1])
+          : hyprGraphH('option', {key:x, value:x}, x)))
+    );
+  }
+  if (type === 'check') {
+    return hyprGraphH('div', {className:'field', key},
+      hyprGraphH('label', null, label),
+      hyprGraphH('label', {className:'check'},
+        hyprGraphH('input', {type:'checkbox', checked:!!value, onChange: e => updateParam(key, e.target.checked)}),
+        key === 'retain' ? 'Enable retained message' : 'Enabled')
+    );
+  }
+  if (type === 'number') {
+    const handleNumberChange = e => {
+      const raw = e.target.value.trim();
+      if (raw === '' || raw === '-' || raw === '.' || raw === '-.' || raw.endsWith('.')) return;
+      const num = Number(raw);
+      if (!isNaN(num) && Number.isFinite(num)) {
+        updateParam(key, num);
+      }
+    };
+    const handleNumberBlur = e => {
+      const raw = e.target.value.trim();
+      const num = Number(raw);
+      if (raw === '' || isNaN(num) || !Number.isFinite(num)) {
+        const fallback = 0;
+        e.target.value = String(fallback);
+        updateParam(key, fallback);
+      } else {
+        updateParam(key, num);
+      }
+    };
+    return hyprGraphH('div', {className:'field', key},
+      hyprGraphH('label', null, label),
+      hyprGraphH('input', {
+        type: 'text',
+        inputMode: 'decimal',
+        defaultValue: value ?? 0,
+        onInput: handleNumberChange,
+        onChange: handleNumberChange,
+        onBlur: handleNumberBlur
+      })
+    );
+  }
   return hyprGraphH('div', {className:'field', key},
     hyprGraphH('label', null, label),
-    type === 'select'
-      ? hyprGraphH('select', {value, onChange: e => updateParam(key, e.target.value)},
-          getSelectOptions(key).map(x => Array.isArray(x)
-            ? hyprGraphH('option', {key:x[0], value:x[0]}, x[1])
-            : hyprGraphH('option', {key:x, value:x}, x)))
-      : type === 'check'
-      ? hyprGraphH('label', {className:'check'},
-          hyprGraphH('input', {type:'checkbox', checked:!!value, onChange: e => updateParam(key, e.target.checked)}), key === 'retain' ? 'Enable retained message' : 'Enabled')
-      : hyprGraphH('input', {type: type || 'text', value: value ?? '', step: 'any', onChange: e => updateParam(key, type === 'number' ? Number(e.target.value) : e.target.value)})
+    hyprGraphH('input', {
+      type: 'text',
+      defaultValue: value ?? '',
+      onInput: e => updateParam(key, e.target.value),
+      onChange: e => updateParam(key, e.target.value)
+    })
   );
 }
 
-function renderHardwareInspector(el, n) {
-  const summary = document.getElementById('hardwareResourceSummary');
-  select.onchange = () => updateParam('hardwareResource', select.value);
-  fetch(projectHardwareUrl()).then(response => response.json()).then(hardware => {
-    if (selectedId !== n.id) return;
-    const configured = new Set((hardware.assignments || []).map(assignment => assignment.resource));
-    const resources = Object.values(hardware.resources || {}).filter(resource => resource.available && configured.has(resource.id));
-    select.innerHTML = '<option value="">— no hardware resource —</option>';
-    for (const resource of resources) {
-      const option = document.createElement('option');
-      option.value = resource.id;
-      option.textContent = resource.id;
-      option.selected = resource.id === (p.hardwareResource || '');
-      select.appendChild(option);
-    }
-    const resource = resources.find(item => item.id === (p.hardwareResource || ''));
-    if (!resource) { summary.textContent = 'Configure and assign a resource in Hardware Setup first.'; return; }
-    const pins = (resource.assignments || []).map(item => `${item.role.toUpperCase()} → ${item.pin}`).join('\n');
-    summary.textContent = `${resource.id}\n${pins}`;
-  }).catch(() => {
-    select.innerHTML = '<option value="">Hardware Setup unavailable</option>';
-    summary.textContent = 'Start the HyprAccel editor server to configure hardware.';
-  });
-}
+let currentInspectorNodeId = null;
 
-function renderConfig() {
+function renderConfig(force = false) {
   const el = document.getElementById('config');
+  if (!el) return;
   const n = graphNodes.find(x => x.id === selectedId);
+  const targetId = n ? n.id : null;
+
+  if (!force && targetId === currentInspectorNodeId && el.contains(document.activeElement)) {
+    return;
+  }
+  currentInspectorNodeId = targetId;
+
   if (!n) {
     el.innerHTML = `
       <div class="inspector-header"><span>Property Inspector</span></div>
@@ -1196,13 +1265,6 @@ function renderConfig() {
     return;
   }
   const t = n.data.nodeType, p = n.data.params;
-
-  let groupHtml = '';
-
-  if (['SensorInput', 'ActuatorOutput', 'GPIOInput', 'ADCInput', 'PWMOutput', 'UARTInput', 'UARTOutput', 'EncoderInput', 'MotorOutput'].includes(t)) {
-    renderHardwareInspector(el, n);
-    return;
-  }
 
   el.innerHTML = `
     <div class="inspector-header">
@@ -1213,7 +1275,15 @@ function renderConfig() {
   `;
 
   let paramGroups = [];
-  if (t === 'CordicOp') {
+  if (t === 'SensorInput') {
+    paramGroups = [
+      { name: 'Sensor Settings', fields: [['source','text'],['valueType','select'],['samplePeriodUs','number'],['unit','text']] }
+    ];
+  } else if (t === 'ActuatorOutput') {
+    paramGroups = [
+      { name: 'Actuator Settings', fields: [['target','text'],['unit','text'],['min','number'],['max','number'],['safeValue','number']] }
+    ];
+  } else if (t === 'CordicOp') {
     paramGroups = [
       { name: 'CORDIC Implementation', fields: [['operation','select'],['implementation','select'],['iterations','number']] }
     ];
@@ -1240,7 +1310,7 @@ function renderConfig() {
       { name: 'Gain', fields: [['gain','number']] }
     ];
   } else if (t === 'Add' || t === 'Subtract' || t === 'Multiply') {
-    // No parameters needed
+    // Both operands are graph connections as per contract/schema
     paramGroups = [];
   } else if (t === 'CustomCode') {
     paramGroups = [];
@@ -1253,7 +1323,8 @@ function renderConfig() {
       { name: 'Limits', fields: [['min','number'],['max','number']] }
     ];
   } else if (t === 'Switch') {
-    // No parameters needed
+    paramGroups = [];
+  } else if (t === 'Time') {
     paramGroups = [];
   } else if (t === 'GPIOInput') {
     paramGroups = [
@@ -1269,19 +1340,19 @@ function renderConfig() {
     ];
   } else if (t === 'UARTInput') {
     paramGroups = [
-      { name: 'UART Settings', fields: [['hardwareResource','select'],['samplePeriodUs','number'],['baudRate','number'],['dataBits','select'],['parity','select'],['stopBits','select']] }
+      { name: 'UART Settings', fields: [['samplePeriodUs','number'],['baudRate','number'],['dataBits','select'],['parity','select'],['stopBits','select']] }
     ];
   } else if (t === 'UARTOutput') {
     paramGroups = [
-      { name: 'UART Settings', fields: [['hardwareResource','select'],['baudRate','number'],['dataBits','select'],['parity','select'],['stopBits','select']] }
+      { name: 'UART Settings', fields: [['baudRate','number'],['dataBits','select'],['parity','select'],['stopBits','select']] }
     ];
   } else if (t === 'EncoderInput') {
     paramGroups = [
-      { name: 'Encoder Settings', fields: [['hardwareResource','select'],['samplePeriodUs','number'],['pulsesPerRevolution','number'],['quadrature','check']] }
+      { name: 'Encoder Settings', fields: [['samplePeriodUs','number'],['pulsesPerRevolution','number'],['quadrature','check']] }
     ];
   } else if (t === 'MotorOutput') {
     paramGroups = [
-      { name: 'Motor Settings', fields: [['hardwareResource','select'],['min','number'],['max','number'],['unit','text'],['safeValue','number']] }
+      { name: 'Motor Settings', fields: [['min','number'],['max','number'],['unit','text'],['safeValue','number']] }
     ];
   } else if (t === 'WheelSpeed') {
     paramGroups = [
@@ -1302,7 +1373,7 @@ function renderConfig() {
     titleDiv.textContent = grp.name;
     const fieldsDiv = document.createElement('div');
     fieldsDiv.className = 'prop-fields';
-    ReactDOM.render(hyprGraphH(React.Fragment, null, grp.fields.map(([k, ty]) => field(k, p[k], ty))), fieldsDiv);
+    ReactDOM.render(hyprGraphH(React.Fragment, null, grp.fields.map(([k, ty]) => field(k, p[k], ty, t))), fieldsDiv);
     grpDiv.append(titleDiv, fieldsDiv);
     inspectorBody.appendChild(grpDiv);
   });
@@ -1323,6 +1394,53 @@ function renderConfig() {
         onChange:e => updateParam('code', e.target.value)
       }))
     ), customFields);
+  }
+
+  if (['SensorInput', 'ActuatorOutput', 'GPIOInput', 'ADCInput', 'PWMOutput', 'UARTInput', 'UARTOutput', 'EncoderInput', 'MotorOutput'].includes(t)) {
+    const resourceGroup = document.createElement('div');
+    resourceGroup.className = 'prop-group';
+    resourceGroup.innerHTML = '<div class="prop-group-title">Hardware Setup</div><div class="prop-fields"><label class="field"><span>Canonical Hardware Resource</span><select id="hwResourceSelect"><option value="">Loading…</option></select></label><div id="hwResourceSummary" style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);white-space:pre-wrap;margin-top:4px;"></div></div>';
+    inspectorBody.appendChild(resourceGroup);
+    const select = resourceGroup.querySelector('#hwResourceSelect');
+    const summary = resourceGroup.querySelector('#hwResourceSummary');
+    select.onchange = () => updateParam('hardwareResource', select.value);
+    fetch(projectHardwareUrl()).then(response => response.json()).then(hardware => {
+      if (selectedId !== n.id) return;
+      const expectedTypeMap = {
+        GPIOInput: ['gpio'],
+        ADCInput: ['adc'],
+        PWMOutput: ['pwm'],
+        UARTInput: ['uart'],
+        UARTOutput: ['uart'],
+        EncoderInput: ['encoder'],
+        MotorOutput: ['motor'],
+        SensorInput: ['gpio', 'adc', 'uart'],
+        ActuatorOutput: ['gpio', 'pwm', 'uart']
+      };
+      const expectedTypes = expectedTypeMap[t] || [];
+      const configured = new Set((hardware.assignments || []).map(assignment => assignment.resource));
+      const resources = Object.values(hardware.resources || {}).filter(resource =>
+        resource.available && (expectedTypes.length === 0 || expectedTypes.includes(resource.type))
+      );
+      select.innerHTML = '<option value="">— no hardware resource —</option>';
+      for (const resource of resources) {
+        const option = document.createElement('option');
+        option.value = resource.id;
+        option.textContent = resource.id + (configured.has(resource.id) ? '' : ' (unassigned pin)');
+        option.selected = resource.id === (p.hardwareResource || '');
+        select.appendChild(option);
+      }
+      const resource = resources.find(item => item.id === (p.hardwareResource || ''));
+      if (!resource) {
+        summary.textContent = p.hardwareResource ? `Resource '${p.hardwareResource}' is not configured in Hardware Setup.` : 'Select a hardware resource configured in Hardware Setup.';
+      } else {
+        const pins = (resource.assignments || []).map(item => `${item.role.toUpperCase()} → ${item.pin}`).join('\n');
+        summary.textContent = pins ? `${resource.id}\n${pins}` : `${resource.id} (no pins assigned)`;
+      }
+    }).catch(() => {
+      select.innerHTML = '<option value="">Hardware Setup unavailable</option>';
+      summary.textContent = 'Start the HyprAccel editor server to configure hardware.';
+    });
   }
 
   if (t === 'CordicOp') {
@@ -1348,14 +1466,14 @@ function renderConfig() {
 }
 
 function toGraph() {
-  const graphId = document.getElementById('graphId').value.trim() || 'editor-graph';
+  const graphId = activeGraphId || 'editor-graph';
   const nodes = graphNodes.map(n => ({id:n.id, type:n.data.nodeType, label:n.data.label, params:n.data.params, position:{x:n.position.x, y:n.position.y}}));
   const cordics = nodes.filter(n => n.type === 'CordicOp');
   return {
     format: 'hypraccel.mbd.graph',
     version: 1,
     id: graphId,
-    name: graphId,
+    name: activeGraphName || graphId,
     nodes,
     edges: graphEdges.map(e => ({id:e.id, from:{node:e.source, port:e.sourceHandle}, to:{node:e.target, port:e.targetHandle}})),
     inputs: cordics.length ? [{name:'angle_rad', type:'number', unit:'rad'}] : [],
@@ -1401,10 +1519,24 @@ async function loadProjectGraph() {
   }
   setGraphSaveState('loading');
   try {
-    const response = await fetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graph`);
+    if (!activeGraphId) {
+      const listResponse = await fetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graphs`);
+      const list = await listResponse.json();
+      if (!listResponse.ok) throw new Error(list.error || 'Could not list project graphs.');
+      activeGraphId = list.activeGraphId || (list.graphs && list.graphs[0] && list.graphs[0].id) || null;
+    }
+    if (!activeGraphId) {
+      activeGraphPersisted = false;
+      savedGraph = null;
+      updateGraphLabel();
+      setGraphSaveState('saved', 'No graph selected');
+      return;
+    }
+    const response = await fetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graphs/${encodeURIComponent(activeGraphId)}`);
     if (response.status === 404) {
       savedGraph = null;
-      setGraphSaveState('saved', 'Saved (empty project)');
+      activeGraphPersisted = false;
+      setGraphSaveState('failed', 'Graph not found');
       return;
     }
     const graph = await response.json();
@@ -1413,7 +1545,12 @@ async function loadProjectGraph() {
       throw new Error('Project graph failed hypraccel.mbd.graph v1 validation.');
     }
     savedGraph = clone(graph);
-    document.getElementById('graphId').value = graph.id;
+    activeGraphId = graph.id;
+    activeGraphName = graph.name || graph.id;
+    activeGraphPersisted = true;
+    await fetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graphs/${encodeURIComponent(activeGraphId)}/activate`, { method: 'POST' });
+    syncGraphUrl();
+    updateGraphLabel();
     selectedId = null;
     selectedEdgeId = null;
     undoSnapshots = [];
@@ -1437,12 +1574,19 @@ async function saveGraph() {
   }
   setGraphSaveState('saving');
   try {
-    const response = await fetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graph`, {
-      method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(toGraph())
+    if (!activeGraphId) throw new Error('Choose a graph name before saving.');
+    const graph = toGraph();
+    const response = await fetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graphs${activeGraphPersisted ? `/${encodeURIComponent(activeGraphId)}` : ''}`, {
+      method: activeGraphPersisted ? 'PUT' : 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(activeGraphPersisted ? graph : { graphId: activeGraphId, name: activeGraphName, graph })
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Could not save project graph.');
     savedGraph = clone(data.graph || toGraph());
+    activeGraphPersisted = true;
+    activeGraphName = savedGraph.name || activeGraphId;
+    syncGraphUrl();
+    updateGraphLabel();
     setGraphSaveState('saved');
     return true;
   } catch (error) {
@@ -1450,6 +1594,138 @@ async function saveGraph() {
     log(`Save failed: ${error.message}`, 'err');
     return false;
   }
+}
+
+function showFileDialog(title, body, actions) {
+  const backdrop = document.createElement('div');
+  backdrop.className = 'graph-confirm-backdrop';
+  const dialog = document.createElement('div');
+  dialog.className = 'graph-confirm graph-file-dialog';
+  const heading = document.createElement('h3'); heading.textContent = title;
+  dialog.append(heading, body);
+  const footer = document.createElement('div'); footer.className = 'graph-confirm-actions';
+  actions.forEach(action => {
+    const button = document.createElement('button'); button.className = `tool-btn${action.danger ? ' danger' : ''}`;
+    button.textContent = action.label; button.onclick = () => action.run(backdrop); footer.appendChild(button);
+  });
+  dialog.appendChild(footer); backdrop.appendChild(dialog);
+  backdrop.onclick = event => { if (event.target === backdrop) backdrop.remove(); };
+  document.body.appendChild(backdrop);
+  return backdrop;
+}
+
+function requestGraphName(title, initial = '', action = 'Save') {
+  return new Promise(resolve => {
+    const body = document.createElement('div');
+    const field = document.createElement('label'); field.className = 'field'; field.textContent = 'Name';
+    const input = document.createElement('input'); input.value = initial; input.spellcheck = false;
+    const hint = document.createElement('small'); hint.style.color = 'var(--text-muted)'; hint.textContent = 'Saved safely as a project-local .json graph file.';
+    field.append(input, hint); body.appendChild(field);
+    const close = (backdrop, value) => { backdrop.remove(); resolve(value); };
+    const backdrop = showFileDialog(title, body, [
+      { label: 'Cancel', run: b => close(b, null) },
+      { label: action, run: b => close(b, input.value.trim()) }
+    ]);
+    input.focus(); input.select();
+    input.addEventListener('keydown', event => { if (event.key === 'Enter') close(backdrop, input.value.trim()); });
+  });
+}
+
+async function confirmUnsavedChanges(action) {
+  if (graphSaveState !== 'unsaved' && graphSaveState !== 'saving') return true;
+  return new Promise(resolve => {
+    const body = document.createElement('p'); body.textContent = `Save changes to '${activeGraphName || activeGraphId || 'current graph'}' before ${action}?`;
+    showFileDialog('Unsaved changes', body, [
+      { label: 'Cancel', run: b => { b.remove(); resolve(false); } },
+      { label: 'Discard', run: b => { b.remove(); resolve(true); } },
+      { label: 'Save', run: async b => { const saved = await saveGraph(); if (saved) b.remove(); resolve(saved); } }
+    ]);
+  });
+}
+
+function emptyGraphState() {
+  selectedId = null; selectedEdgeId = null; nextId = 1; undoSnapshots = []; redoSnapshots = [];
+  applyState([], []); refreshHistoryButtons();
+}
+
+async function newGraph() {
+  if (!activeProjectId) return log('Create or open a project before creating a graph.', 'err');
+  if (!await confirmUnsavedChanges('creating a new graph')) return;
+  const name = await requestGraphName('New Graph', 'untitled_graph', 'Create');
+  const graphId = graphIdFromName(name);
+  if (!graphId || !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(graphId)) return alert('Enter a graph name that produces a valid graph filename.');
+  activeGraphId = graphId; activeGraphName = name; activeGraphPersisted = false; savedGraph = null;
+  emptyGraphState(); syncGraphUrl(); updateGraphLabel(); setGraphSaveState('unsaved', 'Unsaved new graph');
+}
+
+async function openGraph() {
+  if (!activeProjectId) return log('Create or open a project before opening a graph.', 'err');
+  if (!await confirmUnsavedChanges('opening another graph')) return;
+  const response = await fetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graphs`);
+  const data = await response.json();
+  if (!response.ok) return log(`Could not list graph files: ${data.error || 'request failed'}`, 'err');
+  const body = document.createElement('div');
+  const location = document.createElement('div'); location.className = 'path'; location.textContent = `${activeProjectId} / graphs`;
+  const list = document.createElement('div'); list.className = 'graph-file-list';
+  let selected = null;
+  for (const graph of data.graphs || []) {
+    const row = document.createElement('button'); row.className = 'graph-file-row';
+    row.innerHTML = `<span>📄</span><span>${graph.filename}</span><small>${graph.name}</small>`;
+    const choose = () => { selected = graph; list.querySelectorAll('.selected').forEach(el => el.classList.remove('selected')); row.classList.add('selected'); };
+    row.onclick = choose; row.ondblclick = () => { choose(); backdrop.remove(); switchToGraph(graph.id); };
+    list.appendChild(row);
+  }
+  if (!list.children.length) list.textContent = 'No graph files in this project.';
+  body.append(location, list);
+  const backdrop = showFileDialog('Open Graph', body, [
+    { label: 'Cancel', run: b => b.remove() },
+    { label: 'Open', run: b => { if (!selected) return; b.remove(); switchToGraph(selected.id); } }
+  ]);
+}
+
+async function switchToGraph(graphId) {
+  activeGraphId = graphId; activeGraphPersisted = true; savedGraph = null; syncGraphUrl();
+  await loadProjectGraph();
+}
+
+async function saveAsGraph() {
+  if (!activeProjectId) return log('Create or open a project before saving.', 'err');
+  const name = await requestGraphName('Save Graph As', activeGraphName || activeGraphId || 'graph', 'Save');
+  const graphId = graphIdFromName(name);
+  if (!graphId || !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(graphId)) return alert('Enter a graph name that produces a valid graph filename.');
+  const listResponse = await fetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graphs`);
+  const list = await listResponse.json();
+  if (!listResponse.ok) return log(`Could not list graph files: ${list.error || 'request failed'}`, 'err');
+  const exists = (list.graphs || []).some(graph => graph.id === graphId);
+  if (exists && !confirm(`'${graphId}.json' already exists. Overwrite it?`)) return;
+  activeGraphId = graphId; activeGraphName = name; activeGraphPersisted = exists; savedGraph = exists ? null : null;
+  syncGraphUrl(); updateGraphLabel();
+  if (await saveGraph()) log(`Saved graph as '${graphId}.json'.`, 'ok');
+}
+
+async function renameGraph() {
+  if (!activeProjectId || !activeGraphId || !activeGraphPersisted) return log('Save the graph before renaming it.', 'err');
+  if (!await confirmUnsavedChanges('renaming this graph')) return;
+  const name = await requestGraphName('Rename Graph', activeGraphName || activeGraphId, 'Rename');
+  const graphId = graphIdFromName(name);
+  if (!graphId || !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(graphId)) return alert('Enter a graph name that produces a valid graph filename.');
+  const response = await fetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graphs/${encodeURIComponent(activeGraphId)}/rename`, {
+    method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ graphId, name })
+  });
+  const data = await response.json();
+  if (!response.ok) return log(`Rename failed: ${data.error || 'request failed'}`, 'err');
+  activeGraphId = data.graph.id; activeGraphName = data.graph.name; activeGraphPersisted = true; savedGraph = clone(data.graph);
+  syncGraphUrl(); updateGraphLabel(); setGraphSaveState('saved');
+}
+
+async function deleteGraph() {
+  if (!activeProjectId || !activeGraphId || !activeGraphPersisted) return log('Save the graph before deleting it.', 'err');
+  if (!await confirmUnsavedChanges('deleting this graph')) return;
+  if (!confirm(`Delete '${activeGraphId}.json'? This cannot be undone.`)) return;
+  const response = await fetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graphs/${encodeURIComponent(activeGraphId)}`, { method: 'DELETE' });
+  const data = await response.json();
+  if (!response.ok) return log(`Delete failed: ${data.error || 'request failed'}`, 'err');
+  activeGraphId = data.activeGraphId; activeGraphPersisted = true; savedGraph = null; syncGraphUrl(); await loadProjectGraph();
 }
 
 function updateConsoleOutput() {
@@ -1501,10 +1777,13 @@ async function requestBuild(endpoint, initial) {
   log(initial, 'info');
 
   try {
+    const scoped = activeProjectId && activeGraphId;
+    if (scoped && !activeGraphPersisted && !await saveGraph()) return;
+    if (scoped && !await confirmUnsavedChanges(initial.toLowerCase())) return;
     const r = await fetch(endpoint, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(toGraph())
+      body: JSON.stringify(scoped ? { projectId: activeProjectId, graphId: activeGraphId } : toGraph())
     });
     const data = await r.json();
     if (r.ok) {
@@ -1581,13 +1860,14 @@ async function generateProject() {
       return;
     }
     if (!await saveGraph()) return;
-    const res = await fetch(`/api/projects/${encodeURIComponent(activeId)}/generate`, {
+    if (!activeGraphId) throw new Error('Create or open a graph before generating.');
+    const res = await fetch(`/api/projects/${encodeURIComponent(activeId)}/graphs/${encodeURIComponent(activeGraphId)}/generate`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }
     });
     const data = await res.json();
     if (res.ok) {
       log('Project Workspace generated.', 'ok');
-      window.open(`/workspace?projectId=${encodeURIComponent(activeId)}`, '_blank');
+      window.open(`/workspace?projectId=${encodeURIComponent(activeId)}&graphId=${encodeURIComponent(activeGraphId)}`, '_blank');
     } else {
       log(`Generation failed: ${data.error || 'Unknown error'}`, 'err');
     }
@@ -1703,7 +1983,7 @@ function App() {
     onNodeClick: (_, node) => {
       selectedId = node.id;
       selectedEdgeId = null;
-      applyState(nodes, edges.map(item => ({...item, selected:false})));
+      applyState(nodes, edges.map(item => ({...item, selected:false})), true);
     },
     onNodeContextMenu: showNodeContextMenu,
     onEdgeClick: (event, edge) => {
@@ -1873,7 +2153,6 @@ canvasEl.addEventListener('drop', e => {
 
 // Action bindings
 document.getElementById('clear').onclick = () => { const previous = snapshot(); nextId = 1; selectedId = null; selectedEdgeId = null; setState([], [], true, previous); };
-document.getElementById('graphId').addEventListener('input', markGraphUnsaved);
 document.getElementById('save-graph').onclick = saveGraph;
 document.getElementById('undo').onclick = undo;
 document.getElementById('redo').onclick = redo;
@@ -1884,7 +2163,12 @@ document.getElementById('flash').onclick = flash;
 document.getElementById('verify').onclick = verify;
 
 // Menu actions
+document.getElementById('menu-new-graph').onclick = newGraph;
+document.getElementById('menu-open-graph').onclick = openGraph;
 document.getElementById('menu-save').onclick = saveGraph;
+document.getElementById('menu-save-as').onclick = saveAsGraph;
+document.getElementById('menu-rename-graph').onclick = renameGraph;
+document.getElementById('menu-delete-graph').onclick = deleteGraph;
 document.getElementById('menu-clear').onclick = () => document.getElementById('clear').click();
 document.getElementById('menu-undo').onclick = () => document.getElementById('undo').click();
 document.getElementById('menu-redo').onclick = () => document.getElementById('redo').click();
@@ -1915,9 +2199,14 @@ document.addEventListener('keydown', event => {
   if (event.defaultPrevented) return;
   const editingTarget = event.target.closest('input,select,textarea,button,.custom-code-editor');
   const key = event.key.toLowerCase();
-  if ((event.ctrlKey || event.metaKey) && key === 's' && !editingTarget) {
+  if ((event.ctrlKey || event.metaKey) && key === 's') {
     event.preventDefault();
-    saveGraph();
+    if (event.shiftKey) saveAsGraph(); else saveGraph();
+    return;
+  }
+  if ((event.ctrlKey || event.metaKey) && key === 'o') {
+    event.preventDefault();
+    openGraph();
     return;
   }
   if (editingTarget) return;
