@@ -34,53 +34,8 @@ int hyp_esp32_hw_init(void)
     // -------------------------------------------------------------------------
     // 1. GPIO Configuration
     // -------------------------------------------------------------------------
-#define INIT_GPIO_PIN_BLOCK(N) \
-#ifdef HYP_RESOURCE_GPIO_GPIO##N \
-    { \
-        int pin = N; \
-        int mode = INPUT; \
-        bool is_output = false; \
-        \
-        /* Check direction */ \
-        #ifdef HYP_RESOURCE_GPIO_GPIO##N##_DIRECTION \
-            if (strcmp(HYP_RESOURCE_GPIO_GPIO##N##_DIRECTION, "output") == 0) { \
-                mode = OUTPUT; \
-                is_output = true; \
-            } \
-        #endif \
-        \
-        /* Check pull if input */ \
-        #ifdef HYP_RESOURCE_GPIO_GPIO##N##_PULL \
-            if (!is_output) { \
-                if (strcmp(HYP_RESOURCE_GPIO_GPIO##N##_PULL, "up") == 0 || \
-                    strcmp(HYP_RESOURCE_GPIO_GPIO##N##_PULL, "pull-up") == 0) { \
-                    mode = INPUT_PULLUP; \
-                } else if (strcmp(HYP_RESOURCE_GPIO_GPIO##N##_PULL, "down") == 0 || \
-                           strcmp(HYP_RESOURCE_GPIO_GPIO##N##_PULL, "pull-down") == 0) { \
-                    mode = INPUT_PULLDOWN; \
-                } \
-            } \
-        #endif \
-        \
-        pinMode(pin, mode); \
-        \
-        /* Check initial state if output */ \
-        #ifdef HYP_RESOURCE_GPIO_GPIO##N##_INITIAL_STATE \
-            if (is_output) { \
-                if (strcmp(HYP_RESOURCE_GPIO_GPIO##N##_INITIAL_STATE, "high") == 0 || \
-                    strcmp(HYP_RESOURCE_GPIO_GPIO##N##_INITIAL_STATE, "1") == 0) { \
-                    digitalWrite(pin, HIGH); \
-                } else { \
-                    digitalWrite(pin, LOW); \
-                } \
-            } \
-        #endif \
-    } \
-#endif
-
-    // Wait! As analyzed before, standard C++ preprocessor does not allow putting #ifdef/#endif
-    // inside a macro. So we must write each GPIO pin configuration directly.
-    // This is clean, safe, and compile-proof.
+    // Note: Standard C++ preprocessor does not allow #ifdef/#endif inside a macro.
+    // Each GPIO pin configuration is written explicitly below.
 
 #ifdef HYP_RESOURCE_GPIO_GPIO0
     {
