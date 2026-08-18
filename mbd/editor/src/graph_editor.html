@@ -1346,15 +1346,34 @@ function verify() { return requestBuild('/api/verify', 'Verifying hardware integ
 async function generateProject() {
   log('Generating Project Workspace...', 'info');
   try {
-    const res = await fetch('/api/project/generate', {
+    const activeId = localStorage.getItem('hypraccel_active_project_id') || 'demo_project';
+    let res = await fetch(`/api/projects/${encodeURIComponent(activeId)}/generate`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(toGraph())
+      headers: { 'Content-Type': 'application/json' }
     });
+    if (res.status === 404) {
+      // Create project if it doesn't exist yet
+      const initRes = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: activeId,
+          name: 'Demo Project',
+          hardware: currentHardware || { board: 'esp32', assignments: [] },
+          graph: toGraph()
+        })
+      });
+      if (initRes.ok) {
+        res = await fetch(`/api/projects/${encodeURIComponent(activeId)}/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
     const data = await res.json();
     if (res.ok) {
       log('Project Workspace generated.', 'ok');
-      window.open('/workspace', '_blank');
+      window.open(`/workspace?projectId=${encodeURIComponent(activeId)}`, '_blank');
     } else {
       log(`Generation failed: ${data.error || 'Unknown error'}`, 'err');
     }

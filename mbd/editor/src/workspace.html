@@ -4,248 +4,1179 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HyprAccel — Project Workspace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0b0e14; --panel: #131720; --panel-header: #181d28;
-    --border: #262d3d; --text: #e1e7ec; --text-muted: #7e8b9b;
-    --accent: #38bdf8; --green: #22c55e; --red: #ef4444;
-    --font: 'Inter', system-ui, sans-serif;
-    --font-mono: 'JetBrains Mono', monospace;
+    color-scheme: dark;
+    --bg: #0b0e14;
+    --panel: #131720;
+    --panel-header: #181d28;
+    --panel-hover: #1c2331;
+    --border: #262d3d;
+    --border-light: #323b4e;
+    --text: #e1e7ec;
+    --text-muted: #7e8b9b;
+    --accent: #38bdf8;
+    --accent-glow: rgba(56, 189, 248, 0.15);
+    --green: #22c55e;
+    --orange: #f59e0b;
+    --red: #ef4444;
+    --purple: #8b5cf6;
+    --font: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: var(--font); background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font-size: 12px;
+  }
 
-  /* Top Header */
-  header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--panel-header); border-bottom: 1px solid var(--border); flex-shrink: 0; }
-  .header-left { display: flex; align-items: center; gap: 12px; }
-  .header-title { font-weight: 700; font-size: 14px; }
-  .header-meta { font-size: 12px; color: var(--text-muted); display: flex; gap: 8px; }
-  .badge { background: #1c2331; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border); font-size: 11px; }
+  /* ── Application Header ── */
+  header.app-header {
+    height: 42px;
+    background: var(--panel-header);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 16px;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .brand-logo { color: var(--accent); font-size: 14px; }
+  .brand-tag {
+    font-size: 10px;
+    background: var(--accent-glow);
+    color: var(--accent);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 12px;
+  }
+  .nav-btn {
+    color: var(--text-muted);
+    text-decoration: none;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-weight: 500;
+    font-size: 11px;
+    transition: all 0.15s ease;
+  }
+  .nav-btn:hover {
+    background: var(--panel-hover);
+    color: var(--text);
+  }
+  .nav-btn.active {
+    background: var(--panel-hover);
+    color: var(--accent);
+    font-weight: 600;
+  }
 
-  .header-actions { display: flex; gap: 8px; }
-  .btn { background: var(--panel); border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-  .btn:hover { background: #1c2331; border-color: #323b4e; }
-  .btn-primary { background: #0284c7; border-color: #0369a1; color: #fff; }
-  .btn-primary:hover { background: #0369a1; border-color: #075985; }
-  .btn-accent { background: #15803d; border-color: #166534; color: #fff; }
-  .btn-accent:hover { background: #166534; }
+  /* Project Selection & Toolbar in Header */
+  .project-controls {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .project-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  select.project-select {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-family: var(--font);
+    cursor: pointer;
+    min-width: 150px;
+    max-width: 220px;
+  }
+  select.project-select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .header-divider {
+    width: 1px;
+    height: 18px;
+    background: var(--border);
+  }
+  button.action-btn {
+    background: var(--panel-header);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 12px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+  }
+  button.action-btn:hover:not(:disabled) {
+    background: var(--panel-hover);
+    border-color: var(--border-light);
+  }
+  button.action-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  button.btn-primary {
+    background: #0284c7;
+    border-color: #0369a1;
+    color: #fff;
+    font-weight: 600;
+  }
+  button.btn-primary:hover:not(:disabled) {
+    background: #0369a1;
+  }
+  button.btn-success {
+    background: #15803d;
+    border-color: #166534;
+    color: #fff;
+    font-weight: 600;
+  }
+  button.btn-success:hover:not(:disabled) {
+    background: #166534;
+  }
+  button.btn-purple {
+    background: #7c3aed;
+    border-color: #6d28d9;
+    color: #fff;
+    font-weight: 600;
+  }
+  button.btn-purple:hover:not(:disabled) {
+    background: #6d28d9;
+  }
 
-  /* Main Layout */
-  main { display: grid; grid-template-columns: 240px 1fr; grid-template-rows: 1fr 200px; flex: 1; min-height: 0; }
+  /* ── Status Bar Strip ── */
+  .status-strip {
+    height: 32px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 16px;
+    font-size: 11px;
+    flex-shrink: 0;
+    overflow-x: auto;
+  }
+  .status-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .status-label { color: var(--text-muted); }
+  .status-val { font-weight: 600; color: var(--text); font-family: var(--font-mono); }
+  .status-badge {
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .badge-green { background: rgba(34, 197, 94, 0.15); color: var(--green); border: 1px solid rgba(34, 197, 94, 0.3); }
+  .badge-orange { background: rgba(245, 158, 11, 0.15); color: var(--orange); border: 1px solid rgba(245, 158, 11, 0.3); }
+  .badge-red { background: rgba(239, 68, 68, 0.15); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.3); }
+  .badge-muted { background: rgba(126, 139, 155, 0.15); color: var(--text-muted); border: 1px solid rgba(126, 139, 155, 0.3); }
 
-  /* Left: Project Tree */
-  .tree-panel { grid-column: 1; grid-row: 1 / 3; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
-  .panel-header { padding: 8px 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border); background: var(--panel-header); flex-shrink: 0; }
-  .tree-content { flex: 1; overflow-y: auto; padding: 8px 0; font-size: 12px; }
-  .tree-folder { padding: 4px 12px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 6px; }
-  .tree-file { padding: 4px 12px 4px 28px; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background 0.1s; }
-  .tree-file:hover { background: #1c2331; color: var(--text); }
-  .tree-file.active { background: #0369a133; color: var(--accent); border-left: 2px solid var(--accent); padding-left: 26px; }
+  /* ── Main Layout ── */
+  .workspace-body {
+    flex: 1 1 0;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    grid-template-rows: 1fr 220px;
+    overflow: hidden;
+    position: relative;
+  }
 
-  /* Center: Source Viewer */
-  .source-panel { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
-  .source-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--panel-header); }
-  .source-filename { font-size: 13px; font-weight: 600; font-family: var(--font-mono); }
-  .source-content { flex: 1; overflow: auto; padding: 16px; font-family: var(--font-mono); font-size: 12px; line-height: 1.5; white-space: pre; color: #e6edf3; }
+  /* Left Dock: Project Tree */
+  .tree-dock {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .dock-header {
+    height: 32px;
+    background: var(--panel-header);
+    border-bottom: 1px solid var(--border);
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 700;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+  .tree-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+    font-size: 11.5px;
+  }
+  .tree-folder {
+    padding: 6px 12px;
+    font-weight: 600;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    user-select: none;
+  }
+  .tree-folder-icon { color: var(--accent); font-size: 12px; }
+  .tree-file {
+    padding: 4px 12px 4px 28px;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.1s;
+    user-select: none;
+  }
+  .tree-file:hover {
+    background: var(--panel-hover);
+    color: var(--text);
+  }
+  .tree-file.active {
+    background: var(--accent-glow);
+    color: var(--accent);
+    font-weight: 600;
+    border-left: 2px solid var(--accent);
+    padding-left: 26px;
+  }
+  .file-icon { font-size: 11px; }
 
-  /* Bottom: Console */
-  .console-panel { grid-column: 2; grid-row: 2; border-top: 1px solid var(--border); display: flex; flex-direction: column; background: #0d1117; overflow: hidden; }
-  .console-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; background: var(--panel-header); border-bottom: 1px solid var(--border); }
-  .console-title { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); }
-  .console-content { flex: 1; overflow-y: auto; padding: 8px 12px; font-family: var(--font-mono); font-size: 11px; line-height: 1.4; color: var(--text-muted); white-space: pre-wrap; }
+  /* Center Top: Source Viewer */
+  .source-dock {
+    grid-column: 2;
+    grid-row: 1;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .source-toolbar {
+    height: 32px;
+    background: var(--panel-header);
+    border-bottom: 1px solid var(--border);
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .source-path {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .source-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .toast-msg {
+    font-size: 11px;
+    color: var(--green);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .toast-msg.visible { opacity: 1; }
+  .source-viewport {
+    flex: 1;
+    overflow: auto;
+    padding: 16px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1.6;
+    color: var(--text);
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  .source-viewport pre {
+    margin: 0;
+    font-family: inherit;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  /* Bottom Panel: Console & Logs */
+  .bottom-dock {
+    grid-column: 2;
+    grid-row: 2;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+  .bottom-dock.collapsed {
+    height: 30px !important;
+  }
+  .bottom-resize-handle {
+    position: absolute;
+    top: -5px;
+    left: 0; right: 0;
+    height: 10px;
+    cursor: ns-resize;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .bottom-resize-handle::before {
+    content: '';
+    width: 40px; height: 3px;
+    border-radius: 2px;
+    background: var(--border-light);
+    transition: background 0.15s, width 0.15s;
+  }
+  .bottom-resize-handle:hover::before, .bottom-resize-handle.dragging::before {
+    background: var(--accent);
+    width: 60px;
+  }
+  .console-toolbar {
+    height: 30px;
+    background: var(--panel-header);
+    border-bottom: 1px solid var(--border);
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    user-select: none;
+  }
+  .console-tabs {
+    display: flex;
+    gap: 4px;
+  }
+  .console-tab {
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 4px 4px 0 0;
+  }
+  .console-tab.active {
+    color: var(--text);
+    background: var(--panel);
+    font-weight: 600;
+  }
+  .console-viewport {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 14px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.5;
+    background: var(--bg);
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  .console-viewport pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
   .log-ok { color: var(--green); }
   .log-err { color: var(--red); }
   .log-info { color: var(--accent); }
+  .log-warn { color: var(--orange); }
 
-  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  /* Dialog / Modal */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .modal-backdrop.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .modal-card {
+    background: var(--panel);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    width: 380px;
+    max-width: 90vw;
+    box-shadow: 0 16px 35px rgba(0,0,0,0.8);
+    overflow: hidden;
+  }
+  .modal-header {
+    padding: 12px 16px;
+    background: var(--panel-header);
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 13px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .modal-body {
+    padding: 16px;
+    display: grid;
+    gap: 12px;
+  }
+  .field-group {
+    display: grid;
+    gap: 4px;
+  }
+  .field-group label {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .field-group input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 10px;
+    color: var(--text);
+    font-size: 12px;
+    font-family: var(--font);
+  }
+  .field-group input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .modal-actions {
+    padding: 10px 16px;
+    background: var(--panel-header);
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  /* Empty state banner */
+  .empty-state {
+    padding: 30px 20px;
+    text-align: center;
+    color: var(--text-muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #323b4e; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb { background: #323b4e; border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
 </style>
 </head>
 <body>
 
-<header>
-  <div class="header-left">
-    <div class="header-title" id="projectName">Project Workspace</div>
-    <div class="header-meta">
-      <span class="badge" id="projectBoard">Board: —</span>
-      <span class="badge" id="projectId">ID: —</span>
-    </div>
+<!-- Application Header -->
+<header class="app-header">
+  <div class="brand">
+    <span class="brand-logo">HyprAccel</span>
+    <span class="brand-tag">Project Workspace</span>
   </div>
-  <div class="header-actions">
-    <button class="btn btn-primary" id="btnBuild">Build</button>
-    <button class="btn btn-accent" id="btnFlash">Build & Flash</button>
-    <button class="btn" id="btnVerify">Verify</button>
-    <a class="btn" href="/graph" style="text-decoration:none;display:inline-flex;align-items:center;">← Editor</a>
+  <nav class="nav-links">
+    <a href="/" class="nav-btn">⚡ Hardware Setup</a>
+    <a href="/graph" class="nav-btn">📊 Graph Editor</a>
+    <a href="/workspace" class="nav-btn active">📁 Workspace</a>
+  </nav>
+
+  <!-- Project Selector & Action Buttons -->
+  <div class="project-controls">
+    <span class="project-label">Project:</span>
+    <select id="projectSelect" class="project-select">
+      <option value="">Loading projects…</option>
+    </select>
+    <button id="btnNewProject" class="action-btn" title="Create a new persistent project">＋ New</button>
+    <button id="btnDeleteProject" class="action-btn" style="color:var(--red)" title="Delete active project">🗑</button>
+    <div class="header-divider"></div>
+    <button id="btnGenerate" class="action-btn btn-purple">⚙ Generate</button>
+    <button id="btnCompile" class="action-btn btn-primary">🔨 Build</button>
+    <button id="btnFlash" class="action-btn btn-success">⚡ Flash</button>
+    <button id="btnVerify" class="action-btn">🔍 Verify</button>
   </div>
 </header>
 
-<main>
-  <div class="tree-panel">
-    <div class="panel-header">Project Explorer</div>
-    <div class="tree-content" id="projectTree">
-      <!-- Injected by JS -->
-    </div>
+<!-- Status Bar Strip -->
+<div class="status-strip" id="statusStrip">
+  <div class="status-item">
+    <span class="status-label">Active Project:</span>
+    <span class="status-val" id="stProjectName">—</span>
   </div>
+  <div class="status-item">
+    <span class="status-label">Board:</span>
+    <span class="status-val" id="stBoard">—</span>
+  </div>
+  <div class="status-item">
+    <span class="status-label">Generation:</span>
+    <span id="stGenerated" class="status-badge badge-muted">Checking…</span>
+  </div>
+  <div class="status-item">
+    <span class="status-label">Build Log:</span>
+    <span id="stBuild" class="status-badge badge-muted">Idle</span>
+  </div>
+  <div class="status-item">
+    <span class="status-label">Firmware:</span>
+    <span id="stFirmware" class="status-badge badge-muted">Not Available</span>
+  </div>
+</div>
 
-  <div class="source-panel">
-    <div class="source-header">
-      <div class="source-filename" id="sourceFilename">Select a file</div>
-      <button class="btn" id="btnCopy" style="padding:4px 8px;font-size:11px;">Copy</button>
+<!-- Main Workspace Body -->
+<div class="workspace-body">
+  <!-- Left Dock: Project Tree -->
+  <aside class="tree-dock">
+    <div class="dock-header">
+      <span>Project Explorer</span>
+      <span id="treeFileCount" style="font-size:9px;color:var(--text-muted);font-weight:400"></span>
     </div>
-    <div class="source-content" id="sourceContent">
-// No file selected
+    <div class="tree-container" id="treeContainer">
+      <div class="empty-state">
+        <span>Loading project tree…</span>
+      </div>
     </div>
-  </div>
+  </aside>
 
-  <div class="console-panel">
-    <div class="console-header">
-      <span class="console-title">Build Output</span>
+  <!-- Center Top: Source Viewer -->
+  <main class="source-dock">
+    <div class="source-toolbar">
+      <div class="source-path" id="sourcePathDisplay">
+        <span>📄 Select a file from project explorer</span>
+      </div>
+      <div class="source-actions">
+        <span class="toast-msg" id="copyToast">✓ Copied!</span>
+        <button id="btnCopySource" class="action-btn" style="padding:3px 8px;font-size:10px;">Copy</button>
+      </div>
     </div>
-    <div class="console-content" id="consoleContent">Loading workspace...</div>
+    <div class="source-viewport" id="sourceViewport">
+      <pre id="sourceCode">// Select a file from the project tree to view contents</pre>
+    </div>
+  </main>
+
+  <!-- Bottom Dock: Build Log & Console Output -->
+  <section class="bottom-dock" id="bottomDock">
+    <div class="bottom-resize-handle" id="bottomResizeHandle" title="Drag to resize console"></div>
+    <div class="console-toolbar">
+      <div class="console-tabs">
+        <div class="console-tab active" id="tabConsoleLog">Build Output Log</div>
+        <div class="console-tab" id="tabConsoleDiag">Diagnostics &amp; Markers</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <button id="btnClearLog" class="action-btn" style="padding:2px 6px;font-size:10px;">Clear</button>
+        <button id="btnCopyLog" class="action-btn" style="padding:2px 6px;font-size:10px;">Copy Log</button>
+        <button id="btnToggleConsole" class="action-btn" style="padding:2px 6px;font-size:10px;">_</button>
+      </div>
+    </div>
+    <div class="console-viewport" id="consoleViewport">
+      <pre id="consoleOutput">Project Workspace initialized. Select a project to view files or execute actions.</pre>
+    </div>
+  </section>
+</div>
+
+<!-- Modal: New Project -->
+<div class="modal-backdrop" id="modalNewProject">
+  <div class="modal-card">
+    <div class="modal-header">
+      <span>Create New Project</span>
+      <button id="btnCloseModal" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-group">
+        <label for="inputProjId">Project ID (unique, letters/numbers/_/-):</label>
+        <input type="text" id="inputProjId" placeholder="e.g. demo_project" spellcheck="false" />
+      </div>
+      <div class="field-group">
+        <label for="inputProjName">Project Display Name:</label>
+        <input type="text" id="inputProjName" placeholder="e.g. Demo Project" spellcheck="false" />
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button id="btnCancelCreate" class="action-btn">Cancel</button>
+      <button id="btnSubmitCreate" class="action-btn btn-primary">Create Project</button>
+    </div>
   </div>
-</main>
+</div>
 
 <script>
 'use strict';
 
-const projectStructure = [
-  { folder: 'Hardware', files: [{ name: 'hardware.json', path: '.hypraccel/hardware.json' }] },
-  { folder: 'Graph', files: [{ name: 'graph.json', path: '.hypraccel/graph.json' }] },
-  { folder: 'Generated', files: [
-      { name: 'graph.c', path: 'mbd/esp32/generated/graph.c' },
-      { name: 'main.cpp', path: 'mbd/esp32/generated/main.cpp' },
-      { name: 'hyp_board_config.h', path: 'mbd/esp32/generated/hyp_board_config.h' },
-      { name: 'hyprccel.h', path: 'mbd/esp32/generated/hyprccel.h' },
-      { name: 'hyp_esp32.c', path: 'mbd/esp32/generated/hyp_esp32.c' },
-      { name: 'hyp_esp32_hw.cpp', path: 'mbd/esp32/generated/hyp_esp32_hw.cpp' }
-    ]
-  },
-  { folder: 'SDK', files: [
-      { name: 'hyp_router.c', path: 'mbd/esp32/generated/hyp_router.c' },
-      { name: 'hyp_cordic_ref.c', path: 'mbd/esp32/generated/hyp_cordic_ref.c' },
-      { name: 'hyp_cordic_ref.h', path: 'mbd/esp32/generated/hyp_cordic_ref.h' }
-    ]
-  },
-  { folder: 'Build', files: [
-      { name: 'platformio.ini', path: 'mbd/esp32/platformio.ini' },
-      { name: 'build.log', path: '.hypraccel/build.log' }
-    ]
-  }
-];
+/* ────────────────────────────────────────────────────────────────────────
+   State
+   ──────────────────────────────────────────────────────────────────────── */
+let projectsList = [];
+let activeProjectId = null;
+let activeStatus = null;
+let activeSelectedPath = null;
+let consoleText = '';
+let activeConsoleTab = 'log';
 
-let activeFilePath = null;
-let projectGraph = null;
-
-async function fetchProject() {
-  try {
-    const res = await fetch('/api/project');
-    if (!res.ok) throw new Error('Failed to load project');
-    const project = await res.json();
-    document.getElementById('projectName').textContent = project.name || 'HyprAccel Project';
-    document.getElementById('projectBoard').textContent = 'Board: ' + (project.board || 'None');
-    document.getElementById('projectId').textContent = 'ID: ' + (project.id || 'none');
-    projectGraph = project.graph;
-    renderTree();
-    log('Workspace initialized.', 'info');
-  } catch (err) {
-    log('Error loading project: ' + err.message, 'err');
-  }
+/* ────────────────────────────────────────────────────────────────────────
+   API Operations
+   ──────────────────────────────────────────────────────────────────────── */
+async function apiFetch(url, options = {}) {
+    const res = await fetch(url, options);
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Request failed');
+        return data;
+    }
+    const text = await res.text();
+    if (!res.ok) throw new Error(text || 'Request failed');
+    return text;
 }
 
-function renderTree() {
-  const treeContainer = document.getElementById('projectTree');
-  treeContainer.innerHTML = '';
-  
-  projectStructure.forEach(section => {
+async function initWorkspace() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramProjectId = urlParams.get('projectId') || urlParams.get('project');
+    const storedProjectId = localStorage.getItem('hypraccel_active_project_id');
+    const preferredId = paramProjectId || storedProjectId;
+
+    await refreshProjectsList(preferredId);
+}
+
+async function refreshProjectsList(preferredId = null) {
+    try {
+        const data = await apiFetch('/api/projects');
+        projectsList = data.projects || [];
+        renderProjectSelectOptions();
+
+        if (projectsList.length === 0) {
+            // Auto-prompt creation if empty
+            activeProjectId = null;
+            renderEmptyState();
+            return;
+        }
+
+        let targetId = preferredId;
+        if (!targetId || !projectsList.some(p => p.id === targetId)) {
+            targetId = projectsList[0].id;
+        }
+
+        await selectProject(targetId);
+    } catch (err) {
+        logConsole(`Failed to load projects: ${err.message}`, 'err');
+    }
+}
+
+function renderProjectSelectOptions() {
+    const select = document.getElementById('projectSelect');
+    select.innerHTML = '';
+
+    if (projectsList.length === 0) {
+        select.innerHTML = '<option value="">(No projects found)</option>';
+        return;
+    }
+
+    for (const proj of projectsList) {
+        const opt = document.createElement('option');
+        opt.value = proj.id;
+        opt.textContent = `${proj.name} (${proj.id})`;
+        select.appendChild(opt);
+    }
+}
+
+async function selectProject(id) {
+    activeProjectId = id;
+    localStorage.setItem('hypraccel_active_project_id', id);
+
+    // Sync select element
+    const select = document.getElementById('projectSelect');
+    if (select.value !== id) select.value = id;
+
+    // Sync URL param without full page reload
+    const currentUrl = new URL(window.location);
+    if (currentUrl.searchParams.get('projectId') !== id) {
+        currentUrl.searchParams.set('projectId', id);
+        window.history.replaceState({}, '', currentUrl);
+    }
+
+    await loadProjectStatus(id);
+}
+
+async function loadProjectStatus(id) {
+    try {
+        const status = await apiFetch(`/api/projects/${encodeURIComponent(id)}/status`);
+        activeStatus = status;
+        updateStatusStrip(status);
+        renderProjectTree(status);
+        
+        // Auto-select generated/graph.c or hardware/hardware.json if nothing selected
+        if (status.generated && status.generated.includes('graph.c')) {
+            loadSourceFile('generated/graph.c');
+        } else if (status.components && status.components.hardware) {
+            loadSourceFile('hardware/hardware.json');
+        } else {
+            loadSourceFile('graph/graph.json');
+        }
+
+        // Try loading build log into console if present
+        if (status.build && status.build.log) {
+            try {
+                const logContent = await apiFetch(`/api/projects/${encodeURIComponent(id)}/build/log`);
+                setConsoleLog(logContent);
+            } catch (_) { /* log not available yet */ }
+        }
+    } catch (err) {
+        logConsole(`Error fetching project status: ${err.message}`, 'err');
+    }
+}
+
+function updateStatusStrip(status) {
+    const proj = status.project || {};
+    document.getElementById('stProjectName').textContent = `${proj.name || '—'} [${proj.id || '—'}]`;
+    document.getElementById('stBoard').textContent = proj.board || 'None';
+
+    const stGen = document.getElementById('stGenerated');
+    const genCount = status.generated ? status.generated.length : 0;
+    if (genCount > 0) {
+        stGen.textContent = `Generated (${genCount} files)`;
+        stGen.className = 'status-badge badge-green';
+    } else {
+        stGen.textContent = 'Not Generated';
+        stGen.className = 'status-badge badge-orange';
+    }
+
+    const stBuild = document.getElementById('stBuild');
+    if (status.build && status.build.log) {
+        stBuild.textContent = 'Build Log Available';
+        stBuild.className = 'status-badge badge-green';
+    } else {
+        stBuild.textContent = 'Idle / No Log';
+        stBuild.className = 'status-badge badge-muted';
+    }
+
+    const stFirmware = document.getElementById('stFirmware');
+    const envs = (status.build && status.build.environments) || [];
+    if (envs.length > 0) {
+        stFirmware.textContent = `Available (${envs.join(', ')})`;
+        stFirmware.className = 'status-badge badge-green';
+    } else {
+        stFirmware.textContent = 'Not Available';
+        stFirmware.className = 'status-badge badge-muted';
+    }
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   Project Tree Rendering
+   ──────────────────────────────────────────────────────────────────────── */
+function renderProjectTree(status) {
+    const container = document.getElementById('treeContainer');
+    container.innerHTML = '';
+
+    const rootFolder = document.createElement('div');
+    rootFolder.className = 'tree-folder';
+    rootFolder.innerHTML = `<span class="tree-folder-icon">📦</span> <span>${status.project.name}</span>`;
+    container.appendChild(rootFolder);
+
+    let fileCount = 0;
+
+    // Hardware folder
+    if (status.components && status.components.hardware) {
+        addTreeFolder(container, 'hardware/', [
+            { name: 'hardware.json', path: 'hardware/hardware.json', icon: '⚙️' }
+        ]);
+        fileCount++;
+    }
+
+    // Graph folder
+    if (status.components && status.components.graph) {
+        addTreeFolder(container, 'graph/', [
+            { name: 'graph.json', path: 'graph/graph.json', icon: '📊' }
+        ]);
+        fileCount++;
+    }
+
+    // Generated folder
+    if (status.generated && status.generated.length > 0) {
+        const genFiles = status.generated.map(file => ({
+            name: file,
+            path: `generated/${file}`,
+            icon: file.endsWith('.h') ? '📄' : '⚙️'
+        }));
+        addTreeFolder(container, 'generated/', genFiles);
+        fileCount += status.generated.length;
+    }
+
+    // Build folder
+    const buildFiles = [];
+    if (status.build && status.build.log) {
+        buildFiles.push({ name: 'build.log', path: 'build/build.log', icon: '📋' });
+    }
+    if (status.build && status.build.environments) {
+        for (const env of status.build.environments) {
+            buildFiles.push({ name: `${env}/firmware.bin`, path: `build/${env}/firmware.bin`, icon: '💾', isFirmware: true, env });
+        }
+    }
+    if (buildFiles.length > 0) {
+        addTreeFolder(container, 'build/', buildFiles);
+        fileCount += buildFiles.length;
+    }
+
+    document.getElementById('treeFileCount').textContent = `${fileCount} items`;
+}
+
+function addTreeFolder(parentEl, folderName, files) {
     const folderEl = document.createElement('div');
     folderEl.className = 'tree-folder';
-    folderEl.innerHTML = '📁 ' + section.folder;
-    treeContainer.appendChild(folderEl);
-    
-    section.files.forEach(file => {
-      const fileEl = document.createElement('div');
-      fileEl.className = 'tree-file';
-      fileEl.innerHTML = '📄 ' + file.name;
-      fileEl.onclick = () => loadFile(file.name, file.path, fileEl);
-      treeContainer.appendChild(fileEl);
-    });
-  });
-}
+    folderEl.style.paddingLeft = '20px';
+    folderEl.innerHTML = `<span class="tree-folder-icon">📁</span> <span>${folderName}</span>`;
+    parentEl.appendChild(folderEl);
 
-async function loadFile(name, path, element) {
-  document.querySelectorAll('.tree-file').forEach(el => el.classList.remove('active'));
-  if (element) element.classList.add('active');
-  
-  document.getElementById('sourceFilename').textContent = name;
-  const contentEl = document.getElementById('sourceContent');
-  contentEl.textContent = 'Loading...';
-  
-  try {
-    const res = await fetch('/api/project/file?path=' + encodeURIComponent(path));
-    if (!res.ok) throw new Error('File not found or unreadable');
-    const data = await res.json();
-    contentEl.textContent = data.content || '';
-    activeFilePath = path;
-  } catch (err) {
-    contentEl.textContent = '// ' + err.message;
-  }
-}
-
-function log(msg, type = '') {
-  const c = document.getElementById('consoleContent');
-  const el = document.createElement('div');
-  if (type === 'ok') el.className = 'log-ok';
-  else if (type === 'err') el.className = 'log-err';
-  else if (type === 'info') el.className = 'log-info';
-  el.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
-  c.appendChild(el);
-  c.scrollTop = c.scrollHeight;
-}
-
-async function runAction(endpoint, description) {
-  if (!projectGraph) {
-    log('Error: No graph data found in project.', 'err');
-    return;
-  }
-  log(description + '...', 'info');
-  
-  try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(projectGraph)
-    });
-    const data = await res.json();
-    if (res.ok) {
-      log('Action succeeded.\n' + (data.log || (data.markers ? 'Markers: ' + data.markers.join(', ') : '')), 'ok');
-      // If build.log was active, reload it
-      if (activeFilePath === '.hypraccel/build.log') loadFile('build.log', activeFilePath);
-    } else {
-      log('Action failed: ' + (data.error || data.log || 'Unknown error'), 'err');
-      if (activeFilePath === '.hypraccel/build.log') loadFile('build.log', activeFilePath);
+    for (const file of files) {
+        const fileEl = document.createElement('div');
+        fileEl.className = 'tree-file';
+        if (activeSelectedPath === file.path) fileEl.classList.add('active');
+        fileEl.dataset.path = file.path;
+        fileEl.innerHTML = `<span class="file-icon">${file.icon || '📄'}</span> <span>${file.name}</span>`;
+        fileEl.onclick = () => {
+            document.querySelectorAll('.tree-file').forEach(el => el.classList.remove('active'));
+            fileEl.classList.add('active');
+            if (file.isFirmware) {
+                renderFirmwareArtifactView(file);
+            } else {
+                loadSourceFile(file.path);
+            }
+        };
+        parentEl.appendChild(fileEl);
     }
-  } catch (err) {
-    log('Exception: ' + err.message, 'err');
-  }
 }
 
-document.getElementById('btnBuild').onclick = () => runAction('/api/compile', 'Starting Build');
-document.getElementById('btnFlash').onclick = () => runAction('/api/flash', 'Starting Build & Flash');
-document.getElementById('btnVerify').onclick = () => runAction('/api/verify', 'Starting Hardware Verification');
+function renderEmptyState() {
+    document.getElementById('stProjectName').textContent = 'No Projects';
+    document.getElementById('stBoard').textContent = '—';
+    document.getElementById('stGenerated').textContent = 'None';
+    document.getElementById('stGenerated').className = 'status-badge badge-muted';
+    document.getElementById('stBuild').textContent = 'None';
+    document.getElementById('stBuild').className = 'status-badge badge-muted';
+    document.getElementById('stFirmware').textContent = 'None';
+    document.getElementById('stFirmware').className = 'status-badge badge-muted';
 
-document.getElementById('btnCopy').onclick = async () => {
-  const content = document.getElementById('sourceContent').textContent;
-  try {
-    await navigator.clipboard.writeText(content);
-    log('Source copied to clipboard.', 'info');
-  } catch (err) {
-    log('Failed to copy to clipboard.', 'err');
-  }
-};
+    const container = document.getElementById('treeContainer');
+    container.innerHTML = `
+        <div class="empty-state">
+            <p>No persistent projects found.</p>
+            <button class="action-btn btn-primary" onclick="openNewProjectModal()">Create Project</button>
+        </div>`;
+    document.getElementById('sourcePathDisplay').innerHTML = '<span>📄 No file selected</span>';
+    document.getElementById('sourceCode').textContent = '// Create or select a project to inspect source code.';
+}
 
-fetchProject();
+/* ────────────────────────────────────────────────────────────────────────
+   Source Viewer
+   ──────────────────────────────────────────────────────────────────────── */
+async function loadSourceFile(relativePath) {
+    if (!activeProjectId) return;
+    activeSelectedPath = relativePath;
+
+    document.getElementById('sourcePathDisplay').innerHTML = `<span>📄 ${relativePath}</span>`;
+    const sourceEl = document.getElementById('sourceCode');
+    sourceEl.textContent = 'Loading source file...';
+
+    try {
+        const data = await apiFetch(`/api/projects/${encodeURIComponent(activeProjectId)}/source?path=${encodeURIComponent(relativePath)}`);
+        sourceEl.textContent = data.content;
+    } catch (err) {
+        sourceEl.textContent = `// Could not load project file '${relativePath}': ${err.message}`;
+    }
+}
+
+function renderFirmwareArtifactView(file) {
+    activeSelectedPath = file.path;
+    document.getElementById('sourcePathDisplay').innerHTML = `<span>💾 ${file.path} (Firmware Image)</span>`;
+    const sourceEl = document.getElementById('sourceCode');
+    sourceEl.textContent = 
+`================================================================================
+HYPRACCEL TARGET FIRMWARE ARTIFACT
+================================================================================
+Project ID:    ${activeProjectId}
+Environment:   ${file.env || 'esp32dev'}
+Artifact Path: ${file.path}
+Status:        Available for physical flashing via ESP32 / PlatformIO engine.
+
+Endpoint:      GET /api/projects/${activeProjectId}/build/firmware
+Binary Format: ESP32 Application Image (.bin)
+================================================================================`;
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   Actions (Generate, Compile, Flash, Verify)
+   ──────────────────────────────────────────────────────────────────────── */
+async function runGenerate() {
+    if (!activeProjectId) return;
+    logConsole(`[ACTION] Starting generation for project '${activeProjectId}'...`, 'info');
+    try {
+        const data = await apiFetch(`/api/projects/${encodeURIComponent(activeProjectId)}/generate`, { method: 'POST' });
+        logConsole(`✓ Generation succeeded for '${activeProjectId}'. Materialized sources: ${data.generated ? (data.generated.environment || 'esp32') : 'ready'}.`, 'ok');
+        await loadProjectStatus(activeProjectId);
+        if (activeStatus && activeStatus.generated && activeStatus.generated.includes('graph.c')) {
+            loadSourceFile('generated/graph.c');
+        }
+    } catch (err) {
+        logConsole(`✗ Generation failed: ${err.message}`, 'err');
+    }
+}
+
+async function runCompile() {
+    if (!activeProjectId) return;
+    logConsole(`[ACTION] Starting build/compile for project '${activeProjectId}'...`, 'info');
+    try {
+        const data = await apiFetch(`/api/projects/${encodeURIComponent(activeProjectId)}/compile`, { method: 'POST' });
+        if (data.log) setConsoleLog(data.log);
+        logConsole(`✓ Build completed for '${activeProjectId}'. Status: ${data.success ? 'SUCCESS' : 'FAILED'}.`, data.success ? 'ok' : 'err');
+        await loadProjectStatus(activeProjectId);
+    } catch (err) {
+        logConsole(`✗ Build failed: ${err.message}`, 'err');
+        await loadProjectStatus(activeProjectId);
+    }
+}
+
+async function runFlash() {
+    if (!activeProjectId) return;
+    logConsole(`[ACTION] Starting Flash for project '${activeProjectId}'...`, 'info');
+    try {
+        const data = await apiFetch('/api/flash', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ projectId: activeProjectId })
+        });
+        if (data.log) setConsoleLog(data.log);
+        logConsole(`✓ Flash completed. Status: ${data.stage || 'OK'}.`, data.success ? 'ok' : 'err');
+        await loadProjectStatus(activeProjectId);
+    } catch (err) {
+        logConsole(`✗ Flash failed: ${err.message}`, 'err');
+    }
+}
+
+async function runVerify() {
+    if (!activeProjectId) return;
+    logConsole(`[ACTION] Starting Hardware Verification for project '${activeProjectId}'...`, 'info');
+    try {
+        const data = await apiFetch('/api/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ projectId: activeProjectId })
+        });
+        if (data.log) setConsoleLog(data.log);
+        const markersMsg = data.markers ? ` Verified markers: ${data.markers.join(', ')}` : '';
+        logConsole(`✓ Verification status: ${data.success ? 'PASSED' : 'FAILED'}.${markersMsg}`, data.success ? 'ok' : 'err');
+    } catch (err) {
+        logConsole(`✗ Verification failed: ${err.message}`, 'err');
+    }
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   Project Management (Create, Delete)
+   ──────────────────────────────────────────────────────────────────────── */
+function openNewProjectModal() {
+    document.getElementById('inputProjId').value = '';
+    document.getElementById('inputProjName').value = '';
+    document.getElementById('modalNewProject').classList.add('active');
+}
+
+function closeNewProjectModal() {
+    document.getElementById('modalNewProject').classList.remove('active');
+}
+
+async function submitNewProject() {
+    const id = document.getElementById('inputProjId').value.trim();
+    const name = document.getElementById('inputProjName').value.trim();
+
+    if (!id || !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(id)) {
+        alert('Invalid Project ID. Must start with a letter and contain only letters, numbers, underscores, or hyphens.');
+        return;
+    }
+    if (!name) {
+        alert('Please enter a project display name.');
+        return;
+    }
+
+    try {
+        const defaultHardware = { board: 'esp32', assignments: [] };
+        const defaultGraph = {
+            format: 'hypraccel.mbd.graph',
+            version: 1,
+            id: `${id}_graph`,
+            name: `${name} Graph`,
+            nodes: [
+                { id: 'constant', type: 'Constant', params: { value: 1.0 }, position: { x: 100, y: 100 } }
+            ],
+            edges: [],
+            metadata: { targetBoard: 'esp32' }
+        };
+
+        const res = await apiFetch('/api/projects', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, name, hardware: defaultHardware, graph: defaultGraph })
+        });
+
+        closeNewProjectModal();
+        logConsole(`✓ Created project '${id}'.`, 'ok');
+        await refreshProjectsList(id);
+    } catch (err) {
+        alert(`Could not create project: ${err.message}`);
+    }
+}
+
+async function deleteActiveProject() {
+    if (!activeProjectId) return;
+    if (!confirm(`Are you sure you want to delete project '${activeProjectId}'? This action cannot be undone.`)) return;
+
+    try {
+        await apiFetch(`/api/projects/${encodeURIComponent(activeProjectId)}`, { method: 'DELETE' });
+        logConsole(`✓ Project '${activeProjectId}' deleted.`, 'warn');
+        activeProjectId = null;
+        localStorage.removeItem('hypraccel_active_project_id');
+        await refreshProjectsList();
+    } catch (err) {
+        alert(`Failed to delete project: ${err.message}`);
+    }
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   Console Output & Utilities
+   ──────────────────────────────────────────────────────────────────────── */
+function logConsole(text, type = 'info') {
+    const el = document.getElementById('consoleOutput');
+    const timestamp = new Date().toLocaleTimeString();
+    let prefix = '';
+    if (type === 'ok') prefix = '<span class="log-ok">';
+    else if (type === 'err') prefix = '<span class="log-err">';
+    else if (type === 'warn') prefix = '<span class="log-warn">';
+    else prefix = '<span class="log-info">';
+
+    const entry = `${prefix}[${timestamp}] ${text}</span>\n`;
+    el.innerHTML += entry;
+    const viewport = document.getElementById('consoleViewport');
+    viewport.scrollTop = viewport.scrollHeight;
+}
+
+function setConsoleLog(content) {
+    const el = document.getElementById('consoleOutput');
+    el.textContent = content;
+    const viewport = document.getElementById('consoleViewport');
+    viewport.scrollTop = viewport.scrollHeight;
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   Event Listeners
+   ──────────────────────────────────────────────────────────────────────── */
+document.getElementById('projectSelect').addEventListener('change', (e) => {
+    if (e.target.value) selectProject(e.target.value);
+});
+document.getElementById('btnNewProject').addEventListener('click', openNewProjectModal);
+document.getElementById('btnDeleteProject').addEventListener('click', deleteActiveProject);
+document.getElementById('btnCloseModal').addEventListener('click', closeNewProjectModal);
+document.getElementById('btnCancelCreate').addEventListener('click', closeNewProjectModal);
+document.getElementById('btnSubmitCreate').addEventListener('click', submitNewProject);
+
+document.getElementById('btnGenerate').addEventListener('click', runGenerate);
+document.getElementById('btnCompile').addEventListener('click', runCompile);
+document.getElementById('btnFlash').addEventListener('click', runFlash);
+document.getElementById('btnVerify').addEventListener('click', runVerify);
+
+document.getElementById('btnCopySource').addEventListener('click', async () => {
+    const code = document.getElementById('sourceCode').textContent;
+    const toast = document.getElementById('copyToast');
+    try {
+        await navigator.clipboard.writeText(code);
+        toast.classList.add('visible');
+        setTimeout(() => toast.classList.remove('visible'), 2000);
+    } catch (_) {
+        alert('Failed to copy to clipboard.');
+    }
+});
+
+document.getElementById('btnClearLog').addEventListener('click', () => {
+    document.getElementById('consoleOutput').textContent = '';
+});
+document.getElementById('btnCopyLog').addEventListener('click', async () => {
+    const logText = document.getElementById('consoleOutput').textContent;
+    try {
+        await navigator.clipboard.writeText(logText);
+        logConsole('✓ Console log copied to clipboard.', 'info');
+    } catch (_) {
+        alert('Failed to copy console log.');
+    }
+});
+
+document.getElementById('btnToggleConsole').addEventListener('click', () => {
+    document.getElementById('bottomDock').classList.toggle('collapsed');
+});
+
+// Bottom Console Resizing
+document.getElementById('bottomResizeHandle').addEventListener('pointerdown', event => {
+    const dock = document.getElementById('bottomDock');
+    if (dock.classList.contains('collapsed')) dock.classList.remove('collapsed');
+    const handle = document.getElementById('bottomResizeHandle');
+    handle.classList.add('dragging');
+    const startY = event.clientY;
+    const startHeight = dock.getBoundingClientRect().height;
+    const move = moveEvent => {
+        const next = Math.max(80, Math.min(window.innerHeight - 120, startHeight + startY - moveEvent.clientY));
+        dock.style.height = `${next}px`;
+    };
+    const stop = () => {
+        handle.classList.remove('dragging');
+        document.removeEventListener('pointermove', move);
+        document.removeEventListener('pointerup', stop);
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', stop, { once: true });
+    event.preventDefault();
+});
+
+// Initialize on page load
+initWorkspace();
 </script>
 </body>
 </html>

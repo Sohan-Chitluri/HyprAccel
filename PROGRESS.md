@@ -145,6 +145,7 @@ The runtime SDK provides embedded primitives required by generated C step functi
 
 - [x] DESK-T1a | Project workspace persistence foundation (Task 1/4) | Owner: Codex | Repository-local `.hypraccel/projects/<id>/` manifests with canonical hardware/graph components, project CRUD/component/source/status APIs, scoped hardware/build persistence, and focused API regression coverage. |
 - [x] DESK-T1b | Persistent project materialization and PlatformIO build (Task 2/4) | Owner: Codex/Luna | Single materialization path targets project `generated/`, derives `platformio.ini` board from persisted hardware, runs project-scoped PlatformIO, and preserves build logs/firmware artifacts with reproducibility tests. |
+- [x] DESK-T1c | Minimal Project Workspace UI (Task 3/4) | Owner: Antigravity | Integrated Project Workspace UI at /workspace with project selection, project file tree, read-only generated source code viewer, status indicators, build log view, and project generate/build/flash actions. |
 
 ## TRACK PLATFORM — Telemetry & Tooling
 - [x] PLAT-T1 | Telemetry dashboard | Owner: Antigravity | Status: Complete
