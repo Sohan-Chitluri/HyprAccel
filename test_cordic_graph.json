@@ -1,0 +1,39 @@
+{
+  "format": "hypraccel.mbd.graph",
+  "version": 1,
+  "id": "test_cordic",
+  "metadata": {
+    "targetBoard": "esp32"
+  },
+  "inputs": [
+    {
+      "name": "angle",
+      "type": "number"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "CordicOp_1",
+      "type": "CordicOp",
+      "params": {
+        "operation": "sin",
+        "implementation": "auto",
+        "iterations": 16,
+        "hardwareResource": "accelerator.cordic"
+      }
+    }
+  ],
+  "edges": [],
+  "metadata": {
+    "targetBoard": "esp32",
+    "externalBindings": [
+      {
+        "input": "angle",
+        "to": {
+          "node": "CordicOp_1",
+          "port": "angle_rad"
+        }
+      }
+    ]
+  }
+}

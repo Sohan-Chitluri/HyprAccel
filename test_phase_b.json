@@ -1,0 +1,65 @@
+{
+  "format": "hypraccel.mbd.graph",
+  "version": 1,
+  "id": "phase_b_test",
+  "name": "Phase B Test Graph",
+  "nodes": [
+    {
+      "id": "const1",
+      "type": "Constant",
+      "label": "Constant 5.0",
+      "params": { "value": 5.0 },
+      "position": { "x": 100, "y": 100 }
+    },
+    {
+      "id": "compare1",
+      "type": "Compare",
+      "label": "Compare > 3.0",
+      "params": { "operation": "gt", "threshold": 3.0 },
+      "position": { "x": 300, "y": 100 }
+    },
+    {
+      "id": "sat1",
+      "type": "Saturation",
+      "label": "Saturate [-1, 1]",
+      "params": { "min": -1.0, "max": 1.0 },
+      "position": { "x": 500, "y": 100 }
+    },
+    {
+      "id": "const2",
+      "type": "Constant",
+      "label": "Constant 10.0",
+      "params": { "value": 10.0 },
+      "position": { "x": 100, "y": 200 }
+    },
+    {
+      "id": "const3",
+      "type": "Constant",
+      "label": "Constant -5.0",
+      "params": { "value": -5.0 },
+      "position": { "x": 100, "y": 300 }
+    },
+    {
+      "id": "switch1",
+      "type": "Switch",
+      "label": "Switch",
+      "params": {},
+      "position": { "x": 500, "y": 250 }
+    },
+    {
+      "id": "publish1",
+      "type": "Publish",
+      "label": "Result",
+      "params": { "topic": "telemetry/test", "transport": "telemetry", "retain": false },
+      "position": { "x": 700, "y": 200 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "from": { "node": "const1", "port": "value" }, "to": { "node": "compare1", "port": "input" } },
+    { "id": "e2", "from": { "node": "const2", "port": "value" }, "to": { "node": "sat1", "port": "input" } },
+    { "id": "e3", "from": { "node": "compare1", "port": "result" }, "to": { "node": "switch1", "port": "condition" } },
+    { "id": "e4", "from": { "node": "const2", "port": "value" }, "to": { "node": "switch1", "port": "true_value" } },
+    { "id": "e5", "from": { "node": "const3", "port": "value" }, "to": { "node": "switch1", "port": "false_value" } },
+    { "id": "e6", "from": { "node": "switch1", "port": "value" }, "to": { "node": "publish1", "port": "value" } }
+  ]
+}

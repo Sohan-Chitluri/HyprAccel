@@ -1,0 +1,62 @@
+{
+  "format": "hypraccel.mbd.graph",
+  "version": 1,
+  "id": "pid_test",
+  "name": "PID Test Graph",
+  "nodes": [
+    {
+      "id": "setpoint",
+      "type": "Constant",
+      "label": "Setpoint",
+      "params": { "value": 10.0 },
+      "position": { "x": 100, "y": 100 }
+    },
+    {
+      "id": "measurement",
+      "type": "Constant",
+      "label": "Measurement",
+      "params": { "value": 5.0 },
+      "position": { "x": 100, "y": 200 }
+    },
+    {
+      "id": "enable",
+      "type": "Constant",
+      "label": "Enable",
+      "params": { "value": 1 },
+      "position": { "x": 100, "y": 300 }
+    },
+    {
+      "id": "pid",
+      "type": "ControlLoop",
+      "label": "PID Controller",
+      "params": {
+        "kp": 2.0,
+        "ki": 0.5,
+        "kd": 0.1,
+        "samplePeriodUs": 10000,
+        "outputMin": -100.0,
+        "outputMax": 100.0,
+        "initialOutput": 0.0
+      },
+      "position": { "x": 300, "y": 200 }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": { "node": "setpoint", "port": "value" },
+      "to": { "node": "pid", "port": "setpoint" }
+    },
+    {
+      "id": "e2",
+      "from": { "node": "measurement", "port": "value" },
+      "to": { "node": "pid", "port": "measurement" }
+    },
+    {
+      "id": "e3",
+      "from": { "node": "enable", "port": "value" },
+      "to": { "node": "pid", "port": "enable" }
+    }
+  ],
+  "metadata": {}
+}

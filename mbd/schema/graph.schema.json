@@ -31,7 +31,7 @@
   },
   "$defs": {
     "identifier": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
-    "hardwareResourceId": { "type": "string", "pattern": "^(gpio|uart|spi|i2c|pwm|adc|accelerator)\\.[A-Za-z0-9_-]+$" },
+    "hardwareResourceId": { "type": "string", "pattern": "^(gpio|uart|spi|i2c|pwm|adc|accelerator|encoder|motor)\\\\.[A-Za-z0-9_-]+$" },
     "graphInput": {
       "type": "object", "additionalProperties": false,
       "required": ["name", "type"],
@@ -46,7 +46,7 @@
       "required": ["id", "type", "params"],
       "properties": {
         "id": { "$ref": "#/$defs/identifier" },
-        "type": { "enum": ["SensorInput", "CordicOp", "KinematicsSolve", "ControlLoop", "ActuatorOutput", "Publish", "Constant", "Add", "Subtract", "Multiply", "Gain", "Compare", "Saturation", "Switch", "GPIOInput", "ADCInput", "PWMOutput", "UARTInput", "UARTOutput"] },
+        "type": { "enum": ["SensorInput", "CordicOp", "KinematicsSolve", "ControlLoop", "ActuatorOutput", "Publish", "Constant", "Add", "Subtract", "Multiply", "Gain", "Compare", "Saturation", "Switch", "GPIOInput", "ADCInput", "PWMOutput", "UARTInput", "UARTOutput", "EncoderInput", "MotorOutput", "WheelSpeed", "DifferentialDrive"] },
         "label": { "type": "string", "minLength": 1 },
         "params": { "type": "object" },
         "position": {
@@ -76,7 +76,11 @@
         { "$ref": "#/$defs/adcInputNode" },
         { "$ref": "#/$defs/pwmOutputNode" },
         { "$ref": "#/$defs/uartInputNode" },
-        { "$ref": "#/$defs/uartOutputNode" }
+        { "$ref": "#/$defs/uartOutputNode" },
+        { "$ref": "#/$defs/encoderInputNode" },
+        { "$ref": "#/$defs/motorOutputNode" },
+        { "$ref": "#/$defs/wheelSpeedNode" },
+        { "$ref": "#/$defs/differentialDriveNode" }
       ]
     },
     "sensorInputNode": {
@@ -135,6 +139,18 @@
     },
     "uartOutputNode": {
       "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "UARTOutput" }, "params": { "type": "object", "additionalProperties": false, "required": ["hardwareResource"], "properties": { "hardwareResource": { "type": "string", "pattern": "^uart\\.[A-Za-z0-9_-]+$" }, "baudRate": { "type": "integer", "minimum": 300, "maximum": 1000000 }, "dataBits": { "type": "integer", "enum": [5, 6, 7, 8] }, "parity": { "type": "string", "enum": ["none", "even", "odd"] }, "stopBits": { "type": "integer", "enum": [1, 2] } } } } }]
+    },
+    "encoderInputNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "EncoderInput" }, "params": { "type": "object", "additionalProperties": false, "required": ["hardwareResource", "samplePeriodUs"], "properties": { "hardwareResource": { "type": "string", "pattern": "^encoder\\.[A-Za-z0-9_-]+$" }, "samplePeriodUs": { "type": "integer", "minimum": 1 }, "pulsesPerRevolution": { "type": "integer", "minimum": 1 }, "quadrature": { "type": "boolean" } } } } }]
+    },
+    "motorOutputNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "MotorOutput" }, "params": { "type": "object", "additionalProperties": false, "required": ["hardwareResource", "min", "max"], "properties": { "hardwareResource": { "type": "string", "pattern": "^motor\\.[A-Za-z0-9_-]+$" }, "min": { "type": "number" }, "max": { "type": "number" }, "unit": { "type": "string" }, "safeValue": { "type": "number" } } } } }]
+    },
+    "wheelSpeedNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "WheelSpeed" }, "params": { "type": "object", "additionalProperties": false, "required": ["pulsesPerRevolution", "wheelRadiusMeters"], "properties": { "pulsesPerRevolution": { "type": "integer", "minimum": 1 }, "wheelRadiusMeters": { "type": "number", "exclusiveMinimum": 0 } } } } }]
+    },
+    "differentialDriveNode": {
+      "allOf": [{ "$ref": "#/$defs/nodeBase" }, { "properties": { "type": { "const": "DifferentialDrive" }, "params": { "type": "object", "additionalProperties": false, "required": ["trackWidthMeters"], "properties": { "trackWidthMeters": { "type": "number", "exclusiveMinimum": 0 } } } } }]
     },
     "endpoint": {
       "type": "object", "additionalProperties": false,

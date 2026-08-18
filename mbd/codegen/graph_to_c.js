@@ -37,7 +37,7 @@ function hardwareResource(node, expectedType) {
     if (typeof resourceId !== 'string' || !resourceId) {
         fail(`${node.type} '${node.id}' requires a hardwareResource parameter`);
     }
-    const match = /^(gpio|uart|spi|i2c|pwm|adc|accelerator)\.([A-Za-z0-9_-]+)$/.exec(resourceId);
+    const match = /^(gpio|uart|spi|i2c|pwm|adc|accelerator|encoder|motor)\.([A-Za-z0-9_-]+)$/.exec(resourceId);
     if (!match) {
         fail(`${node.type} '${node.id}' has invalid canonical hardware resource '${resourceId}'`);
     }
@@ -98,6 +98,14 @@ function nodeOutputNames(node) {
             return ['value', 'valid'];
         case 'UARTOutput':
             return ['sent'];
+        case 'EncoderInput':
+            return ['position', 'velocity', 'valid'];
+        case 'MotorOutput':
+            return ['applied', 'active'];
+        case 'WheelSpeed':
+            return ['speed'];
+        case 'DifferentialDrive':
+            return ['left_cmd', 'right_cmd'];
         default:
             return [];
     }
@@ -132,6 +140,14 @@ function nodeInputNames(node) {
             return [];
         case 'UARTOutput':
             return ['data'];
+        case 'EncoderInput':
+            return [];
+        case 'MotorOutput':
+            return ['command', 'enable'];
+        case 'WheelSpeed':
+            return ['encoder_count'];
+        case 'DifferentialDrive':
+            return ['linear_velocity', 'angular_velocity'];
         default:
             return [];
     }
@@ -193,7 +209,7 @@ function generate(graph, sourceName) {
     if (!Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) fail('graph must contain nodes and edges arrays');
     const nodeById = new Map();
     const nodeSymbols = new Set();
-    const supportedTypes = ['CordicOp', 'Publish', 'SensorInput', 'ActuatorOutput', 'Constant', 'Add', 'Subtract', 'Multiply', 'Gain', 'Compare', 'Saturation', 'Switch', 'ControlLoop', 'GPIOInput', 'ADCInput', 'PWMOutput', 'UARTInput', 'UARTOutput'];
+    const supportedTypes = ['CordicOp', 'Publish', 'SensorInput', 'ActuatorOutput', 'Constant', 'Add', 'Subtract', 'Multiply', 'Gain', 'Compare', 'Saturation', 'Switch', 'ControlLoop', 'GPIOInput', 'ADCInput', 'PWMOutput', 'UARTInput', 'UARTOutput', 'EncoderInput', 'MotorOutput', 'WheelSpeed', 'DifferentialDrive'];
 
     for (const node of graph.nodes) {
         if (!node || typeof node.id !== 'string' || !node.params || nodeById.has(node.id)) {
@@ -211,6 +227,8 @@ function generate(graph, sourceName) {
         if (node.type === 'PWMOutput') hardwareResource(node, 'pwm');
         if (node.type === 'UARTInput') hardwareResource(node, 'uart');
         if (node.type === 'UARTOutput') hardwareResource(node, 'uart');
+        if (node.type === 'EncoderInput') hardwareResource(node, 'encoder');
+        if (node.type === 'MotorOutput') hardwareResource(node, 'motor');
         nodeById.set(node.id, node);
     }
 
@@ -236,6 +254,10 @@ function generate(graph, sourceName) {
                               source.type === 'GPIOInput' ? ['value'] :
                               source.type === 'ADCInput' ? ['value'] :
                               source.type === 'UARTInput' ? ['value', 'valid'] :
+                              source.type === 'EncoderInput' ? ['position', 'velocity', 'valid'] :
+                              source.type === 'MotorOutput' ? ['applied', 'active'] :
+                              source.type === 'WheelSpeed' ? ['speed'] :
+                              source.type === 'DifferentialDrive' ? ['left_cmd', 'right_cmd'] :
                               source.type === 'PWMOutput' ? ['applied', 'active'] :
                               source.type === 'UARTOutput' ? ['sent'] : [];
         if (!sourceOutputs.includes(edge.from.port)) {
@@ -592,26 +614,123 @@ function generate(graph, sourceName) {
             }
 
         } else if (node.type === 'UARTOutput') {
-            // UARTOutput writes bytes to UART
-            const dataEdge = inbound.get(`${node.id}.data`);
-            if (!dataEdge) fail(`UARTOutput '${node.id}' requires a 'data' input edge`);
-            const dataVal = `${cIdentifier(dataEdge.node.id, 'node id')}_${dataEdge.port}`;
-            
-            const resourceId = hardwareResource(node, 'uart');
-            
-            const sentUsed = usedOutputs.has(`${node.id}.sent`);
-            lines.push(`    uint8_t ${nodeName}_sent = 0;`);
-            lines.push(`    int ${nodeName}_result = hyp_actuator_write(${cString(resourceId)}, &${dataVal}, sizeof(${dataVal}));`);
-            lines.push(`    if (${nodeName}_result == HYP_RUNTIME_OK) {`);
-            lines.push(`        ${nodeName}_sent = 1;`);
-            lines.push(`    }`);
-            if (!sentUsed) lines.push(`    (void)${nodeName}_sent;`);
+                    // UARTOutput writes bytes to UART
+                    const dataEdge = inbound.get(`${node.id}.data`);
+                    if (!dataEdge) fail(`UARTOutput '${node.id}' requires a 'data' input edge`);
+                    const dataVal = `${cIdentifier(dataEdge.node.id, 'node id')}_${dataEdge.port}`;
 
-        } else {
-            // For now, other node types are not yet implemented in codegen
-            fail(`node '${node.id}' type '${node.type}' codegen not yet implemented`);
-        }
-    }
+                    const resourceId = hardwareResource(node, 'uart');
+
+                    const sentUsed = usedOutputs.has(`${node.id}.sent`);
+                    lines.push(`    uint8_t ${nodeName}_sent = 0;`);
+                    lines.push(`    int ${nodeName}_result = hyp_actuator_write(${cString(resourceId)}, &${dataVal}, sizeof(${dataVal}));`);
+                    lines.push(`    if (${nodeName}_result == HYP_RUNTIME_OK) {`);
+                    lines.push(`        ${nodeName}_sent = 1;`);
+                    lines.push(`    }`);
+                    if (!sentUsed) lines.push(`    (void)${nodeName}_sent;`);
+
+                } else if (node.type === 'EncoderInput') {
+                    // EncoderInput reads position/velocity from encoder
+                    const resourceId = hardwareResource(node, 'encoder');
+
+                    const positionUsed = usedOutputs.has(`${node.id}.position`);
+                    const velocityUsed = usedOutputs.has(`${node.id}.velocity`);
+                    const validUsed = usedOutputs.has(`${node.id}.valid`);
+
+                    if (positionUsed) {
+                        lines.push(`    int32_t ${nodeName}_position = 0;`);
+                    }
+                    if (velocityUsed) {
+                        lines.push(`    float ${nodeName}_velocity = 0.0f;`);
+                    }
+                    if (validUsed) {
+                        lines.push(`    uint8_t ${nodeName}_valid = 0;`);
+                    }
+
+                    if (positionUsed || velocityUsed) {
+                        lines.push(`    int ${nodeName}_result = hyp_encoder_read(${cString(resourceId)}, ${positionUsed ? `&${nodeName}_position` : 'NULL'}, ${velocityUsed ? `&${nodeName}_velocity` : 'NULL'});`);
+                        lines.push(`    if (${nodeName}_result == HYP_RUNTIME_OK) {`);
+                        if (validUsed) {
+                            lines.push(`        ${nodeName}_valid = 1;`);
+                        }
+                        lines.push(`    }`);
+                    }
+
+                } else if (node.type === 'MotorOutput') {
+                    // MotorOutput writes command to motor via PWM
+                    const commandEdge = inbound.get(`${node.id}.command`);
+                    if (!commandEdge) fail(`MotorOutput '${node.id}' requires a 'command' input edge`);
+                    const commandVal = `${cIdentifier(commandEdge.node.id, 'node id')}_${commandEdge.port}`;
+
+                    const resourceId = hardwareResource(node, 'motor');
+
+                    const appliedUsed = usedOutputs.has(`${node.id}.applied`);
+                    const activeUsed = usedOutputs.has(`${node.id}.active`);
+                    const enableEdge = inbound.get(`${node.id}.enable`);
+                    const enableVal = enableEdge ? `${cIdentifier(enableEdge.node.id, 'node id')}_${enableEdge.port}` : 'true';
+
+                    const min = numberLiteral(node.params.min, `MotorOutput '${node.id}' min`);
+                    const max = numberLiteral(node.params.max, `MotorOutput '${node.id}' max`);
+                    if (node.params.max <= node.params.min) fail(`MotorOutput '${node.id}' max must be greater than min`);
+                    const safe = numberLiteral(node.params.safeValue === undefined ? node.params.min : node.params.safeValue, `MotorOutput '${node.id}' safeValue`);
+
+                    lines.push(`    float ${nodeName}_applied = ${commandVal};`);
+                    lines.push(`    if (${nodeName}_applied < ${min}) ${nodeName}_applied = ${min};`);
+                    lines.push(`    if (${nodeName}_applied > ${max}) ${nodeName}_applied = ${max};`);
+                    lines.push(`    float ${nodeName}_duty = (${nodeName}_applied - ${min}) / (${max} - ${min});`);
+                    lines.push(`    float ${nodeName}_safe_value = ${safe};`);
+                    lines.push(`    if (${nodeName}_safe_value < ${min}) ${nodeName}_safe_value = ${min};`);
+                    lines.push(`    if (${nodeName}_safe_value > ${max}) ${nodeName}_safe_value = ${max};`);
+                    lines.push(`    uint8_t ${nodeName}_active = 0;`);
+                    lines.push(`    if (${enableVal}) ${nodeName}_active = (hyp_actuator_write(${cString(resourceId)}, &${nodeName}_duty, sizeof(${nodeName}_duty)) == HYP_RUNTIME_OK);`);
+                    lines.push(`    else { float ${nodeName}_safe_duty = (${nodeName}_safe_value - ${min}) / (${max} - ${min}); hyp_actuator_write(${cString(resourceId)}, &${nodeName}_safe_duty, sizeof(${nodeName}_safe_duty)); }`);
+                    if (!appliedUsed) lines.push(`    (void)${nodeName}_applied;`);
+                    if (!enableEdge || !activeUsed) lines.push(`    (void)${nodeName}_safe_value;`);
+                    if (!activeUsed) lines.push(`    (void)${nodeName}_active;`);
+
+                } else if (node.type === 'WheelSpeed') {
+                    // WheelSpeed converts encoder count to linear speed (m/s)
+                    const encoderEdge = inbound.get(`${node.id}.encoder_count`);
+                    if (!encoderEdge) fail(`WheelSpeed '${node.id}' requires an 'encoder_count' input edge`);
+                    const encoderVal = `${cIdentifier(encoderEdge.node.id, 'node id')}_${encoderEdge.port}`;
+
+                    const speedUsed = usedOutputs.has(`${node.id}.speed`);
+                    if (speedUsed) {
+                        const ppr = numberLiteral(node.params.pulsesPerRevolution, `WheelSpeed '${node.id}' pulsesPerRevolution`);
+                        const radius = numberLiteral(node.params.wheelRadiusMeters, `WheelSpeed '${node.id}' wheelRadiusMeters`);
+                        lines.push(`    float ${nodeName}_speed = (${encoderVal} * 2.0f * 3.14159265358979323846f * ${radius}) / ${ppr};`);
+                    } else {
+                        lines.push(`    (void)${encoderVal};`);
+                    }
+
+                } else if (node.type === 'DifferentialDrive') {
+                    // DifferentialDrive converts linear/angular velocity to left/right motor commands
+                    const linearEdge = inbound.get(`${node.id}.linear_velocity`);
+                    const angularEdge = inbound.get(`${node.id}.angular_velocity`);
+                    if (!linearEdge) fail(`DifferentialDrive '${node.id}' requires a 'linear_velocity' input edge`);
+                    if (!angularEdge) fail(`DifferentialDrive '${node.id}' requires an 'angular_velocity' input edge`);
+                    const linearVal = `${cIdentifier(linearEdge.node.id, 'node id')}_${linearEdge.port}`;
+                    const angularVal = `${cIdentifier(angularEdge.node.id, 'node id')}_${angularEdge.port}`;
+
+                    const leftUsed = usedOutputs.has(`${node.id}.left_cmd`);
+                    const rightUsed = usedOutputs.has(`${node.id}.right_cmd`);
+                    const trackWidth = numberLiteral(node.params.trackWidthMeters, `DifferentialDrive '${node.id}' trackWidthMeters`);
+
+                    if (leftUsed) {
+                        lines.push(`    float ${nodeName}_left_cmd = ${linearVal} - (${angularVal} * ${trackWidth}) / 2.0f;`);
+                    } else {
+                        lines.push(`    (void)${linearVal};`);
+                        lines.push(`    (void)${angularVal};`);
+                    }
+                    if (rightUsed) {
+                        lines.push(`    float ${nodeName}_right_cmd = ${linearVal} + (${angularVal} * ${trackWidth}) / 2.0f;`);
+                    }
+
+                } else {
+                    // For now, other node types are not yet implemented in codegen
+                    fail(`node '${node.id}' type '${node.type}' codegen not yet implemented`);
+                }
+            }
     lines.push('}', '');
     return lines.join('\n');
 }

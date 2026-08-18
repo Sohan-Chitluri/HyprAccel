@@ -39,10 +39,10 @@ N ?= 10000000
 SRCS = test_cordic_ref.c $(SRC_DIR)/hyp_cordic_ref.c
 HDRS = $(SRC_DIR)/hyp_cordic_ref.h $(INC_DIR)/hyprccel.h
 
-SDK_OBJS = $(BUILD)/hyp_cordic_ref.o $(BUILD)/hyp_thejas.o $(BUILD)/hyp_esp32.o $(BUILD)/hyp_router.o
+SDK_OBJS = $(BUILD)/hyp_cordic_ref.o $(BUILD)/hyp_thejas.o $(BUILD)/hyp_esp32.o $(BUILD)/hyp_router.o $(BUILD)/hyp_pid.o $(BUILD)/hyp_encoder.o
 BOARD_CONFIG_TEST = $(BUILD)/test_board_config_consumption
 
-.PHONY: all test bench dump clean objs rtl-backend-test board-config-test sensor-actuator-test
+.PHONY: all test bench dump clean objs rtl-backend-test board-config-test sensor-actuator-test pid-test
 
 all: $(TARGET) objs $(BOARD_CONFIG_TEST)
 
@@ -53,6 +53,12 @@ $(TARGET): $(SRCS) $(HDRS) | $(BUILD)
 	$(CC) $(CFLAGS) -o $@ $(SRCS) $(LDFLAGS)
 
 objs: $(SDK_OBJS)
+
+$(BUILD)/hyp_encoder.o: $(SRC_DIR)/hyp_encoder.c | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/hyp_pid.o: $(SRC_DIR)/hyp_pid.c | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/%.o: $(SRC_DIR)/%.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -79,6 +85,10 @@ board-config-test: $(BOARD_CONFIG_TEST)
 sensor-actuator-test: test_sensor_actuator.c $(INC_DIR)/hyprccel.h | $(BUILD)
 	$(CC) $(CFLAGS) -o $(BUILD)/test_sensor_actuator test_sensor_actuator.c
 	$(BUILD)/test_sensor_actuator
+
+pid-test: test_pid.c $(INC_DIR)/hyprccel.h $(BUILD)/hyp_pid.o | $(BUILD)
+	$(CC) $(CFLAGS) -o $(BUILD)/test_pid test_pid.c $(BUILD)/hyp_pid.o $(LDFLAGS)
+	$(BUILD)/test_pid
 
 bench: $(TARGET)
 	@echo ""

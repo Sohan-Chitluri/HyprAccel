@@ -16,6 +16,7 @@ extern "C" {
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 /* Runtime primitive result codes. Zero means the operation completed. */
 #define HYP_RUNTIME_OK                       0
@@ -139,6 +140,79 @@ typedef struct {
     float out_sin;       /* Output */
     float out_cos;       /* Output */
 } hyp_cordic_args_t;
+
+/* -------------------------------------------------------------------------
+ * PID Control Loop Primitive (SDK-T3)
+ * ---------------------------------------------------------------------- */
+
+/**
+ * PID Controller State
+ * 
+ * Maintains internal state for discrete PID computation with anti-windup.
+ * State is persisted across step() calls.
+ */
+typedef struct {
+    float kp;              // Proportional gain
+    float ki;              // Integral gain
+    float kd;              // Derivative gain
+    float sample_period_s; // Sample period in seconds (samplePeriodUs / 1e6)
+    float output_min;      // Output saturation minimum
+    float output_max;      // Output saturation maximum
+    float integral;        // Integrated error (state)
+    float prev_error;      // Previous error for derivative term (state)
+    bool initialized;      // First-step flag
+} hyp_pid_state_t;
+
+/**
+ * hyp_pid_step — Discrete PID step with anti-windup
+ * 
+ * Computes one PID control cycle:
+ *   error = setpoint - measurement
+ *   integral += error * dt (with anti-windup clamping)
+ *   derivative = (error - prev_error) / dt
+ *   output = kp*error + ki*integral + kd*derivative
+ *   output clamped to [output_min, output_max]
+ * 
+ * @param state      PID state structure (modified)
+ * @param setpoint   Desired target value
+ * @param measurement Current measured value
+ * @param enable     Enable/disable the controller (false = reset state)
+ * @param out_command Output command value
+ * @param out_error   Current error value (setpoint - measurement)
+ * @return HYP_RUNTIME_OK on success, HYP_RUNTIME_INVALID_ARGUMENT if pointers are NULL
+ */
+int hyp_pid_step(hyp_pid_state_t *state, float setpoint, float measurement, bool enable, float *out_command, float *out_error);
+
+/* -------------------------------------------------------------------------
+ * Encoder Primitive (SDK-T5)
+ * ---------------------------------------------------------------------- */
+
+/**
+ * hyp_encoder_read — Read position and velocity from a quadrature encoder.
+ * 
+ * The hardware resource is identified by a semantic hardware resource ID
+ * (e.g., "encoder.wheel0") which maps to board-specific pin assignments
+ * in hyp_board_config.h.
+ * 
+ * @param resource_id   Hardware resource identifier (e.g., "encoder.wheel0")
+ * @param out_position  Pointer to output buffer for position (int32_t*), or NULL
+ * @param out_velocity  Pointer to output buffer for velocity (float*), or NULL
+ * @return HYP_RUNTIME_OK on success, otherwise a HYP_RUNTIME_* error code
+ */
+int hyp_encoder_read(const char *resource_id, int32_t *out_position, float *out_velocity);
+
+/**
+ * hyp_encoder_init — Initialize an encoder resource.
+ * 
+ * @param resource_id  Hardware resource identifier (e.g., "encoder.wheel0")
+ * @param pulses_per_revolution  Pulses per revolution of the encoder
+ * @param quadrature  Whether to use quadrature mode (2x resolution)
+ * @return HYP_RUNTIME_OK on success, otherwise a HYP_RUNTIME_* error code
+ */
+int hyp_encoder_init(const char *resource_id, int pulses_per_revolution, bool quadrature);
+
+/* Internal helper for parsing resource IDs (exposed for encoder implementation) */
+int parse_resource_id(const char *resource_id, char *type_out, size_t type_size, char *instance_out, size_t instance_size);
 
 #ifdef __cplusplus
 }

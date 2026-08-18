@@ -867,7 +867,11 @@ const defaults = {
   ADCInput:{samplePeriodUs:1000,unit:'V',minValue:0,maxValue:3.3},
   PWMOutput:{min:0,max:255,unit:'%',safeValue:0},
   UARTInput:{samplePeriodUs:1000,baudRate:115200,dataBits:8,parity:'none',stopBits:1},
-  UARTOutput:{baudRate:115200,dataBits:8,parity:'none',stopBits:1}
+  UARTOutput:{baudRate:115200,dataBits:8,parity:'none',stopBits:1},
+  EncoderInput:{samplePeriodUs:1000,pulsesPerRevolution:1024,quadrature:true},
+  MotorOutput:{min:-255,max:255,unit:'%',safeValue:0},
+  WheelSpeed:{pulsesPerRevolution:1024,wheelRadiusMeters:0.05},
+  DifferentialDrive:{trackWidthMeters:0.3}
 };
 
 const descriptions = {
@@ -889,7 +893,11 @@ const descriptions = {
   ADCInput:'Analog-to-digital converter input',
   PWMOutput:'Pulse-width modulation output',
   UARTInput:'UART serial input (reads available bytes)',
-  UARTOutput:'UART serial output (writes bytes)'
+  UARTOutput:'UART serial output (writes bytes)',
+  EncoderInput:'Quadrature encoder position/velocity input',
+  MotorOutput:'DC motor speed/torque output (via PWM)',
+  WheelSpeed:'Converts encoder pulses to linear speed',
+  DifferentialDrive:'Converts linear/angular velocity to left/right motor commands'
 };
 
 // Keep schema/node-library identifiers stable while presenting the domain
@@ -897,11 +905,11 @@ const descriptions = {
 const displayNames = { CordicOp: 'CORDIC' };
 
 const categories = [
-  { name: 'Inputs & Sensors', items: ['SensorInput', 'GPIOInput', 'ADCInput', 'UARTInput'] },
-  { name: 'Outputs & Actuators', items: ['ActuatorOutput', 'PWMOutput', 'UARTOutput'] },
+  { name: 'Inputs & Sensors', items: ['SensorInput', 'GPIOInput', 'ADCInput', 'UARTInput', 'EncoderInput'] },
+  { name: 'Outputs & Actuators', items: ['ActuatorOutput', 'PWMOutput', 'UARTOutput', 'MotorOutput'] },
   { name: 'Accelerator', items: ['CordicOp'] },
   { name: 'Control', items: ['ControlLoop'] },
-  { name: 'Robotics', items: ['KinematicsSolve'] },
+  { name: 'Robotics', items: ['KinematicsSolve', 'WheelSpeed', 'DifferentialDrive'] },
   { name: 'Data / Telemetry', items: ['Publish'] },
   { name: 'Signal Processing', items: ['Constant', 'Add', 'Subtract', 'Multiply', 'Gain', 'Compare', 'Saturation', 'Switch'] },
   { name: 'Communication', items: [], placeholder: 'Future expansion' },
@@ -929,7 +937,11 @@ const portTypes = {
   ADCInput:{in:[],out:[['value','number']]},
   PWMOutput:{in:[['value','number'],['enable','boolean']],out:[['applied','number'],['active','boolean']]},
   UARTInput:{in:[],out:[['value','number'],['valid','boolean']]},
-  UARTOutput:{in:[['data','number']],out:[['sent','boolean']]}
+  UARTOutput:{in:[['data','number']],out:[['sent','boolean']]},
+  EncoderInput:{in:[],out:[['position','number'],['velocity','number'],['valid','boolean']]},
+  MotorOutput:{in:[['command','number'],['enable','boolean']],out:[['applied','number'],['active','boolean']]},
+  WheelSpeed:{in:[['encoder_count','number']],out:[['speed','number']]},
+  DifferentialDrive:{in:[['linear_velocity','number'],['angular_velocity','number']],out:[['left_cmd','number'],['right_cmd','number']]}
 };
 
 function ports(type, params) {
@@ -1115,7 +1127,7 @@ function renderConfig() {
 
   let groupHtml = '';
 
-  if (['SensorInput', 'ActuatorOutput', 'GPIOInput', 'ADCInput', 'PWMOutput', 'UARTInput', 'UARTOutput'].includes(t)) {
+  if (['SensorInput', 'ActuatorOutput', 'GPIOInput', 'ADCInput', 'PWMOutput', 'UARTInput', 'UARTOutput', 'EncoderInput', 'MotorOutput'].includes(t)) {
     renderHardwareInspector(el, n);
     return;
   }
@@ -1188,6 +1200,22 @@ function renderConfig() {
   } else if (t === 'UARTOutput') {
     paramGroups = [
       { name: 'UART Settings', fields: [['hardwareResource','select'],['baudRate','number'],['dataBits','select'],['parity','select'],['stopBits','select']] }
+    ];
+  } else if (t === 'EncoderInput') {
+    paramGroups = [
+      { name: 'Encoder Settings', fields: [['hardwareResource','select'],['samplePeriodUs','number'],['pulsesPerRevolution','number'],['quadrature','check']] }
+    ];
+  } else if (t === 'MotorOutput') {
+    paramGroups = [
+      { name: 'Motor Settings', fields: [['hardwareResource','select'],['min','number'],['max','number'],['unit','text'],['safeValue','number']] }
+    ];
+  } else if (t === 'WheelSpeed') {
+    paramGroups = [
+      { name: 'Wheel Settings', fields: [['pulsesPerRevolution','number'],['wheelRadiusMeters','number']] }
+    ];
+  } else if (t === 'DifferentialDrive') {
+    paramGroups = [
+      { name: 'Drive Settings', fields: [['trackWidthMeters','number']] }
     ];
   }
 

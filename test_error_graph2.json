@@ -1,0 +1,39 @@
+{
+  "format": "hypraccel.mbd.graph",
+  "version": 1,
+  "id": "error_test_graph2",
+  "name": "Error Test - Invalid edge source port",
+  "nodes": [
+    {
+      "id": "sensor1",
+      "type": "SensorInput",
+      "label": "ADC Sensor",
+      "params": {
+        "source": "adc.channel0",
+        "valueType": "number",
+        "samplePeriodUs": 10000,
+        "unit": "V",
+        "hardwareResource": "adc.channel0"
+      },
+      "position": { "x": 100, "y": 100 }
+    },
+    {
+      "id": "publish1",
+      "type": "Publish",
+      "label": "Telemetry",
+      "params": {
+        "topic": "telemetry/test",
+        "transport": "telemetry",
+        "retain": false
+      },
+      "position": { "x": 400, "y": 100 }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge1",
+      "from": { "node": "sensor1", "port": "invalid_port" },
+      "to": { "node": "publish1", "port": "value" }
+    }
+  ]
+}

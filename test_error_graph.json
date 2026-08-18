@@ -1,0 +1,21 @@
+{
+  "format": "hypraccel.mbd.graph",
+  "version": 1,
+  "id": "error_test_graph",
+  "name": "Error Test - Missing hardwareResource",
+  "nodes": [
+    {
+      "id": "sensor1",
+      "type": "SensorInput",
+      "label": "ADC Sensor",
+      "params": {
+        "source": "adc.channel0",
+        "valueType": "number",
+        "samplePeriodUs": 10000,
+        "unit": "V"
+      },
+      "position": { "x": 100, "y": 100 }
+    }
+  ],
+  "edges": []
+}

@@ -88,6 +88,8 @@ boards:
   # -------------------------------------------------------------------------
   esp32:
     name: "ESP32 (WROOM-32)"
+    board: "ESP32 DevKit V1 / esp32dev"
+    mcu: "ESP32-WROOM-32"
     architecture: "xtensa-lx6"
     clock_freq_mhz: 240
     
@@ -134,3 +136,19 @@ boards:
         uart0: { tx: "GPIO1", rx: "GPIO3" }
         uart1: { tx: "GPIO10", rx: "GPIO9" }
         uart2: { tx: "GPIO17", rx: "GPIO16" }
+      # Output-capable ESP32 GPIOs suitable for LEDC/servo PWM. GPIO34-39 are
+      # input-only and intentionally excluded.
+      pwm:
+        - "GPIO25"
+        - "GPIO26"
+        - "GPIO27"
+        - "GPIO32"
+        - "GPIO33"
+      # ADC1 pins usable without Wi-Fi contention on ESP32-WROOM-32.
+      adc:
+        - "GPIO32"
+        - "GPIO33"
+        - "GPIO34"
+        - "GPIO35"
+        - "GPIO36"
+        - "GPIO39"

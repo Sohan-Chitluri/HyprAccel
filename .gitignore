@@ -8,6 +8,12 @@ build/
 obj_dir/
 **/obj_dir/
 
+# ESP32 live-reflash build output (MBD-T9)
+mbd/esp32/.pio/
+mbd/esp32/generated/
+.hypraccel/
+.venv-platformio/
+
 # Compiled object files & binaries
 *.o
 *.a
