@@ -18,6 +18,8 @@
 #   ./build/test_cordic --dump > stimulus.csv
 
 CC      = gcc
+CXX     = g++
+VERILATOR ?= verilator
 INC_DIR = ../include
 SRC_DIR = ../src
 CFLAGS  = -O2 -Wall -Wextra -std=c99 -I$(INC_DIR) -I$(SRC_DIR)
@@ -25,6 +27,12 @@ LDFLAGS = -lm
 
 BUILD    = build
 TARGET   = $(BUILD)/test_cordic
+RTL_OBJ  = $(BUILD)/rtl_obj
+RTL_TEST = $(BUILD)/test_cordic_rtl_backend
+RTL_ROOT = ../../rtl
+RTL_SRCS = $(RTL_ROOT)/pkg/cordic_pkg.sv $(RTL_ROOT)/fp_add_sub.sv $(RTL_ROOT)/cordic_lut.sv $(RTL_ROOT)/cordic_stage.sv $(RTL_ROOT)/cordic_pipeline.sv $(RTL_ROOT)/cordic_top.sv
+VERILATOR_ROOT ?= $(shell $(VERILATOR) -V 2>/dev/null | grep VERILATOR_ROOT | head -1 | sed -e 's/.*=[[:space:]]*//')
+RTL_CXXFLAGS = -O2 -Wall -Wextra -std=c++17 -DHYP_ENABLE_VERILATOR_BACKEND -I$(INC_DIR) -I$(SRC_DIR) -I$(RTL_OBJ) -I$(VERILATOR_ROOT)/include
 
 N ?= 10000000
 
@@ -32,10 +40,11 @@ SRCS = test_cordic_ref.c $(SRC_DIR)/hyp_cordic_ref.c
 HDRS = $(SRC_DIR)/hyp_cordic_ref.h $(INC_DIR)/hyprccel.h
 
 SDK_OBJS = $(BUILD)/hyp_cordic_ref.o $(BUILD)/hyp_thejas.o $(BUILD)/hyp_esp32.o $(BUILD)/hyp_router.o
+BOARD_CONFIG_TEST = $(BUILD)/test_board_config_consumption
 
-.PHONY: all test bench dump clean objs
+.PHONY: all test bench dump clean objs rtl-backend-test board-config-test
 
-all: $(TARGET) objs
+all: $(TARGET) objs $(BOARD_CONFIG_TEST)
 
 $(BUILD):
 	mkdir -p $(BUILD)
@@ -56,6 +65,17 @@ test: $(TARGET)
 	@echo ""
 	@echo ">>> Exit code: $$?"
 
+$(BOARD_CONFIG_TEST): test_board_config_consumption.c $(INC_DIR)/hyprccel.h | $(BUILD)
+	$(CC) $(CFLAGS) -o $@ test_board_config_consumption.c
+
+board-config-test: $(BOARD_CONFIG_TEST)
+	@echo ""
+	@echo ">>> Running FW-P1..P6 board config consumption tests..."
+	@echo ""
+	$(BOARD_CONFIG_TEST)
+	@echo ""
+	@echo ">>> Exit code: $$?"
+
 bench: $(TARGET)
 	@echo ""
 	@echo ">>> Running CORDIC benchmark (N=$(N))..."
@@ -73,6 +93,21 @@ validate: $(TARGET)
 dump: $(TARGET)
 	@echo ">>> Dumping CSV stimulus for RTL testbench..."
 	$(TARGET) --dump
+
+$(RTL_OBJ)/Vcordic_top.mk: $(RTL_SRCS) | $(BUILD)
+	$(VERILATOR) --cc --Mdir $(RTL_OBJ) --top-module cordic_top $(RTL_SRCS)
+
+$(RTL_OBJ)/Vcordic_top__ALL.a: $(RTL_OBJ)/Vcordic_top.mk
+	$(MAKE) -C $(RTL_OBJ) -f Vcordic_top.mk Vcordic_top__ALL.a
+
+$(BUILD)/hyp_router_rtl.o: $(SRC_DIR)/hyp_router.c | $(BUILD)
+	$(CC) $(CFLAGS) -DHYP_ENABLE_VERILATOR_BACKEND -c $< -o $@
+
+$(RTL_TEST): test_cordic_rtl_backend.cpp $(SRC_DIR)/hyp_cordic_rtl_backend.cpp $(SRC_DIR)/hyp_cordic_rtl_backend.h $(BUILD)/hyp_router_rtl.o $(BUILD)/hyp_esp32.o $(BUILD)/hyp_cordic_ref.o $(BUILD)/hyp_thejas.o $(INC_DIR)/hyprccel.h $(RTL_OBJ)/Vcordic_top__ALL.a
+	$(CXX) $(RTL_CXXFLAGS) -o $@ test_cordic_rtl_backend.cpp $(SRC_DIR)/hyp_cordic_rtl_backend.cpp $(BUILD)/hyp_router_rtl.o $(BUILD)/hyp_esp32.o $(BUILD)/hyp_cordic_ref.o $(BUILD)/hyp_thejas.o $(RTL_OBJ)/Vcordic_top__ALL.a $(VERILATOR_ROOT)/include/verilated.cpp $(VERILATOR_ROOT)/include/verilated_threads.cpp
+
+rtl-backend-test: $(RTL_TEST)
+	$(RTL_TEST)
 
 clean:
 	rm -rf $(BUILD)

@@ -17,12 +17,7 @@
 #include "../../boards/codegen/hyp_board_config.h"
 #endif
 
-// UART default pins from boards.yaml
-#define UART1_TX 10
-#define UART1_RX 9
-#define UART2_TX 17
-#define UART2_RX 16
-
+/* FW-P5: PWM channel counter for Arduino cores < 3 */
 #if ESP_ARDUINO_VERSION_MAJOR < 3
 static int next_pwm_channel = 0;
 #endif
@@ -552,7 +547,11 @@ int hyp_esp32_hw_init(void)
         #ifdef HYP_RESOURCE_UART_UART1_BAUD_RATE
             baud = HYP_RESOURCE_UART_UART1_BAUD_RATE;
         #endif
-        Serial1.begin(baud, SERIAL_8N1, UART1_RX, UART1_TX);
+        #if defined(HYP_RESOURCE_UART_UART1_TX_PIN) && defined(HYP_RESOURCE_UART_UART1_RX_PIN)
+            Serial1.begin(baud, SERIAL_8N1, HYP_RESOURCE_UART_UART1_RX_PIN, HYP_RESOURCE_UART_UART1_TX_PIN);
+        #else
+            #error "UART1 enabled but HYP_RESOURCE_UART_UART1_TX_PIN / _RX_PIN not defined in hyp_board_config.h"
+        #endif
         Serial.println("[INFO] UART1 initialized.");
     }
 #endif
@@ -563,7 +562,11 @@ int hyp_esp32_hw_init(void)
         #ifdef HYP_RESOURCE_UART_UART2_BAUD_RATE
             baud = HYP_RESOURCE_UART_UART2_BAUD_RATE;
         #endif
-        Serial2.begin(baud, SERIAL_8N1, UART2_RX, UART2_TX);
+        #if defined(HYP_RESOURCE_UART_UART2_TX_PIN) && defined(HYP_RESOURCE_UART_UART2_RX_PIN)
+            Serial2.begin(baud, SERIAL_8N1, HYP_RESOURCE_UART_UART2_RX_PIN, HYP_RESOURCE_UART_UART2_TX_PIN);
+        #else
+            #error "UART2 enabled but HYP_RESOURCE_UART_UART2_TX_PIN / _RX_PIN not defined in hyp_board_config.h"
+        #endif
         Serial.println("[INFO] UART2 initialized.");
     }
 #endif
@@ -573,6 +576,10 @@ int hyp_esp32_hw_init(void)
     // -------------------------------------------------------------------------
 #ifdef HYP_RESOURCE_SPI_HSPI
     {
+        #if !defined(HYP_RESOURCE_SPI_HSPI_SCK_PIN) || !defined(HYP_RESOURCE_SPI_HSPI_MOSI_PIN) \
+         || !defined(HYP_RESOURCE_SPI_HSPI_MISO_PIN) || !defined(HYP_RESOURCE_SPI_HSPI_CS_PIN)
+            #error "SPI HSPI enabled but pin macros missing from hyp_board_config.h"
+        #endif
         long freq = 1000000;
         #ifdef HYP_RESOURCE_SPI_HSPI_FREQUENCY_HZ
             freq = HYP_RESOURCE_SPI_HSPI_FREQUENCY_HZ;
@@ -584,16 +591,24 @@ int hyp_esp32_hw_init(void)
             else if (raw_mode == 2) mode = SPI_MODE2;
             else if (raw_mode == 3) mode = SPI_MODE3;
         #endif
+        (void)mode; (void)freq; /* used if device transaction APIs are called */
         SPIClass *hspi = new SPIClass(HSPI);
-        hspi->begin(14, 12, 13, 15); // SCK=14, MISO=12, MOSI=13, SS=15
-        pinMode(15, OUTPUT);
-        digitalWrite(15, HIGH); // Pull Chip Select high
+        hspi->begin(HYP_RESOURCE_SPI_HSPI_SCK_PIN,
+                    HYP_RESOURCE_SPI_HSPI_MISO_PIN,
+                    HYP_RESOURCE_SPI_HSPI_MOSI_PIN,
+                    HYP_RESOURCE_SPI_HSPI_CS_PIN);
+        pinMode(HYP_RESOURCE_SPI_HSPI_CS_PIN, OUTPUT);
+        digitalWrite(HYP_RESOURCE_SPI_HSPI_CS_PIN, HIGH);
         Serial.println("[INFO] SPI HSPI initialized.");
     }
 #endif
 
 #ifdef HYP_RESOURCE_SPI_VSPI
     {
+        #if !defined(HYP_RESOURCE_SPI_VSPI_SCK_PIN) || !defined(HYP_RESOURCE_SPI_VSPI_MOSI_PIN) \
+         || !defined(HYP_RESOURCE_SPI_VSPI_MISO_PIN) || !defined(HYP_RESOURCE_SPI_VSPI_CS_PIN)
+            #error "SPI VSPI enabled but pin macros missing from hyp_board_config.h"
+        #endif
         long freq = 1000000;
         #ifdef HYP_RESOURCE_SPI_VSPI_FREQUENCY_HZ
             freq = HYP_RESOURCE_SPI_VSPI_FREQUENCY_HZ;
@@ -605,10 +620,14 @@ int hyp_esp32_hw_init(void)
             else if (raw_mode == 2) mode = SPI_MODE2;
             else if (raw_mode == 3) mode = SPI_MODE3;
         #endif
+        (void)mode; (void)freq;
         SPIClass *vspi = new SPIClass(VSPI);
-        vspi->begin(18, 19, 23, 5); // SCK=18, MISO=19, MOSI=23, SS=5
-        pinMode(5, OUTPUT);
-        digitalWrite(5, HIGH); // Pull Chip Select high
+        vspi->begin(HYP_RESOURCE_SPI_VSPI_SCK_PIN,
+                    HYP_RESOURCE_SPI_VSPI_MISO_PIN,
+                    HYP_RESOURCE_SPI_VSPI_MOSI_PIN,
+                    HYP_RESOURCE_SPI_VSPI_CS_PIN);
+        pinMode(HYP_RESOURCE_SPI_VSPI_CS_PIN, OUTPUT);
+        digitalWrite(HYP_RESOURCE_SPI_VSPI_CS_PIN, HIGH);
         Serial.println("[INFO] SPI VSPI initialized.");
     }
 #endif
@@ -618,11 +637,14 @@ int hyp_esp32_hw_init(void)
     // -------------------------------------------------------------------------
 #ifdef HYP_RESOURCE_I2C_I2C0
     {
+        #if !defined(HYP_RESOURCE_I2C_I2C0_SDA_PIN) || !defined(HYP_RESOURCE_I2C_I2C0_SCL_PIN)
+            #error "I2C I2C0 enabled but HYP_RESOURCE_I2C_I2C0_SDA_PIN / _SCL_PIN not defined"
+        #endif
         long freq = 400000;
         #ifdef HYP_RESOURCE_I2C_I2C0_FREQUENCY_HZ
             freq = HYP_RESOURCE_I2C_I2C0_FREQUENCY_HZ;
         #endif
-        Wire.begin(21, 22, freq); // SDA=21, SCL=22
+        Wire.begin(HYP_RESOURCE_I2C_I2C0_SDA_PIN, HYP_RESOURCE_I2C_I2C0_SCL_PIN, (uint32_t)freq);
         Serial.println("[INFO] I2C I2C0 initialized.");
     }
 #endif
@@ -872,61 +894,155 @@ static int parse_resource_id(const char *resource_id, char *type_out, size_t typ
 }
 
 /**
- * Map semantic resource instance to pin number from hyp_board_config.h
- * Returns the GPIO pin number, or -1 if not found.
+ * hyp_resource_pin_entry — compile-time table entry mapping a resource ID
+ * string to its physical GPIO pin number.
+ *
+ * FW-P1..P6: All entries are derived from HYP_RESOURCE_*_PIN macros that
+ * gen_board_config.js emits from boards.yaml.  No pin numbers are hardcoded
+ * here; the table is built entirely from the generated configuration.
+ */
+typedef struct { const char *resource_id; int pin; } hyp_resource_pin_entry_t;
+
+static const hyp_resource_pin_entry_t hyp_resource_pin_table[] = {
+    /* ADC resources (FW-P6) */
+#ifdef HYP_RESOURCE_ADC_GPIO32_PIN
+    { "adc.GPIO32", HYP_RESOURCE_ADC_GPIO32_PIN },
+#endif
+#ifdef HYP_RESOURCE_ADC_GPIO33_PIN
+    { "adc.GPIO33", HYP_RESOURCE_ADC_GPIO33_PIN },
+#endif
+#ifdef HYP_RESOURCE_ADC_GPIO34_PIN
+    { "adc.GPIO34", HYP_RESOURCE_ADC_GPIO34_PIN },
+#endif
+#ifdef HYP_RESOURCE_ADC_GPIO35_PIN
+    { "adc.GPIO35", HYP_RESOURCE_ADC_GPIO35_PIN },
+#endif
+#ifdef HYP_RESOURCE_ADC_GPIO36_PIN
+    { "adc.GPIO36", HYP_RESOURCE_ADC_GPIO36_PIN },
+#endif
+#ifdef HYP_RESOURCE_ADC_GPIO39_PIN
+    { "adc.GPIO39", HYP_RESOURCE_ADC_GPIO39_PIN },
+#endif
+    /* PWM resources (FW-P5) */
+#ifdef HYP_RESOURCE_PWM_GPIO25_PIN
+    { "pwm.GPIO25", HYP_RESOURCE_PWM_GPIO25_PIN },
+#endif
+#ifdef HYP_RESOURCE_PWM_GPIO26_PIN
+    { "pwm.GPIO26", HYP_RESOURCE_PWM_GPIO26_PIN },
+#endif
+#ifdef HYP_RESOURCE_PWM_GPIO27_PIN
+    { "pwm.GPIO27", HYP_RESOURCE_PWM_GPIO27_PIN },
+#endif
+#ifdef HYP_RESOURCE_PWM_GPIO32_PIN
+    { "pwm.GPIO32", HYP_RESOURCE_PWM_GPIO32_PIN },
+#endif
+#ifdef HYP_RESOURCE_PWM_GPIO33_PIN
+    { "pwm.GPIO33", HYP_RESOURCE_PWM_GPIO33_PIN },
+#endif
+    /* GPIO resources (FW-P1) */
+#ifdef HYP_RESOURCE_GPIO_GPIO0_PIN
+    { "gpio.GPIO0",  HYP_RESOURCE_GPIO_GPIO0_PIN  },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO1_PIN
+    { "gpio.GPIO1",  HYP_RESOURCE_GPIO_GPIO1_PIN  },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO2_PIN
+    { "gpio.GPIO2",  HYP_RESOURCE_GPIO_GPIO2_PIN  },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO3_PIN
+    { "gpio.GPIO3",  HYP_RESOURCE_GPIO_GPIO3_PIN  },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO4_PIN
+    { "gpio.GPIO4",  HYP_RESOURCE_GPIO_GPIO4_PIN  },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO5_PIN
+    { "gpio.GPIO5",  HYP_RESOURCE_GPIO_GPIO5_PIN  },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO12_PIN
+    { "gpio.GPIO12", HYP_RESOURCE_GPIO_GPIO12_PIN },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO13_PIN
+    { "gpio.GPIO13", HYP_RESOURCE_GPIO_GPIO13_PIN },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO14_PIN
+    { "gpio.GPIO14", HYP_RESOURCE_GPIO_GPIO14_PIN },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO15_PIN
+    { "gpio.GPIO15", HYP_RESOURCE_GPIO_GPIO15_PIN },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO16_PIN
+    { "gpio.GPIO16", HYP_RESOURCE_GPIO_GPIO16_PIN },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO17_PIN
+    { "gpio.GPIO17", HYP_RESOURCE_GPIO_GPIO17_PIN },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO18_PIN
+    { "gpio.GPIO18", HYP_RESOURCE_GPIO_GPIO18_PIN },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO19_PIN
+    { "gpio.GPIO19", HYP_RESOURCE_GPIO_GPIO19_PIN },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO21_PIN
+    { "gpio.GPIO21", HYP_RESOURCE_GPIO_GPIO21_PIN },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO22_PIN
+    { "gpio.GPIO22", HYP_RESOURCE_GPIO_GPIO22_PIN },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO23_PIN
+    { "gpio.GPIO23", HYP_RESOURCE_GPIO_GPIO23_PIN },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO25_PIN
+    { "gpio.GPIO25", HYP_RESOURCE_GPIO_GPIO25_PIN },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO26_PIN
+    { "gpio.GPIO26", HYP_RESOURCE_GPIO_GPIO26_PIN },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO27_PIN
+    { "gpio.GPIO27", HYP_RESOURCE_GPIO_GPIO27_PIN },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO32_PIN
+    { "gpio.GPIO32", HYP_RESOURCE_GPIO_GPIO32_PIN },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO33_PIN
+    { "gpio.GPIO33", HYP_RESOURCE_GPIO_GPIO33_PIN },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO34_PIN
+    { "gpio.GPIO34", HYP_RESOURCE_GPIO_GPIO34_PIN },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO35_PIN
+    { "gpio.GPIO35", HYP_RESOURCE_GPIO_GPIO35_PIN },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO36_PIN
+    { "gpio.GPIO36", HYP_RESOURCE_GPIO_GPIO36_PIN },
+#endif
+#ifdef HYP_RESOURCE_GPIO_GPIO39_PIN
+    { "gpio.GPIO39", HYP_RESOURCE_GPIO_GPIO39_PIN },
+#endif
+    { NULL, -1 } /* sentinel */
+};
+
+/**
+ * get_pin_for_resource — look up the GPIO pin for a fully-qualified resource ID.
+ *
+ * resource_id format: "<type>.<instance>"  e.g. "adc.GPIO32", "pwm.GPIO25",
+ * "gpio.GPIO4".
+ *
+ * Returns the GPIO pin number from the compile-time table, or -1 if the
+ * resource is not configured in hyp_board_config.h.
  */
 static int get_pin_for_resource(const char *resource_type, const char *instance) {
-    // This function maps semantic resource names to the HYP_PIN_* macros
-    // generated by the pin configuration UI. The macros follow the pattern:
-    // HYP_PIN_<RESOURCE_TYPE>_<INSTANCE>__<SIGNAL_ROLE>
-    
-    // For ADC: HYP_PIN_ADC_CHANNEL0 -> GPIO pin
-    // For GPIO: HYP_PIN_GPIO_BUTTON0 -> GPIO pin (direction=input)
-    // For PWM: HYP_PIN_PWM_MOTOR0 -> GPIO pin
-    // For UART: HYP_PIN_UART_GPS__TX, HYP_PIN_UART_GPS__RX
-    // For SPI: HYP_PIN_SPI_IMU__SCK, HYP_PIN_SPI_IMU__MOSI, etc.
-    // For I2C: HYP_PIN_I2C_IMU__SDA, HYP_PIN_I2C_IMU__SCL
-    
-    // Since the macro names are generated dynamically, we need to construct
-    // the macro name and use preprocessor tricks. However, we can't do 
-    // dynamic macro expansion at runtime. Instead, we'll use a mapping approach.
-    
-    // This is a simplified implementation - in practice, the codegen should
-    // generate a lookup table or the resource mapping should be done at 
-    // compile time via generated code.
-    
-    // For now, we'll implement common cases with direct macro references
-    // The proper solution would be to have the codegen generate a resource
-    // mapping table, but for Phase 1A we'll support the basic pattern.
-    
-    // ADC channels
-    if (strcmp(resource_type, "adc") == 0) {
-        if (strcmp(instance, "channel0") == 0) return 32; // GPIO32
-        if (strcmp(instance, "channel1") == 0) return 33; // GPIO33
-        if (strcmp(instance, "channel2") == 0) return 34; // GPIO34
-        if (strcmp(instance, "channel3") == 0) return 35; // GPIO35
-        if (strcmp(instance, "channel4") == 0) return 36; // GPIO36
-        if (strcmp(instance, "channel5") == 0) return 39; // GPIO39
+    if (!resource_type || !instance) return -1;
+    /* Build fully-qualified key: "<type>.<instance>" on the stack */
+    char key[64];
+    snprintf(key, sizeof(key), "%s.%s", resource_type, instance);
+    for (int i = 0; hyp_resource_pin_table[i].resource_id != NULL; i++) {
+        if (strcmp(hyp_resource_pin_table[i].resource_id, key) == 0) {
+            return hyp_resource_pin_table[i].pin;
+        }
     }
-    
-    // GPIO inputs/outputs
-    if (strcmp(resource_type, "gpio") == 0) {
-        if (strcmp(instance, "button0") == 0) return 0;  // GPIO0
-        if (strcmp(instance, "button1") == 0) return 1;  // GPIO1
-        if (strcmp(instance, "led0") == 0) return 2;     // GPIO2
-        if (strcmp(instance, "led1") == 0) return 4;     // GPIO4
-    }
-    
-    // PWM outputs
-    if (strcmp(resource_type, "pwm") == 0) {
-        if (strcmp(instance, "motor0") == 0) return 25;   // GPIO25
-        if (strcmp(instance, "motor1") == 0) return 26;   // GPIO26
-        if (strcmp(instance, "servo0") == 0) return 27;   // GPIO27
-        if (strcmp(instance, "servo1") == 0) return 32;   // GPIO32
-        if (strcmp(instance, "led0") == 0) return 33;     // GPIO33
-    }
-    
-    return -1; // Not found
+    Serial.print("[WARN] get_pin_for_resource: no configured pin for ");
+    Serial.println(key);
+    return -1; /* resource not configured in board config */
 }
 
 int hyp_esp32_sensor_read(const char *resource_id, void *out_value, uint32_t value_size) {

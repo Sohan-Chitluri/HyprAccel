@@ -54,12 +54,12 @@
 - [/] FW-T4 | SDK target implementation & drivers | Owner: Antigravity | Status: Partial (C SDK targets ESP32 and THEJAS RISC-V host baselines; hardware driver generation pending)
 
 ### B. Target Peripheral Implementation
-- [/] FW-P1 | Target GPIO initialization & support | Owner: Antigravity | Status: Partial (Macro configuration complete; target driver read/write mapping pending)
-- [/] FW-P2 | Target UART initialization & support | Owner: Antigravity | Status: Partial (Serial TX/RX mapping complete in `boards.yaml`; target hardware initialization stubs present)
-- [/] FW-P3 | Target SPI initialization & support | Owner: Antigravity | Status: Partial (SPI SCK/MOSI/MISO/CS mapping complete; hardware bus initialization pending)
-- [/] FW-P4 | Target I2C initialization & support | Owner: Antigravity | Status: Partial (I2C SDA/SCL mapping complete; target I2C init pending)
-- [/] FW-P5 | Target PWM initialization & support | Owner: Antigravity | Status: Partial (PWM channel/output pin mapping complete; target timer PWM driver pending)
-- [/] FW-P6 | Target ADC initialization & support | Owner: Antigravity | Status: Partial (ADC channel/input pin mapping complete; target analog read driver pending)
+- [x] FW-P1 | Target GPIO initialization & support | Owner: Antigravity/Sonnet | Status: Complete (GPIO init blocks consume `HYP_RESOURCE_GPIO_GPIOx` and `HYP_RESOURCE_GPIO_GPIOx_DIRECTION/_PULL/_INITIAL_STATE` macros; runtime `hyp_esp32_sensor_read`/`hyp_esp32_actuator_write` resolve pin via macro-driven `hyp_resource_pin_table`; no hardcoded pin numbers; verified by `test_board_config_consumption` 29/29)
+- [x] FW-P2 | Target UART initialization & support | Owner: Antigravity/Sonnet | Status: Complete (UART1/UART2 `Serial1/Serial2.begin()` now consume `HYP_RESOURCE_UART_UARTx_TX_PIN`/`_RX_PIN` from generated board config; hardcoded `UART1_TX=10` etc. eliminated; `#error` guard on missing macros; sensor_read routes to correct Serial port via resource ID)
+- [x] FW-P3 | Target SPI initialization & support | Owner: Antigravity/Sonnet | Status: Complete (HSPI/VSPI `begin()` calls now consume `HYP_RESOURCE_SPI_HSPI_SCK_PIN`/`_MOSI_PIN`/`_MISO_PIN`/`_CS_PIN` from generated config; `#error` guard on missing macros; hardcoded `14,12,13,15` constants eliminated; gen_board_config.js emits full SPI pin macros from boards.yaml; verified 8/8 pin values)
+- [x] FW-P4 | Target I2C initialization & support | Owner: Antigravity/Sonnet | Status: Complete (`Wire.begin()` now consumes `HYP_RESOURCE_I2C_I2C0_SDA_PIN`/`_SCL_PIN` from generated config; hardcoded `21,22` eliminated; `#error` guard; gen_board_config.js emits I2C pin macros; verified 2/2 pin values)
+- [x] FW-P5 | Target PWM initialization & support | Owner: Antigravity/Sonnet | Status: Complete (PWM init blocks consume `HYP_RESOURCE_PWM_GPIOx` macros; `ledcAttach`/`ledcWrite` use pin from macro; runtime `hyp_esp32_actuator_write` resolves duty-cycle via macro-driven table; gen_board_config.js emits `HYP_RESOURCE_PWM_GPIOx_PIN` for all capable GPIO; verified 3 PWM pins)
+- [x] FW-P6 | Target ADC initialization & support | Owner: Antigravity/Sonnet | Status: Complete (ADC init blocks consume `HYP_RESOURCE_ADC_GPIOx` macros; `analogRead()` pin resolved at runtime from macro-driven `hyp_resource_pin_table`; gen_board_config.js emits `HYP_RESOURCE_ADC_GPIOx_PIN` for all ADC-capable GPIO; verified 3 ADC pin values)
 
 ### C. Generated Firmware Integration
 - [x] FW-G1 | Generated source & wrapper materialization | Owner: Antigravity | Status: Complete (Express server materializes generated `graph.c`, SDK sources, and Arduino wrapper into `mbd/esp32/generated/`)
