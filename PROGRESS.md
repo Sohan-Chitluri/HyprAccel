@@ -78,7 +78,7 @@ The runtime SDK provides embedded primitives required by generated C step functi
 #### Runtime Primitives (Specification & Implementation Status)
 - **`SDK-T1` | `hyp_sensor_read`**: `Complete` (Owner: Antigravity/Sonnet — Public contract, canonical `hardwareResourceId` resolution, GPIO/ADC/UART ESP32 reads, and explicit SPI/I2C unsupported handling; test in `sdk/test/test_sensor_actuator.c`)
 - **`SDK-T2` | `hyp_actuator_write`**: `Complete` (Owner: Antigravity/Sonnet — Public contract, canonical `hardwareResourceId` resolution, GPIO/PWM/UART ESP32 writes, and explicit SPI/I2C unsupported handling; test in `sdk/test/test_sensor_actuator.c`)
-- **`SDK-T3` | `hyp_pid_step` & PID State**: `Not started` (Specification stage). PID control loop calculation with anti-windup and state structures.
+- **`SDK-T3` | `hyp_pid_step` & PID State**: `Complete` (Owner: Nemotron — Discrete PID with anti-windup, conditional integration, output saturation; `hyp_pid_state_t` struct; tests in `sdk/test/test_pid.c` — 8/8 pass)
 - **`SDK-T4` | Kinematics Runtime**: `Not started` (Specification stage). Forward/Inverse kinematics matrix and vector routines.
 - **`SDK-T5` | Encoder Runtime**: `Not started` (Specification stage). Quadrature encoder pulse counting and velocity estimation routines.
 - **`SDK-T6` | Quaternion & SE(3) Runtime**: `Not started` (Specification stage). 3D orientation math (quaternions, Euler angles, SE(3) transformation matrices).
@@ -89,7 +89,7 @@ The runtime SDK provides embedded primitives required by generated C step functi
 *(Note: Implementing any node requires ALL of: 1. graph schema, 2. editor palette/representation, 3. ports and type definitions, 4. parameter validation, 5. graph-to-C code generation, 6. SDK/runtime dependency, 7. target/backend support, 8. tests. Node Catalog ≠ Node Implementation.)*
 - [x] NL-P0 | Core P0 node implementation | Owner: Codex | Status: Complete (`CordicOp`, `Publish`, `SensorInput`, `ActuatorOutput`, `GPIOInput`, `ADCInput`, and `PWMOutput` fully implemented with schema, palette/inspector, ports, resource validation, codegen, existing SDK primitives, ESP32 backend, and focused graph tests)
 - [ ] NL-P1 | Basic math & signal processing nodes | Owner: Future | Status: Not started
-- [ ] NL-P2 | Control nodes (PID, PI, Lead-Lag) | Owner: Future | Status: Not started
+- [x] NL-P2 | Control nodes (PID) | Owner: Nemotron | Status: Complete (`ControlLoop` fully implemented with schema, palette/inspector, ports, validation, deterministic C codegen, `hyp_pid_step` SDK primitive, and focused tests)
 - [ ] NL-R1 | 3-DOF robotics foundation nodes | Owner: Future | Status: Not started
 - [ ] NL-4WD | 4WD / mobile robotics nodes | Owner: Future | Status: Not started
 - [ ] NL-R2 | 6-DOF robotics foundation nodes | Owner: Future | Status: Not started
@@ -124,6 +124,7 @@ The runtime SDK provides embedded primitives required by generated C step functi
 - [ ] SCH-T6 | Schematic ↔ Hardware Setup consistency validator | Owner: Future | Status: Not started (Future Roadmap)
 - [/] SCH-T7 | MBD Node → schematic resource binding | Owner: Antigravity | Status: Partial (Graph schema & UI binding complete; schematic parser side Future Roadmap)
 - [/] SCH-T8 | EasyEDA .tel netlist import | Owner: Codex | Status: Partial (EasyEDA `.tel` adapter and ESP32 physical pin recovery added; real fixture `Netlist_Schematic1_2026-08-18.tel` is not present in this workspace, so full fixture-backed verification is pending)
+- [x] SCH-T9 | Expose Schematic Import to Hardware Setup UI | Owner: Antigravity | Status: Complete (Added preview and apply workflow in pin_config.html, bridging SCH-T1..T8 pipeline to canonical hardware model)
 
 ## TRACK SIM — Simulation Infrastructure & Plant Models
 - [ ] SIM-T1 | Gazebo 6-DOF arm URDF | Owner: Antigravity | Status: Not started
@@ -132,6 +133,13 @@ The runtime SDK provides embedded primitives required by generated C step functi
 - [ ] SIM-T4 | HW CORDIC in bridge | Owner: Antigravity | Status: Not started
 - [ ] SIM-T5 | Surgical framing | Owner: Antigravity | Status: Deferred
 - [ ] SIM-T6 | N-point stress test | Owner: Antigravity | Status: Deferred
+
+## TRACK 4: Workspace & IDE Integration (DESK)
+| ID | Title | Status |
+|---|---|---|
+| DESK-T1 | Project Workspace / deployable project viewer | [x] Completed |
+| DESK-T2 | Persistent graph storage and versioning | [ ] Planned |
+| DESK-T3 | Telemetry dash for live hardware monitoring | [ ] Planned |
 
 ## TRACK PLATFORM — Telemetry & Tooling
 - [x] PLAT-T1 | Telemetry dashboard | Owner: Antigravity | Status: Complete
@@ -146,10 +154,10 @@ The runtime SDK provides embedded primitives required by generated C step functi
 - [x] HW-UX-T1 | Hardware Setup v2 foundation / resource grouping (Board → Peripheral → Semantic Signals → Physical Pins) | Owner: Antigravity/Sonnet | Status: Complete (Hardware Setup renders board-model-driven collapsible peripheral/resource groups while preserving canonical resource IDs and physical-pin conflict handling)
 - [x] HW-UX-T2 | Peripheral / semantic signal sections (GPIO, SPI, I2C, UART, PWM, ADC grouped under resources) | Owner: Antigravity/Sonnet | Status: Complete (SPI/I2C/UART instances and GPIO/PWM/ADC resources are nested under data-driven collapsible groups; drag/drop semantic signal slots remain supported)
 - [x] HW-UX-T3 | Project target board selector integration (single project-level board state shared by Hardware Setup, Graph Editor, Codegen, Build/Deploy) | Owner: Codex/Luna | Status: Complete (Graph Editor reads the persisted Hardware Setup board, updates its target header/project view, and build validation rejects stale graph target metadata)
-- [ ] HW-UX-T4 | KiCad schematic import UI (expose SCH-T1..T4 importer via Hardware Setup: "Manual Configuration" OR "Import KiCad Schematic") | Owner: Antigravity | Status: Not started
-- [ ] HW-UX-T5 | Schematic import preview and apply workflow (detected MCU, resources, signals, resolved pins, warnings/errors) | Owner: Antigravity | Status: Not started
+- [x] HW-UX-T4 | Schematic import UI (expose `.kicad_sch` and `.tel` import via Hardware Setup) | Owner: Codex/Terra | Status: Complete (visible Import Schematic entry point uses the existing pipeline and never applies without user confirmation)
+- [x] HW-UX-T5 | Schematic import preview and apply workflow (detected MCU, resources, signals, resolved pins, warnings/errors) | Owner: Codex/Terra | Status: Complete (canonical preview shows detected board/resources/pins and warnings; Apply restores and persists only after confirmation)
 - [ ] HW-UX-T6 | Pinout visualization / CubeMX-style board view (physical pins, assigned peripherals, semantic roles, conflicts, available pins) | Owner: Antigravity | Status: Not started
-- [x] HW-UX-T7 | Hardware Setup ↔ Graph Editor integration polish (shared canonical hardware state; graph references resources, not independent pin mappings) | Owner: Codex/Luna | Status: Complete (bounded independently scrollable assignment list, grouped-resource drag/drop with canonical IDs, shared target/resource refresh, and Accelerator / CORDIC resource binding)
+- [x] HW-UX-T7 | Hardware Setup ↔ Graph Editor integration polish (shared canonical hardware state; graph references resources, not independent pin mappings) | Owner: Codex/Terra | Status: Complete (bounded independently scrollable assignment list, grouped-resource drag/drop with canonical IDs, shared target/resource refresh, and Accelerator / CORDIC resource binding)
 - [ ] HW-UX-T8 | Hardware Setup validation/error UX (surface existing canonical validation: duplicate pins, invalid roles, invalid combinations, unknown resources, unconfigured resources, unresolved schematic MCU, conflicting assignments) | Owner: Antigravity | Status: Not started
 
 *HW-UX-T7 architectural note:* A minimal persisted `hardware.devices` profile layer is documented in `mbd/docs/hardware_setup_model.md` and validated server-side for named canonical resource connections. It is intentionally not a device database, arbitrary-device UI, node category, or codegen system.

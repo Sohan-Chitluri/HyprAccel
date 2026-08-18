@@ -156,7 +156,7 @@ The runtime SDK provides embedded primitives required by generated C step functi
 #### Runtime Primitives (Specification & Implementation Status)
 - **`SDK-T1` | `hyp_sensor_read`**: `Complete` (Antigravity/Sonnet). Resolves canonical `hardwareResourceId` values against generated ESP32 configuration; supports GPIO/ADC/UART reads and reports configured SPI/I2C as explicitly unsupported.
 - **`SDK-T2` | `hyp_actuator_write`**: `Complete` (Antigravity/Sonnet). Resolves canonical `hardwareResourceId` values against generated ESP32 configuration; supports GPIO/PWM/UART writes and reports configured SPI/I2C as explicitly unsupported.
-- **`SDK-T3` | `hyp_pid_step` & PID State**: `Not started` (Specification stage). PID control loop calculation with anti-windup and state structures.
+- **`SDK-T3` | `hyp_pid_step` & PID State**: `Complete` (Nemotron). Discrete PID controller with anti-windup (conditional integration), output saturation, and persistent state (`hyp_pid_state_t`). Tested in `sdk/test/test_pid.c` (8/8 pass).
 - **`SDK-T4` | Kinematics Runtime**: `Not started` (Specification stage). Forward/Inverse kinematics matrix and vector routines.
 - **`SDK-T5` | Encoder Runtime**: `Not started` (Specification stage). Quadrature encoder pulse counting and velocity estimation routines.
 - **`SDK-T6` | Quaternion & SE(3) Runtime**: `Not started` (Specification stage). 3D orientation math (quaternions, Euler angles, SE(3) transformation matrices).
@@ -183,7 +183,7 @@ Node implementations are organized into functional phases.
 #### Phased Node Taxonomy
 - **`NL-P0` | Foundation Nodes**: `Complete` for `CordicOp`, `Publish`, `SensorInput`, and `ActuatorOutput`; the latter two use the SDK-T1/T2 runtime primitives and graph codegen paths.
 - **`NL-P1` | Basic Math & Signal Processing**: `Not started`. `Constant`, `Add`, `Subtract`, `Multiply`, `Gain`, `Clamp`, `Saturation`.
-- **`NL-P2` | Control Nodes**: `Not started`. `PID`, `PI`, `Lead-Lag` controller blocks.
+- **`NL-P2` | Control Nodes**: `Complete` for `PID` (ControlLoop). Discrete PID with anti-windup, conditional integration, output saturation; uses SDK-T3 `hyp_pid_step`; graph schema, palette, inspector, ports, validation, codegen, and tests complete. `PI`, `Lead-Lag` remain `Not started`.
 - **`NL-R1` | 3-DOF Robotics Foundation**: `Not started`. 3-DOF arm forward/inverse kinematics, joint position/velocity, planar transformations.
 - **`NL-4WD` | 4WD / Mobile Robotics**: `Not started`. Wheel encoders, differential drive kinematics, motor speed controllers, odometry.
 - **`NL-R2` | 6-DOF Robotics Foundation**: `Not started`. 6-DOF manipulator FK/IK, end-effector pose, SE(3) transform, joint limits.
@@ -269,6 +269,7 @@ MBD Node Resource Binding (SCH-T7)
 - **`SCH-T6` | Schematic ↔ Hardware Setup Consistency**: `Not started` (Future Roadmap).
 - **`SCH-T7` | MBD Node → Schematic Resource Binding**: `Partial`. Hardware resource ID binding is implemented in graph editor and schema (`hardwareResourceId`); schematic parsing input is Future Roadmap.
 - **`SCH-T8` | EasyEDA .tel Netlist Import**: `Partial`. EasyEDA `.tel` adapter and ESP32 pad→GPIO recovery are implemented; fixture-backed verification against `Netlist_Schematic1_2026-08-18.tel` is pending until the real file is available in the workspace.
+- **`SCH-T9` | Expose Schematic Import to Hardware Setup UI**: `Complete`. Added preview and apply workflow in pin_config.html, bridging SCH-T1..T8 pipeline to canonical hardware model.
 
 ---
 
@@ -290,6 +291,13 @@ MBD Node Resource Binding (SCH-T7)
 - **`PLAT-T1` | Telemetry Dashboard**: `Complete`. Web dashboard for real-time serial telemetry visualization.
 - **`PLAT-T2` | Siemens S7 / TIA Portal Architecture Study**: `Complete`. Documented lineage and structural comparison.
 - **`PLAT-T3` | Bare Carrier PCB Design**: `Deferred`.
+
+---
+
+## 10. TRACK DESK — Workspace & IDE Integration (DESK)
+- **`DESK-T1` | Project Workspace / deployable project viewer**: `Complete`. Implemented persistent view/orchestration layer presenting generated source tree, hardware config, graph, and build/flash controls without duplicating PlatformIO logic.
+- **`DESK-T2` | Persistent graph storage and versioning**: `Planned`.
+- **`DESK-T3` | Telemetry dash for live hardware monitoring**: `Planned`.
 
 ---
 

@@ -58,6 +58,10 @@ app.get('/graph', (req, res) => {
     res.sendFile(path.join(__dirname, 'src/graph_editor.html'));
 });
 
+app.get('/workspace', (req, res) => {
+    res.sendFile(path.join(__dirname, 'src/workspace.html'));
+});
+
 /* --------------------------------------------------------------------------
  * YAML parser (mirrors the logic in gen_board_config.js — no npm yaml dep)
  * ----------------------------------------------------------------------- */
@@ -148,6 +152,32 @@ app.get('/api/boards', (req, res) => {
         const yaml    = fs.readFileSync(BOARDS_YAML, 'utf8');
         const parsed  = parseSimpleYaml(yaml);
         res.json(parsed.boards);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/* --------------------------------------------------------------------------
+ * POST /api/schematic/import
+ * Previews schematic import
+ * ----------------------------------------------------------------------- */
+app.post('/api/schematic/import', (req, res) => {
+    try {
+        const { filename, content } = req.body;
+        if (!filename || !content) {
+            return res.status(400).json({ error: 'filename and content required' });
+        }
+
+        const yaml    = fs.readFileSync(BOARDS_YAML, 'utf8');
+        const parsed  = parseSimpleYaml(yaml);
+        const boardsDict = parsed.boards;
+
+        // Load the importer after this module has initialized.  The resource
+        // mapper reuses projectHardware from this module; eager loading here
+        // creates a CommonJS cycle and leaves that function undefined.
+        const { importSchematic } = require('../schematic');
+        const result = importSchematic(filename, content, { boardsDict });
+        res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -594,6 +624,7 @@ app.post('/api/compile', (req, res) => {
         const generated = materializeEsp32(graph);
         const compile = commandResult(platformioCommand(), ['run', '--project-dir', ESP32_PROJECT]);
         const status = compile.ok ? 200 : 422;
+        fs.writeFileSync(path.join(REPO_ROOT, '.hypraccel', 'build.log'), compile.output, 'utf8');
         res.status(status).json({ success: compile.ok, stage: 'Compiling', source: generated.source, log: compile.output });
     } catch (err) {
         const detail = err.stderr ? String(err.stderr).trim() : err.message;
@@ -607,11 +638,19 @@ app.post('/api/flash', (req, res) => {
     try {
         const generated = materializeEsp32(graph);
         const compile = commandResult(platformioCommand(), ['run', '--project-dir', ESP32_PROJECT]);
-        if (!compile.ok) return res.status(422).json({ success: false, stage: 'Compiling', source: generated.source, log: compile.output });
+        if (!compile.ok) {
+            fs.writeFileSync(path.join(REPO_ROOT, '.hypraccel', 'build.log'), compile.output, 'utf8');
+            return res.status(422).json({ success: false, stage: 'Compiling', source: generated.source, log: compile.output });
+        }
         const selection = selectedSerialPort(req.body.port);
-        if (selection.error) return res.status(422).json({ success: false, stage: 'Flashing', source: generated.source, log: `${compile.output}\n${selection.error}` });
+        if (selection.error) {
+            fs.writeFileSync(path.join(REPO_ROOT, '.hypraccel', 'build.log'), `${compile.output}\n${selection.error}`, 'utf8');
+            return res.status(422).json({ success: false, stage: 'Flashing', source: generated.source, log: `${compile.output}\n${selection.error}` });
+        }
         const flash = commandResult(platformioCommand(), ['run', '--project-dir', ESP32_PROJECT, '--target', 'upload', '--upload-port', selection.port]);
-        res.status(flash.ok ? 200 : 422).json({ success: flash.ok, stage: flash.ok ? 'Flashed' : 'Flashing', source: generated.source, port: selection.port, log: `${compile.output}\n\n${flash.output}` });
+        const logContent = `${compile.output}\n\n${flash.output}`;
+        fs.writeFileSync(path.join(REPO_ROOT, '.hypraccel', 'build.log'), logContent, 'utf8');
+        res.status(flash.ok ? 200 : 422).json({ success: flash.ok, stage: flash.ok ? 'Flashed' : 'Flashing', source: generated.source, port: selection.port, log: logContent });
     } catch (err) {
         const detail = err.stderr ? String(err.stderr).trim() : err.message;
         res.status(422).json({ error: detail || 'ESP32 flash preparation failed.' });
@@ -625,11 +664,15 @@ app.post('/api/verify', (req, res) => {
     if (!graph) return;
     try {
         const selection = selectedSerialPort(req.body.port);
-        if (selection.error) return res.status(422).json({ success: false, stage: 'Verifying', log: selection.error });
+        if (selection.error) {
+            fs.writeFileSync(path.join(REPO_ROOT, '.hypraccel', 'build.log'), selection.error, 'utf8');
+            return res.status(422).json({ success: false, stage: 'Verifying', log: selection.error });
+        }
         const markers = graphVerificationMarkers(graph);
         const monitor = commandResult('timeout', ['10s', platformioCommand(), 'device', 'monitor', '--port', selection.port, '--baud', '115200'], { timeout: 15000 });
         const missing = markers.filter(marker => !monitor.output.includes(marker));
         const verified = missing.length === 0;
+        fs.writeFileSync(path.join(REPO_ROOT, '.hypraccel', 'build.log'), monitor.output, 'utf8');
         res.status(verified ? 200 : 422).json({
             success: verified,
             stage: 'Verifying',
@@ -640,6 +683,58 @@ app.post('/api/verify', (req, res) => {
         });
     } catch (err) {
         res.status(422).json({ error: err.message || 'ESP32 serial verification failed.' });
+    }
+});
+
+/* --------------------------------------------------------------------------
+ * Project Workspace Endpoints
+ * ----------------------------------------------------------------------- */
+app.post('/api/project/generate', (req, res) => {
+    const graph = req.body;
+    if (!graph || !graph.id) return res.status(400).json({ error: 'Valid graph required' });
+    try {
+        const hardware = readHardwareConfig();
+        const projectMetadata = {
+            id: graph.id,
+            name: graph.name || graph.id,
+            board: hardware.board,
+            timestamp: Date.now()
+        };
+        fs.mkdirSync(path.join(REPO_ROOT, '.hypraccel'), { recursive: true });
+        fs.writeFileSync(path.join(REPO_ROOT, '.hypraccel', 'project.json'), JSON.stringify(projectMetadata, null, 2), 'utf8');
+        fs.writeFileSync(path.join(REPO_ROOT, '.hypraccel', 'graph.json'), JSON.stringify(graph, null, 2), 'utf8');
+
+        // Materialize the deployable source tree
+        materializeEsp32(graph);
+
+        res.json({ success: true, project: projectMetadata });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/project', (req, res) => {
+    try {
+        let project = {};
+        try { project = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, '.hypraccel', 'project.json'), 'utf8')); } catch (_) {}
+        let graph = null;
+        try { graph = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, '.hypraccel', 'graph.json'), 'utf8')); } catch (_) {}
+        res.json({ ...project, graph });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/project/file', (req, res) => {
+    try {
+        const relPath = req.query.path;
+        if (!relPath || relPath.includes('..')) return res.status(400).json({ error: 'Invalid path' });
+        const absPath = path.join(REPO_ROOT, relPath);
+        if (!fs.existsSync(absPath)) return res.status(404).json({ error: 'File not found' });
+        const content = fs.readFileSync(absPath, 'utf8');
+        res.json({ content });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 
