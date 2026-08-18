@@ -1525,31 +1525,60 @@ function compile() { return requestBuild('/api/compile', 'Compiling hardware sou
 function flash() { return requestBuild('/api/flash', 'Building and Flashing target ESP32'); }
 function verify() { return requestBuild('/api/verify', 'Verifying hardware integration'); }
 
+async function resolveProjectForGeneration() {
+  if (activeProjectId) {
+    const response = await fetch(`/api/projects/${encodeURIComponent(activeProjectId)}`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || `Project '${activeProjectId}' could not be loaded.`);
+    localStorage.setItem('hypraccel_active_project_id', activeProjectId);
+    return activeProjectId;
+  }
+
+  const listResponse = await fetch('/api/projects');
+  const listData = await listResponse.json();
+  if (!listResponse.ok) throw new Error(listData.error || 'Could not list projects.');
+  const projects = listData.projects || [];
+
+  let selectedId;
+  if (projects.length) {
+    const choices = projects.map(project => `${project.id} — ${project.name}`).join('\n');
+    selectedId = window.prompt(`Select a project by ID:\n${choices}`, projects[0].id);
+    if (selectedId == null) return null;
+    selectedId = selectedId.trim();
+    if (!projects.some(project => project.id === selectedId)) {
+      throw new Error(`Project '${selectedId}' was not found. Choose an existing project ID.`);
+    }
+  } else {
+    selectedId = window.prompt('No projects exist. Enter a new project ID:', 'demo_project');
+    if (selectedId == null) return null;
+    selectedId = selectedId.trim();
+    const name = window.prompt('Enter a display name for the new project:', selectedId);
+    if (name == null) return null;
+    const createResponse = await fetch('/api/projects', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        id: selectedId,
+        name: name.trim() || selectedId,
+        hardware: currentHardware || {board: 'esp32', assignments: []}
+      })
+    });
+    const createData = await createResponse.json();
+    if (!createResponse.ok) throw new Error(createData.error || 'Could not create project.');
+  }
+
+  activeProjectId = selectedId;
+  localStorage.setItem('hypraccel_active_project_id', activeProjectId);
+  return activeProjectId;
+}
+
 async function generateProject() {
   log('Generating Project Workspace...', 'info');
   try {
-    let activeId = activeProjectId || 'demo_project';
-    let projectResponse = await fetch(`/api/projects/${encodeURIComponent(activeId)}`);
-    if (projectResponse.status === 404 && !graphQueryProjectId) {
-      const initRes = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: activeId,
-          name: 'Demo Project',
-          hardware: currentHardware || { board: 'esp32', assignments: [] },
-          graph: toGraph()
-        })
-      });
-      if (!initRes.ok) {
-        const initData = await initRes.json();
-        throw new Error(initData.error || 'Could not create project.');
-      }
-      activeProjectId = activeId;
-      localStorage.setItem('hypraccel_active_project_id', activeId);
-    } else if (!projectResponse.ok) {
-      const projectData = await projectResponse.json();
-      throw new Error(projectData.error || 'Could not resolve active project.');
+    const activeId = await resolveProjectForGeneration();
+    if (!activeId) {
+      log('Generation cancelled: select or create a project first.', 'info');
+      return;
     }
     if (!await saveGraph()) return;
     const res = await fetch(`/api/projects/${encodeURIComponent(activeId)}/generate`, {
@@ -1563,7 +1592,7 @@ async function generateProject() {
       log(`Generation failed: ${data.error || 'Unknown error'}`, 'err');
     }
   } catch (err) {
-    log(`Network error: ${err.message}`, 'err');
+    log(`Generation failed: ${err.message}`, 'err');
   }
 }
 
