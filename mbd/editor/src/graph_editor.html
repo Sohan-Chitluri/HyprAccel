@@ -817,7 +817,7 @@ const defaults = {
 
 const descriptions = {
   SensorInput:'Board signal / sensor binding',
-  CordicOp:'Q4.12 hardware CORDIC math operation',
+  CordicOp:'CORDIC accelerator with automatic, software, or hardware routing',
   KinematicsSolve:'Robot forward/inverse kinematics solver',
   ControlLoop:'Discrete PID controller algorithm',
   ActuatorOutput:'Board motor/actuator output endpoint',
@@ -835,10 +835,14 @@ const descriptions = {
   PWMOutput:'Pulse-width modulation output'
 };
 
+// Keep schema/node-library identifiers stable while presenting the domain
+// terminology used in the graph: an Accelerator contains a CORDIC operation.
+const displayNames = { CordicOp: 'CORDIC' };
+
 const categories = [
   { name: 'Inputs & Sensors', items: ['SensorInput', 'GPIOInput', 'ADCInput'] },
   { name: 'Outputs & Actuators', items: ['ActuatorOutput', 'PWMOutput'] },
-  { name: 'Mathematics', items: ['CordicOp'] },
+  { name: 'Accelerator', items: ['CordicOp'] },
   { name: 'Control', items: ['ControlLoop'] },
   { name: 'Robotics', items: ['KinematicsSolve'] },
   { name: 'Data / Telemetry', items: ['Publish'] },
@@ -878,7 +882,7 @@ function ports(type, params) {
 }
 
 function makeNode(type, id, position) {
-  return {id, type:'graphNode', position, data:{nodeType:type, label:type+' '+id, params:JSON.parse(JSON.stringify(defaults[type]))}};
+  return {id, type:'graphNode', position, data:{nodeType:type, label:(displayNames[type] || type)+' '+id, params:JSON.parse(JSON.stringify(defaults[type]))}};
 }
 
 function NodeView({data, selected}) {
@@ -894,7 +898,7 @@ function NodeView({data, selected}) {
       hyprGraphH(hyprGraphRF.Handle, {type:'source', position:hyprGraphRF.Position.Right, id:name}))));
   return hyprGraphH('div', {className:'node' + (selected ? ' selected' : '')},
     hyprGraphH('div', {className:'node-head'},
-      hyprGraphH('span', {className:'node-type'}, data.nodeType),
+      hyprGraphH('span', {className:'node-type'}, displayNames[data.nodeType] || data.nodeType),
       hyprGraphH('span', {className:'node-label'}, data.label)),
     hyprGraphH('div', {className:'ports'}, rows));
 }
@@ -1058,7 +1062,7 @@ function renderConfig() {
 
   el.innerHTML = `
     <div class="inspector-header">
-      <span>${t} Properties</span>
+      <span>${displayNames[t] || t} Properties</span>
       <span class="project-prop-val" style="color:var(--accent);font-size:10px">${n.id}</span>
     </div>
     <div class="inspector-body" id="inspectorBody"></div>
@@ -1067,7 +1071,7 @@ function renderConfig() {
   let paramGroups = [];
   if (t === 'CordicOp') {
     paramGroups = [
-      { name: 'Operation Setup', fields: [['operation','select'],['implementation','select'],['iterations','number']] }
+      { name: 'CORDIC Implementation', fields: [['operation','select'],['implementation','select'],['iterations','number']] }
     ];
   } else if (t === 'KinematicsSolve') {
     paramGroups = [
@@ -1136,7 +1140,7 @@ function renderConfig() {
   if (t === 'CordicOp') {
     const resourceGroup = document.createElement('div');
     resourceGroup.className = 'prop-group';
-    resourceGroup.innerHTML = '<div class="prop-group-title">Accelerator Resource</div><div class="prop-fields"><label class="field"><span>Configured resource</span><select id="cordicResourceSelect"><option value="">Loading…</option></select></label></div>';
+    resourceGroup.innerHTML = '<div class="prop-group-title">Accelerator / CORDIC</div><div class="prop-fields"><div class="embed-note">Hardware Setup owns any physical transport; this node has no fixed GPIO pinout.</div><label class="field"><span>Configured accelerator</span><select id="cordicResourceSelect"><option value="">Loading…</option></select></label></div>';
     inspectorBody.appendChild(resourceGroup);
     const select = resourceGroup.querySelector('#cordicResourceSelect');
     select.onchange = () => updateParam('hardwareResource', select.value);
@@ -1373,7 +1377,7 @@ function renderPalette(filterText = '') {
         itemEl.className = 'palette-item';
         itemEl.draggable = true;
         itemEl.dataset.type = type;
-        itemEl.innerHTML = `<div class="palette-item-name">${type}</div><div class="palette-item-desc">${descriptions[type] || ''}</div>`;
+        itemEl.innerHTML = `<div class="palette-item-name">${displayNames[type] || type}</div><div class="palette-item-desc">${descriptions[type] || ''}</div>`;
         itemEl.addEventListener('dragstart', e => e.dataTransfer.setData('application/hypraccel-node', type));
         itemsDiv.appendChild(itemEl);
       });
