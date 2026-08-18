@@ -220,21 +220,43 @@ function generate(graph, sourceName) {
                 lines.push(`    float ${nodeName}_${output} = ${args}.${field};`);
             }
         } else if (node.type === 'SensorInput') {
-            const nodeName = cIdentifier(node.id, 'node id');
-            const resourceId = node.params.hardwareResource || '';
-            if (!resourceId) fail(`SensorInput '${node.id}' requires a hardwareResource parameter`);
+                    const nodeName = cIdentifier(node.id, 'node id');
+                    const resourceId = node.params.hardwareResource || '';
+                    if (!resourceId) fail(`SensorInput '${node.id}' requires a hardwareResource parameter`);
 
-            // Generate variables for sensor outputs
-            lines.push(`    float ${nodeName}_value = 0.0f;`);
-            lines.push(`    uint32_t ${nodeName}_timestamp_us = 0;`);
-            lines.push(`    uint8_t ${nodeName}_valid = 0;`);
+                    // Check if sensor outputs are actually used
+                    const valueUsed = usedOutputs.has(`${node.id}.value`);
+                    const timestampUsed = usedOutputs.has(`${node.id}.timestamp_us`);
+                    const validUsed = usedOutputs.has(`${node.id}.valid`);
+                    const resultNeeded = timestampUsed || validUsed;
 
-            // Call sensor read - the SDK will handle the type based on value_size
-            lines.push(`    int ${nodeName}_result = hyp_sensor_read(${cString(resourceId)}, &${nodeName}_value, sizeof(${nodeName}_value));`);
-            lines.push(`    if (${nodeName}_result == 0) {`);
-            lines.push(`        ${nodeName}_valid = 1;`);
-            lines.push(`        ${nodeName}_timestamp_us = (uint32_t)micros();`);
-            lines.push(`    }`);
+                    // Generate variables for sensor outputs that are used
+                    if (valueUsed) {
+                        lines.push(`    float ${nodeName}_value = 0.0f;`);
+                    }
+                    if (timestampUsed) {
+                        lines.push(`    uint32_t ${nodeName}_timestamp_us = 0;`);
+                    }
+                    if (validUsed) {
+                        lines.push(`    uint8_t ${nodeName}_valid = 0;`);
+                    }
+
+                    // Call sensor read - the SDK will handle the type based on value_size
+                    if (valueUsed) {
+                        if (resultNeeded) {
+                            lines.push(`    int ${nodeName}_result = hyp_sensor_read(${cString(resourceId)}, &${nodeName}_value, sizeof(${nodeName}_value));`);
+                            lines.push(`    if (${nodeName}_result == 0) {`);
+                            if (validUsed) {
+                                lines.push(`        ${nodeName}_valid = 1;`);
+                            }
+                            if (timestampUsed) {
+                                lines.push(`        ${nodeName}_timestamp_us = (uint32_t)micros();`);
+                            }
+                            lines.push(`    }`);
+                        } else {
+                            lines.push(`    hyp_sensor_read(${cString(resourceId)}, &${nodeName}_value, sizeof(${nodeName}_value));`);
+                        }
+                    }
 
         } else if (node.type === 'ActuatorOutput') {
             const edge = inbound.get(`${node.id}.command`);

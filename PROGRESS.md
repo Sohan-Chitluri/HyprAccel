@@ -43,7 +43,7 @@
 - [ ] MBD-T10 | pre-synth bitstreams | Owner: Antigravity | Status: Deferred (out of scope for current demo round)
 
 ### CRITICAL CODEGEN GAP
-- [ ] MBD-GAP1 | SensorInput & ActuatorOutput peripheral C codegen | Owner: Antigravity | Status: Not started (CRITICAL GAP: Hardware resource validation, board pin mapping, and `HYP_PIN_*` macro defines in `hyp_board_config.h` are complete. However, `mbd/codegen/graph_to_c.js` currently only supports `CordicOp` and `Publish`. `SensorInput` and `ActuatorOutput` peripheral read/write C code generation is NOT implemented yet.)
+- [x] MBD-GAP1 | SensorInput & ActuatorOutput peripheral C codegen | Owner: Hermes / Nemotron | Status: Complete (Implemented `hyp_sensor_read()` and `hyp_actuator_write()` SDK primitives; ESP32 backend in `hyp_esp32_hw.cpp`; `graph_to_c.js` codegen for SensorInput/ActuatorOutput; verified host compilation and syntax check)
 
 ## TRACK FW — Firmware / Target Backend
 
@@ -70,19 +70,24 @@
 - [ ] FW-D2 | Physical target runtime verification | Owner: Future | Status: Not started (Blocked on physical flash execution and serial verification)
 
 ## TRACK SDK — Runtime SDK
-- [ ] SDK-T1 | hyp_sensor_read primitive | Owner: Future | Status: Not started (Specification stage)
-- [ ] SDK-T2 | hyp_actuator_write primitive | Owner: Future | Status: Not started (Specification stage)
-- [ ] SDK-T3 | hyp_pid_step + PID state primitive | Owner: Future | Status: Not started (Specification stage)
-- [ ] SDK-T4 | Kinematics runtime math (FK/IK) | Owner: Future | Status: Not started (Specification stage)
-- [ ] SDK-T5 | Encoder runtime (counting & velocity) | Owner: Future | Status: Not started (Specification stage)
-- [ ] SDK-T6 | Quaternion & SE(3) runtime math | Owner: Future | Status: Not started (Specification stage)
-- [ ] SDK-T7 | Joint controller runtime primitive | Owner: Future | Status: Not started (Specification stage)
-- [ ] SDK-T8 | Custom-node runtime / codegen extension hooks | Owner: Future | Status: Not started (Specification stage)
-*Note: Existing core SDK primitives (`hyp_cordic_ref()`, `hyp_cordic_rtl()`, `hyp_router_dispatch()`, `hyp_publish()`) are Complete.*
+The runtime SDK provides embedded primitives required by generated C step functions and block library nodes.
+
+#### Implemented Core Primitives
+- **`CORE-T1..T7` | Core SDK Engine**: `Complete`. `hyp_cordic_ref()`, `hyp_cordic_rtl()`, `hyp_router_dispatch()`, and `hyp_publish()` are complete and verified.
+
+#### Runtime Primitives (Specification & Implementation Status)
+- **`SDK-T1` | `hyp_sensor_read`**: `Complete` (Owner: Hermes / Nemotron — Generic peripheral sensor read primitive for GPIO/ADC/SPI/I2C/UART implemented in `hyprccel.h`, `hyp_router.c`, and ESP32 backend `hyp_esp32_hw.cpp`; test in `sdk/test/test_sensor_actuator.c`)
+- **`SDK-T2` | `hyp_actuator_write`**: `Complete` (Owner: Hermes / Nemotron — Generic peripheral actuator write primitive for GPIO/PWM/UART/SPI implemented in `hyprccel.h`, `hyp_router.c`, and ESP32 backend `hyp_esp32_hw.cpp`; test in `sdk/test/test_sensor_actuator.c`)
+- **`SDK-T3` | `hyp_pid_step` & PID State**: `Not started` (Specification stage). PID control loop calculation with anti-windup and state structures.
+- **`SDK-T4` | Kinematics Runtime**: `Not started` (Specification stage). Forward/Inverse kinematics matrix and vector routines.
+- **`SDK-T5` | Encoder Runtime**: `Not started` (Specification stage). Quadrature encoder pulse counting and velocity estimation routines.
+- **`SDK-T6` | Quaternion & SE(3) Runtime**: `Not started` (Specification stage). 3D orientation math (quaternions, Euler angles, SE(3) transformation matrices).
+- **`SDK-T7` | Joint Controller Runtime**: `Not started` (Specification stage). Multi-axis joint position/velocity trajectory controller primitive.
+- **`SDK-T8` | Custom-Node Runtime Support**: `Not started` (Specification stage). Extension hooks for embedding user C functions into the graph execution loop.
 
 ## TRACK NODE LIBRARY — NL
 *(Note: Implementing any node requires ALL of: 1. graph schema, 2. editor palette/representation, 3. ports and type definitions, 4. parameter validation, 5. graph-to-C code generation, 6. SDK/runtime dependency, 7. target/backend support, 8. tests. Node Catalog ≠ Node Implementation.)*
-- [/] NL-P0 | Core P0 node implementation | Owner: Codex / Antigravity | Status: Partial (`CordicOp` & `Publish` complete; `SensorInput` & `ActuatorOutput` UI complete, codegen pending)
+- [x] NL-P0 | Core P0 node implementation | Owner: Hermes / Nemotron | Status: Complete (`CordicOp`, `Publish`, `SensorInput`, `ActuatorOutput` all fully implemented with schema, palette, ports, validation, codegen, SDK, backend, and tests)
 - [ ] NL-P1 | Basic math & signal processing nodes | Owner: Future | Status: Not started
 - [ ] NL-P2 | Control nodes (PID, PI, Lead-Lag) | Owner: Future | Status: Not started
 - [ ] NL-R1 | 3-DOF robotics foundation nodes | Owner: Future | Status: Not started
@@ -96,7 +101,7 @@
 ## TRACK CODEGEN — CG
 - [x] CG-T1 | Expand graph schema for node library | Owner: Codex / Antigravity | Status: Complete
 - [x] CG-T2 | Node parameter & port validation | Owner: Antigravity | Status: Complete
-- [/] CG-T3 | Node → C code generation engine | Owner: Codex / Antigravity | Status: Partial (`graph_to_c.js` supports `CordicOp` & `Publish`; `SensorInput`/`ActuatorOutput` pending)
+- [x] CG-T3 | Node → C code generation engine | Owner: Hermes / Nemotron | Status: Complete (`graph_to_c.js` supports `CordicOp`, `Publish`, `SensorInput`, `ActuatorOutput` with full hardware resource mapping)
 - [x] CG-T4 | SDK dependency resolution & includes | Owner: Antigravity | Status: Complete
 - [x] CG-T5 | Generated source, header, & board config management | Owner: Antigravity | Status: Complete
 - [x] CG-T6 | Generated firmware project integration | Owner: Antigravity | Status: Complete

@@ -80,6 +80,38 @@ void hyp_compute(hyp_op_t op, void *args);
 void hyp_publish(const char *topic, const void *data, uint32_t size);
 
 /* -------------------------------------------------------------------------
+ * Sensor / Actuator Primitives (Phase 1A)
+ * ---------------------------------------------------------------------- */
+
+/**
+ * hyp_sensor_read — Read a sensor value from a configured hardware resource.
+ *
+ * The hardware resource is identified by a semantic hardware resource ID
+ * (e.g., "adc.channel0", "i2c.imu", "uart.gps") which maps to board-specific
+ * pin assignments in hyp_board_config.h.
+ *
+ * @param resource_id  Hardware resource identifier (e.g., "adc.channel0")
+ * @param out_value    Pointer to output buffer for the read value
+ * @param value_size   Size of the output buffer in bytes
+ * @return 0 on success, negative error code on failure
+ */
+int hyp_sensor_read(const char *resource_id, void *out_value, uint32_t value_size);
+
+/**
+ * hyp_actuator_write — Write a command value to a configured actuator resource.
+ *
+ * The hardware resource is identified by a semantic hardware resource ID
+ * (e.g., "pwm.motor0", "gpio.led", "spi.dac") which maps to board-specific
+ * pin assignments in hyp_board_config.h.
+ *
+ * @param resource_id  Hardware resource identifier (e.g., "pwm.motor0")
+ * @param in_value     Pointer to the input value to write
+ * @param value_size   Size of the input value in bytes
+ * @return 0 on success, negative error code on failure
+ */
+int hyp_actuator_write(const char *resource_id, const void *in_value, uint32_t value_size);
+
+/* -------------------------------------------------------------------------
  * Operation-specific argument structures
  * ---------------------------------------------------------------------- */
 
