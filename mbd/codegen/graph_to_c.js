@@ -20,8 +20,8 @@ const C_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const C_KEYWORDS = new Set([
     'auto', 'break', 'case', 'char', 'const', 'continue', 'default', 'do',
     'double', 'else', 'enum', 'extern', 'float', 'for', 'goto', 'if', 'int',
-    'long', 'register', 'return', 'short', 'signed', 'sizeof', 'static',
-    'struct', 'switch', 'typedef', 'union', 'unsigned', 'void', 'volatile', 'while'
+    'long', 'register', 'return', 'short', 'signed', 'sizeof', 'static', 'struct',
+    'switch', 'typedef', 'union', 'unsigned', 'void', 'volatile', 'while'
 ]);
 
 function fail(message) {
@@ -67,6 +67,18 @@ function cordicTarget(node) {
     }
 }
 
+function sensorOutputNames(node) {
+    if (node.type !== 'SensorInput') return [];
+    // SensorInput outputs: value, timestamp_us, valid
+    return ['value', 'timestamp_us', 'valid'];
+}
+
+function actuatorInputNames(node) {
+    if (node.type !== 'ActuatorOutput') return [];
+    // ActuatorOutput inputs: command, enable
+    return ['command', 'enable'];
+}
+
 function topologicalOrder(nodes, edges) {
     const byId = new Map(nodes.map(node => [node.id, node]));
     const indegree = new Map(nodes.map(node => [node.id, 0]));
@@ -104,8 +116,8 @@ function generate(graph, sourceName) {
         const nodeSymbol = cIdentifier(node.id, 'node id');
         if (nodeSymbols.has(nodeSymbol)) fail(`node id '${node.id}' collides with another generated C symbol`);
         nodeSymbols.add(nodeSymbol);
-        if (node.type !== 'CordicOp' && node.type !== 'Publish') {
-            fail(`node '${node.id}' has unsupported type '${node.type}'; the current SDK codegen supports CordicOp and Publish`);
+        if (node.type !== 'CordicOp' && node.type !== 'Publish' && node.type !== 'SensorInput' && node.type !== 'ActuatorOutput') {
+            fail(`node '${node.id}' has unsupported type '${node.type}'; the current SDK codegen supports CordicOp, Publish, SensorInput, and ActuatorOutput`);
         }
         if (node.type === 'CordicOp') nodeOutputNames(node);
         nodeById.set(node.id, node);
@@ -117,12 +129,22 @@ function generate(graph, sourceName) {
         const source = nodeById.get(edge.from.node);
         const target = nodeById.get(edge.to.node);
         if (!source || !target) fail('edge references a node that does not exist');
-        if (source.type !== 'CordicOp' || !nodeOutputNames(source).includes(edge.from.port)) {
+
+        // Validate source port
+        const sourceOutputs = source.type === 'CordicOp' ? nodeOutputNames(source) :
+                              source.type === 'SensorInput' ? sensorOutputNames(source) : [];
+        if (!sourceOutputs.includes(edge.from.port)) {
             fail(`edge source '${edge.from.node}.${edge.from.port}' is not a supported generated output`);
         }
-        if (target.type !== 'Publish' || edge.to.port !== 'value') {
+
+        // Validate target port
+        const targetInputs = target.type === 'Publish' ? ['value'] :
+                             target.type === 'ActuatorOutput' ? actuatorInputNames(target) :
+                             target.type === 'CordicOp' ? ['angle_rad'] : [];
+        if (!targetInputs.includes(edge.to.port)) {
             fail(`edge destination '${edge.to.node}.${edge.to.port}' is not a supported generated input`);
         }
+
         const destination = `${edge.to.node}.${edge.to.port}`;
         if (inbound.has(destination)) fail(`input '${destination}' has more than one edge`);
         inbound.set(destination, { node: source, port: edge.from.port });
@@ -197,6 +219,43 @@ function generate(graph, sourceName) {
                 const field = output === 'sin' || node.params.operation === 'sin' ? 'out_sin' : 'out_cos';
                 lines.push(`    float ${nodeName}_${output} = ${args}.${field};`);
             }
+        } else if (node.type === 'SensorInput') {
+            const nodeName = cIdentifier(node.id, 'node id');
+            const resourceId = node.params.hardwareResource || '';
+            if (!resourceId) fail(`SensorInput '${node.id}' requires a hardwareResource parameter`);
+
+            // Generate variables for sensor outputs
+            lines.push(`    float ${nodeName}_value = 0.0f;`);
+            lines.push(`    uint32_t ${nodeName}_timestamp_us = 0;`);
+            lines.push(`    uint8_t ${nodeName}_valid = 0;`);
+
+            // Call sensor read - the SDK will handle the type based on value_size
+            lines.push(`    int ${nodeName}_result = hyp_sensor_read(${cString(resourceId)}, &${nodeName}_value, sizeof(${nodeName}_value));`);
+            lines.push(`    if (${nodeName}_result == 0) {`);
+            lines.push(`        ${nodeName}_valid = 1;`);
+            lines.push(`        ${nodeName}_timestamp_us = (uint32_t)micros();`);
+            lines.push(`    }`);
+
+        } else if (node.type === 'ActuatorOutput') {
+            const edge = inbound.get(`${node.id}.command`);
+            if (!edge) fail(`ActuatorOutput '${node.id}' requires a command input edge`);
+            const value = `${cIdentifier(edge.node.id, 'node id')}_${edge.port}`;
+
+            const nodeName = cIdentifier(node.id, 'node id');
+            const resourceId = node.params.hardwareResource || '';
+            if (!resourceId) fail(`ActuatorOutput '${node.id}' requires a hardwareResource parameter`);
+
+            // Optional enable input
+            const enableEdge = inbound.get(`${node.id}.enable`);
+            if (enableEdge) {
+                const enableVal = `${cIdentifier(enableEdge.node.id, 'node id')}_${enableEdge.port}`;
+                lines.push(`    if (${enableVal}) {`);
+                lines.push(`        hyp_actuator_write(${cString(resourceId)}, &${value}, sizeof(${value}));`);
+                lines.push(`    }`);
+            } else {
+                lines.push(`    hyp_actuator_write(${cString(resourceId)}, &${value}, sizeof(${value}));`);
+            }
+
         } else {
             const edge = inbound.get(`${node.id}.value`);
             if (!edge) fail(`Publish '${node.id}' requires a value input edge`);
