@@ -32,6 +32,15 @@
   .panel-header { padding: 10px 16px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); border-bottom: 1px solid var(--border); flex-shrink: 0; }
   .panel-body { overflow-y: auto; overflow-x: hidden; flex: 1 1 0; min-height: 0; padding: 8px; }
 
+  /* The sidebar owns one scroll surface so its sections can share short viewports. */
+  .sidebar-scroll { flex: 1 1 0; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
+  .sidebar-section { border-bottom: 1px solid var(--border); }
+  .sidebar-section > summary { list-style: none; cursor: pointer; user-select: none; }
+  .sidebar-section > summary::-webkit-details-marker { display: none; }
+  .sidebar-section > summary::before { content: '›'; display: inline-block; width: 12px; color: var(--muted); transition: transform .15s; }
+  .sidebar-section[open] > summary::before { transform: rotate(90deg); }
+  .sidebar-section-content { min-width: 0; }
+
   /* peripheral groups */
   .periph-group { margin-bottom: 4px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
   .periph-group-hdr { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #1c2128; cursor: pointer; font-size: 12px; font-weight: 600; user-select: none; }
@@ -160,7 +169,7 @@
   .btn-secondary { background: #21262d; color: var(--text); border: 1px solid var(--border); }
   .btn:disabled { opacity: .4; cursor: not-allowed; }
 
-  .output-code { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 14px; min-height: 0; }
+  .output-code { flex: 1 1 0; overflow-y: auto; overflow-x: hidden; padding: 14px; min-height: 0; overscroll-behavior: contain; }
   .output-code pre { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 11px; line-height: 1.7; white-space: pre-wrap; word-break: break-all; color: #e6edf3; user-select: text; }
   .output-code .line-kw  { color: #ff7b72; }
   .output-code .line-def { color: #79c0ff; }
@@ -231,22 +240,33 @@
 <main>
   <!-- Left: peripheral tree & presets -->
   <div class="panel" id="peripheralPanel">
-    <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;background:#161b22">
-      <span>⚡ Quick Select Presets</span>
-      <span style="font-size:9px;color:var(--accent);font-weight:700">MBD-T1c</span>
-    </div>
-    <div class="preset-container" id="presetContainer">
-      <!-- Preset cards rendered by JS -->
-    </div>
-    <div class="panel-header">Import Schematic</div>
-    <div class="resource-config" style="padding:10px; background:#12161f; border-bottom:1px solid var(--border);">
-      <input type="file" id="schematicFile" accept=".kicad_sch,.tel" style="font-size:11px; width:100%; margin-bottom:8px; color:var(--text); background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:4px;" />
-      <button class="btn btn-secondary" id="btnPreviewSchematic" style="width:100%">Upload &amp; Preview</button>
-    </div>
-    <div class="panel-header">Available Peripherals</div>
-    <div class="resource-config" id="resourceConfig"><span style="font-size:11px;color:var(--muted)">Select a board to configure resources.</span></div>
-    <div class="panel-body" id="peripheralTree">
-      <div style="padding:20px;color:var(--muted);font-size:12px">Select a board to see its peripherals.</div>
+    <div class="sidebar-scroll">
+      <details class="sidebar-section" open>
+        <summary class="panel-header" style="display:flex;align-items:center;justify-content:space-between;background:#161b22">
+          <span>⚡ Quick Select Presets</span>
+          <span style="font-size:9px;color:var(--accent);font-weight:700">MBD-T1c</span>
+        </summary>
+        <div class="sidebar-section-content preset-container" id="presetContainer">
+          <!-- Preset cards rendered by JS -->
+        </div>
+      </details>
+      <details class="sidebar-section" open>
+        <summary class="panel-header">Import Schematic</summary>
+        <div class="sidebar-section-content resource-config" style="padding:10px; background:#12161f; border-bottom:1px solid var(--border);">
+          <input type="file" id="schematicFile" accept=".kicad_sch,.tel" style="font-size:11px; width:100%; margin-bottom:8px; color:var(--text); background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:4px;" />
+          <button class="btn btn-secondary" id="btnPreviewSchematic" style="width:100%">Upload &amp; Preview</button>
+        </div>
+      </details>
+      <details class="sidebar-section" open>
+        <summary class="panel-header">Available Peripherals</summary>
+        <div class="sidebar-section-content panel-body" id="peripheralTree">
+          <div style="padding:20px;color:var(--muted);font-size:12px">Select a board to see its peripherals.</div>
+        </div>
+      </details>
+      <details class="sidebar-section" open>
+        <summary class="panel-header">Hardware Resource Configuration</summary>
+        <div class="sidebar-section-content resource-config" id="resourceConfig"><span style="font-size:11px;color:var(--muted)">Select a board to configure resources.</span></div>
+      </details>
     </div>
   </div>
 
