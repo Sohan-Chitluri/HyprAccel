@@ -419,7 +419,11 @@ function generate(graph, sourceName) {
         '{'
     ];
 
-    const boundInputs = new Set(bindings.values());
+    const boundInputs = new Set(
+        [...bindings.entries()]
+            .filter(([destination]) => !inbound.has(destination))
+            .map(([, input]) => input)
+    );
     for (const input of inputs.values()) {
         if (!boundInputs.has(input.name)) {
             lines.push(`    (void)${cIdentifier(input.name, 'graph input')};`);
@@ -433,12 +437,21 @@ function generate(graph, sourceName) {
         const nodeName = cIdentifier(node.id, 'node id');
 
         if (node.type === 'CordicOp') {
-            const input = bindings.get(`${node.id}.angle_rad`);
-            if (!input) fail(`CordicOp '${node.id}' requires an external binding for angle_rad`);
+            /* A normal graph edge is the authoritative connection.  External
+             * bindings are the boundary-input fallback used by host-driven
+             * graphs; they must not override a connected graph signal. */
+            const angleEdge = inbound.get(`${node.id}.angle_rad`);
+            const externalInput = bindings.get(`${node.id}.angle_rad`);
+            if (!angleEdge && !externalInput) {
+                fail(`CordicOp '${node.id}' requires an angle_rad input edge or external binding`);
+            }
+            const angleValue = angleEdge
+                ? `${cIdentifier(angleEdge.node.id, 'node id')}_${angleEdge.port}`
+                : cIdentifier(externalInput, 'graph input');
             const args = `${nodeName}_args`;
             const target = cordicTarget(node);
             lines.push(`    hyp_cordic_args_t ${args} = {0};`);
-            lines.push(`    ${args}.angle_degrees = ${cIdentifier(input, 'graph input')} * (180.0f / 3.14159265358979323846f);`);
+            lines.push(`    ${args}.angle_degrees = ${angleValue} * (180.0f / 3.14159265358979323846f);`);
             lines.push(`    hyp_route(HYP_OP_CORDIC_SINCOS, ${target});`);
             lines.push(`    hyp_compute(HYP_OP_CORDIC_SINCOS, &${args});`);
             for (const output of nodeOutputNames(node)) {
