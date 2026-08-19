@@ -176,6 +176,7 @@ The runtime SDK provides embedded primitives required by generated C step functi
 - [x] **UI-QOL-T1** | Hardware Setup right panel — collapsible + horizontally resizable | Owner: Antigravity | Status: Complete
   - Collapse/expand button (‹/›) on left edge of panel; state persisted via `localStorage(hyp_output_panel_collapsed)`
   - Drag-to-resize handle on left edge; width persisted via `localStorage(hyp_output_panel_width)`; min 200px, max 55vw
+  - Collapsed state keeps a persistent right-edge reopen tab and preserves the independent panel/workspace overflow hierarchy
   - Preserved: Generate & Apply, Copy, generated config display, resource grouping, drag/drop
 
 - [x] **UI-QOL-T2** | Hardware resource groups — preserved collapsible drag/drop | Owner: Antigravity | Status: Complete
