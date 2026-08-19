@@ -52,7 +52,8 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO1
+#if defined(HYP_RESOURCE_GPIO_GPIO1) && !defined(HYP_RESOURCE_UART_UART0)
+    /* GPIO1 = UART0 TX: only configure as plain GPIO when UART0 is not active. */
     {
         int pin = 1; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO1_DIRECTION
@@ -90,7 +91,8 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO3
+#if defined(HYP_RESOURCE_GPIO_GPIO3) && !defined(HYP_RESOURCE_UART_UART0)
+    /* GPIO3 = UART0 RX: only configure as plain GPIO when UART0 is not active. */
     {
         int pin = 3; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO3_DIRECTION
@@ -532,29 +534,33 @@ int hyp_esp32_hw_init(void)
     // -------------------------------------------------------------------------
 #ifdef HYP_RESOURCE_UART_UART0
     {
-        long baud = 115200;
-        #ifdef HYP_RESOURCE_UART_UART0_BAUD_RATE
-            baud = HYP_RESOURCE_UART_UART0_BAUD_RATE;
-        #endif
-        // Serial is already open, but let's update baud rate if it is different
-        Serial.begin(baud);
-        Serial.println("[INFO] UART0 initialized.");
+        /* UART0 / Serial is already initialised by setup() before hyp_esp32_hw_init()
+         * is called.  Calling Serial.begin() a second time reinitialises the UART
+         * hardware peripheral and can flush / corrupt bytes that are still queued
+         * in the TX FIFO (observed as truncated HYPRACCEL_MBD_T9_READY output).
+         * Skip the redundant begin(); the port is already open at 115200 baud. */
+        Serial.println("[INFO] UART0 already initialised by setup().");
     }
 #endif
 
-#ifdef HYP_RESOURCE_UART_UART1
+#if defined(HYP_RESOURCE_UART_UART1) && defined(HYP_RESOURCE_UART_UART1_TX_PIN) && defined(HYP_RESOURCE_UART_UART1_RX_PIN)
+    /* ESP32-WROOM-32: GPIO9 and GPIO10 are routed to the internal SPI flash in
+     * QIO mode.  Attempting Serial1.begin() on those pins corrupts flash access
+     * and causes a hard fault.  Skip UART1 init when the board config assigns
+     * either of those pins to the UART1 bus. */
+#  if (HYP_RESOURCE_UART_UART1_TX_PIN == 9  || HYP_RESOURCE_UART_UART1_TX_PIN == 10 || \
+       HYP_RESOURCE_UART_UART1_RX_PIN == 9  || HYP_RESOURCE_UART_UART1_RX_PIN == 10)
+    Serial.println("[WARN] UART1 skipped: TX/RX pin conflicts with internal SPI flash (GPIO9/GPIO10).");
+#  else
     {
         long baud = 115200;
         #ifdef HYP_RESOURCE_UART_UART1_BAUD_RATE
             baud = HYP_RESOURCE_UART_UART1_BAUD_RATE;
         #endif
-        #if defined(HYP_RESOURCE_UART_UART1_TX_PIN) && defined(HYP_RESOURCE_UART_UART1_RX_PIN)
-            Serial1.begin(baud, SERIAL_8N1, HYP_RESOURCE_UART_UART1_RX_PIN, HYP_RESOURCE_UART_UART1_TX_PIN);
-        #else
-            #error "UART1 enabled but HYP_RESOURCE_UART_UART1_TX_PIN / _RX_PIN not defined in hyp_board_config.h"
-        #endif
+        Serial1.begin(baud, SERIAL_8N1, HYP_RESOURCE_UART_UART1_RX_PIN, HYP_RESOURCE_UART_UART1_TX_PIN);
         Serial.println("[INFO] UART1 initialized.");
     }
+#  endif
 #endif
 
 #ifdef HYP_RESOURCE_UART_UART2
@@ -1046,34 +1052,50 @@ static int get_pin_for_resource(const char *resource_type, const char *instance)
     return -1; /* resource not configured in board config */
 }
 
+/* Resource instance names are canonicalized at the boundary.  Existing board
+ * configurations use both legacy uppercase bus names (for example, UART0)
+ * and generated lowercase IDs (uart0); accepting either spelling preserves
+ * those IDs while keeping all runtime lookups consistent. */
+static bool canonical_instance_equals(const char *actual, const char *expected) {
+    if (!actual || !expected) return false;
+    while (*actual && *expected) {
+        char actual_lower = (*actual >= 'A' && *actual <= 'Z') ? (char)(*actual - 'A' + 'a') : *actual;
+        char expected_lower = (*expected >= 'A' && *expected <= 'Z') ? (char)(*expected - 'A' + 'a') : *expected;
+        if (actual_lower != expected_lower) return false;
+        ++actual;
+        ++expected;
+    }
+    return *actual == '\0' && *expected == '\0';
+}
+
 /* Bus resources do not map to one GPIO. Resolve their existence from the
  * generated board configuration before attempting an operation. */
 static bool is_configured_bus_resource(const char *resource_type, const char *instance) {
     if (!resource_type || !instance) return false;
     if (strcmp(resource_type, "uart") == 0) {
 #ifdef HYP_RESOURCE_UART_UART0
-        if (strcmp(instance, "UART0") == 0) return true;
+        if (canonical_instance_equals(instance, "uart0")) return true;
 #endif
 #ifdef HYP_RESOURCE_UART_UART1
-        if (strcmp(instance, "UART1") == 0) return true;
+        if (canonical_instance_equals(instance, "uart1")) return true;
 #endif
 #ifdef HYP_RESOURCE_UART_UART2
-        if (strcmp(instance, "UART2") == 0) return true;
+        if (canonical_instance_equals(instance, "uart2")) return true;
 #endif
         return false;
     }
     if (strcmp(resource_type, "spi") == 0) {
 #ifdef HYP_RESOURCE_SPI_HSPI
-        if (strcmp(instance, "HSPI") == 0) return true;
+        if (canonical_instance_equals(instance, "hspi")) return true;
 #endif
 #ifdef HYP_RESOURCE_SPI_VSPI
-        if (strcmp(instance, "VSPI") == 0) return true;
+        if (canonical_instance_equals(instance, "vspi")) return true;
 #endif
         return false;
     }
     if (strcmp(resource_type, "i2c") == 0) {
 #ifdef HYP_RESOURCE_I2C_I2C0
-        if (strcmp(instance, "I2C0") == 0) return true;
+        if (canonical_instance_equals(instance, "i2c0")) return true;
 #endif
         return false;
     }
@@ -1081,9 +1103,9 @@ static bool is_configured_bus_resource(const char *resource_type, const char *in
 }
 
 static HardwareSerial *serial_for_resource(const char *instance) {
-    if (strcmp(instance, "UART0") == 0) return &Serial;
-    if (strcmp(instance, "UART1") == 0) return &Serial1;
-    if (strcmp(instance, "UART2") == 0) return &Serial2;
+    if (canonical_instance_equals(instance, "uart0")) return &Serial;
+    if (canonical_instance_equals(instance, "uart1")) return &Serial1;
+    if (canonical_instance_equals(instance, "uart2")) return &Serial2;
     return NULL;
 }
 
