@@ -68,4 +68,17 @@ const fourInputSource = check('four_input_custom', graph('four_input_custom', [
 assert(fourInputSource.includes('const float base = base_value;'));
 assert(fourInputSource.includes('printf("%d,%d,%d,%d\\n"'));
 
+const rawControlSource = check('raw_control_chars_custom', graph('raw_control_chars_custom', [
+  node('value', 'Constant', { value: 1 }),
+  node('custom', 'CustomCode', {
+    inputs: ['value'],
+    code: String.raw`printf("line1
+line2	%f \\ \"quoted\" \n", value);`
+  })
+], [edge('e1', 'value', 'value', 'custom', 'value')]));
+const rawControlExpected = [
+  'printf("line1', '\\n', 'line2', '\\t', '%f ', '\\\\', ' ', '\\"quoted\\"', ' ', '\\n', '", value);'
+].join('');
+assert(rawControlSource.includes(rawControlExpected));
+
 console.log('[PASS] Time and CustomCode schema, deterministic codegen, SDK timestamp reuse, four-input formatting, and C syntax.');

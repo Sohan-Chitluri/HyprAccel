@@ -64,6 +64,85 @@ function cIdentifier(value, context) {
     return symbol;
 }
 
+/* JSON parsing can turn a CustomCode \"\\n\" escape into a raw newline. Keep
+ * source newlines intact, but make raw control characters inside C strings
+ * valid C escapes before the body is inserted into the generated source. */
+function normalizeCustomCode(code) {
+    let output = '';
+    let state = 'code';
+    let escaped = false;
+
+    for (let index = 0; index < code.length; index += 1) {
+        const character = code[index];
+        const next = code[index + 1];
+
+        if (state === 'line-comment') {
+            output += character;
+            if (character === '\n') state = 'code';
+            continue;
+        }
+        if (state === 'block-comment') {
+            output += character;
+            if (character === '*' && next === '/') {
+                output += next;
+                index += 1;
+                state = 'code';
+            }
+            continue;
+        }
+        if (state === 'string') {
+            if (escaped) {
+                output += character;
+                escaped = false;
+            } else if (character === '\\') {
+                output += character;
+                escaped = true;
+            } else if (character === '"') {
+                output += character;
+                state = 'code';
+            } else if (character === '\n') {
+                output += '\\n';
+            } else if (character === '\r') {
+                output += '\\r';
+            } else if (character === '\t') {
+                output += '\\t';
+            } else {
+                output += character;
+            }
+            continue;
+        }
+        if (state === 'char') {
+            output += character;
+            if (escaped) escaped = false;
+            else if (character === '\\') escaped = true;
+            else if (character === "'") state = 'code';
+            continue;
+        }
+
+        if (character === '/' && next === '/') {
+            output += '//';
+            index += 1;
+            state = 'line-comment';
+        } else if (character === '/' && next === '*') {
+            output += '/*';
+            index += 1;
+            state = 'block-comment';
+        } else if (character === '"') {
+            output += character;
+            state = 'string';
+            escaped = false;
+        } else if (character === "'") {
+            output += character;
+            state = 'char';
+            escaped = false;
+        } else {
+            output += character;
+        }
+    }
+
+    return output;
+}
+
 function nodeOutputNames(node) {
     switch (node.type) {
         case 'CordicOp':
@@ -513,7 +592,7 @@ function generate(graph, sourceName) {
                 lines.push(`        const float ${cIdentifier(input, `CustomCode '${node.id}' input`)} = ${inputValue};`);
                 lines.push(`        (void)${cIdentifier(input, `CustomCode '${node.id}' input`)};`);
             }
-            for (const codeLine of node.params.code.split('\n')) lines.push(`        ${codeLine}`);
+            for (const codeLine of normalizeCustomCode(node.params.code).split('\n')) lines.push(`        ${codeLine}`);
             lines.push(`    }`);
 
         } else if (node.type === 'Constant') {
