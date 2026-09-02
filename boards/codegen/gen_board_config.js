@@ -28,6 +28,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const yaml = require('js-yaml');
 
 /**
  * Extract a GPIO number from a string such as "GPIO14" -> 14.
@@ -39,118 +40,6 @@ function gpioNum(pinStr) {
     return m ? parseInt(m[1], 10) : -1;
 }
 
-/**
- * boards.yaml indentation:
- *   0:  boards:
- *   2:    thejas32:
- *   4:      name: ...
- *   4:      pins:
- *   6:        gpio:
- *   8:          - "GPIO0"
- *   6:        spi:
- *   8:          hspi: { sck: "GPIO14", ... }
- *   4:      accelerators:
- *   6:        - "CORDIC"
- */
-function parseSimpleYaml(content) {
-    const lines = content.split('\n');
-    const result = { boards: {} };
-    let currentBoard = null;
-    let currentCategory = null;   // board-level category (pins, accelerators, ...)
-    let inPinsSection = false;    // true when inside pins:
-    let pinSection = null;        // current pin sub-section (gpio, spi, i2c, uart, pwm, adc)
-
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].split('#')[0].trimEnd();
-        if (line.trim().length === 0) continue;
-
-        const indent = line.search(/\S/);
-        const trimmed = line.trim();
-
-        if (indent === 0 && trimmed === 'boards:') continue;
-
-        // indent=2: board key
-        if (indent === 2 && trimmed.endsWith(':')) {
-            currentBoard = trimmed.slice(0, -1);
-            result.boards[currentBoard] = {
-                accelerators: [],
-                pins: { gpio: [], spi: {}, i2c: {}, uart: {}, pwm: [], adc: [] }
-            };
-            currentCategory = null;
-            inPinsSection = false;
-            pinSection = null;
-            continue;
-        }
-
-        // indent=4: board-level property or category
-        if (indent === 4 && currentBoard) {
-            if (trimmed === 'pins:') {
-                currentCategory = 'pins';
-                inPinsSection = true;
-                pinSection = null;
-                continue;
-            }
-            if (trimmed === 'accelerators:') {
-                currentCategory = 'accelerators';
-                inPinsSection = false;
-                pinSection = null;
-                continue;
-            }
-            // Other board-level properties
-            inPinsSection = false;
-            pinSection = null;
-            if (trimmed.endsWith(':')) {
-                currentCategory = trimmed.slice(0, -1);
-            } else if (trimmed.includes(':')) {
-                const colonIdx = trimmed.indexOf(':');
-                const key = trimmed.slice(0, colonIdx).trim();
-                let val = trimmed.slice(colonIdx + 1).trim();
-                if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
-                else if (val !== '' && !isNaN(Number(val))) val = Number(val);
-                result.boards[currentBoard][key] = val;
-            }
-            continue;
-        }
-
-        // indent=6: accelerator list items OR pin sub-section headers
-        if (indent === 6 && currentBoard) {
-            if (currentCategory === 'accelerators' && trimmed.startsWith('- "')) {
-                result.boards[currentBoard].accelerators.push(trimmed.slice(3, -1));
-                continue;
-            }
-            if (inPinsSection && trimmed.endsWith(':')) {
-                pinSection = trimmed.slice(0, -1);
-                continue;
-            }
-        }
-
-        // indent=8: pin data entries
-        if (indent === 8 && currentBoard && pinSection) {
-            if (trimmed.startsWith('- "')) {
-                const val = trimmed.slice(3, -1);
-                if (['gpio', 'pwm', 'adc'].includes(pinSection)) {
-                    result.boards[currentBoard].pins[pinSection].push(val);
-                }
-            } else if (trimmed.includes(': {')) {
-                // e.g. hspi: { sck: "GPIO14", mosi: "GPIO13", miso: "GPIO12", cs: "GPIO15" }
-                const colonBrace = trimmed.indexOf(': {');
-                const key = trimmed.slice(0, colonBrace).trim();
-                const inner = trimmed.slice(colonBrace + 3).replace(/}$/, '').trim();
-                const obj = {};
-                for (const pair of inner.split(',')) {
-                    const ci = pair.indexOf(':');
-                    if (ci < 0) continue;
-                    const k = pair.slice(0, ci).trim();
-                    let v = pair.slice(ci + 1).trim();
-                    if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1, -1);
-                    obj[k] = v;
-                }
-                result.boards[currentBoard].pins[pinSection][key] = obj;
-            }
-        }
-    }
-    return result;
-}
 
 function generateHeader(boardKey, boardData) {
     let out = `/*
@@ -217,10 +106,14 @@ function generateHeader(boardKey, boardData) {
     const i2cEntries = Object.entries(pins.i2c || {});
     if (i2cEntries.length > 0) {
         out += `\n/* I2C Bus Pin Definitions (FW-P4) */\n`;
+        /* Collected across all buses; emitted as one runtime lookup table macro. */
+        const i2cDeviceRows = [];
         for (const [inst, signals] of i2cEntries) {
             const macro = `HYP_RESOURCE_I2C_${inst.toUpperCase()}`;
             out += `#define ${macro} 1\n`;
             for (const [role, pin] of Object.entries(signals)) {
+                /* "devices" is a nested map of named slaves, not a pin signal. */
+                if (role === 'devices') continue;
                 const num = gpioNum(pin);
                 if (num >= 0) {
                     out += `#define ${macro}_${role.toUpperCase()}_PIN ${num}  /* ${pin} */\n`;
@@ -228,6 +121,23 @@ function generateHeader(boardKey, boardData) {
                     out += `#define ${macro}_${role.toUpperCase()}_PIN_STR "${pin}"\n`;
                 }
             }
+            /* SDK-T6: per-device 7-bit slave address macros. Resource IDs of the
+             * form "i2c.<device>" resolve to (this bus + the device address). */
+            for (const [devName, devCfg] of Object.entries(signals.devices || {})) {
+                const addr = devCfg && devCfg.address;
+                if (addr === undefined || addr === null) continue;
+                const addrNum = (typeof addr === 'string') ? parseInt(addr, 16) : addr;
+                const addrHex = `0x${addrNum.toString(16).toUpperCase().padStart(2, '0')}`;
+                const devMacro = `HYP_RESOURCE_I2C_${devName.toUpperCase()}`;
+                out += `#define ${devMacro} 1\n`;
+                out += `#define ${devMacro}_ADDRESS ${addrHex}  /* device "${devName}" on ${inst} */\n`;
+                i2cDeviceRows.push(`    { "${devName.toLowerCase()}", ${devMacro}_ADDRESS }`);
+            }
+        }
+        if (i2cDeviceRows.length > 0) {
+            out += `\n/* I2C Device Address Table (SDK-T6): semantic device name -> 7-bit slave address.\n`;
+            out += ` * Consumed by the runtime to build hyp_i2c_device_table[]. */\n`;
+            out += `#define HYP_I2C_DEVICE_TABLE \\\n${i2cDeviceRows.join(', \\\n')}\n`;
         }
     }
 
@@ -318,7 +228,7 @@ function main() {
     }
 
     const yamlContent = fs.readFileSync(yamlPath, 'utf8');
-    const parsed = parseSimpleYaml(yamlContent);
+    const parsed = yaml.load(yamlContent);
 
     if (!parsed.boards[targetBoard]) {
         console.error(`Error: Board '${targetBoard}' not found in ${yamlPath}.`);

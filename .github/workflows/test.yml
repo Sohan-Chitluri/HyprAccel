@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
+      - name: Install npm deps — boards/codegen
+        run: npm install
+        working-directory: boards/codegen
+
+      - name: Install npm deps — mbd/editor
+        run: npm install
+        working-directory: mbd/editor
+
+      - name: Generate board config header (esp32)
+        run: node boards/codegen/gen_board_config.js esp32 boards/boards.yaml boards/codegen
+
+      - name: JS tests — MBD editor
+        run: npm run test:projects
+        working-directory: mbd/editor
+
+      - name: C tests — CORDIC accuracy
+        run: make test
+        working-directory: sdk/test
+
+      - name: C tests — board config consumption (FW-P1..P6)
+        run: make board-config-test
+        working-directory: sdk/test
+
+      - name: C tests — sensor/actuator
+        run: make sensor-actuator-test
+        working-directory: sdk/test
+
+      - name: C tests — PID
+        run: make pid-test
+        working-directory: sdk/test

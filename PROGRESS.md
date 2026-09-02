@@ -1,7 +1,7 @@
 # HyprAccel Task Progress
 
-*DEMO SCOPE, 2026-08-17: live demo targets ESP32 physical target (THEJAS/FPGA simulated via Verilator). Robotic arm demoed via pre-recorded video (MyCobot 280), not live. Hardware model remains generic with target-specific backends.*
-*DEMO SCOPE, 2026-08-17: live demo targets ESP32 physical target (THEJAS/FPGA simulated via Verilator). Robotic arm demoed via pre-recorded video (MyCobot 280), not live. Hardware model remains generic with target-specific backends.*
+*DEMO SCOPE, 2026-08-27: live demo targets ESP32 physical target with real flash/verify complete (THEJAS/FPGA simulated via Verilator). Physical hardware flashing and runtime telemetry verified on CP2102 serial device. Robotic arm demoed via pre-recorded video (MyCobot 280), not live. Hardware model remains generic with target-specific backends.*
+*DEMO SCOPE, 2026-08-27: live demo targets ESP32 physical target with real flash/verify complete (THEJAS/FPGA simulated via Verilator). Physical hardware flashing and runtime telemetry verified on CP2102 serial device. Robotic arm demoed via pre-recorded video (MyCobot 280), not live. Hardware model remains generic with target-specific backends.*
 *Note: Owner field = the AI tool/person actually executing this task, update on every status change.*
 *General Fixes: SDK include path fixed (-I sdk/include); root .gitignore updated for build artifacts; JS scoping/IIFE protection added to graph editor; CORDIC accelerator resource validation fixed in server.js to distinguish from physical peripherals; hardware config migration fixed to filter stale resource configs across board changes (prevents "Unknown hardware resource" error when hardware.json has resources from a different board).*
 
@@ -68,8 +68,8 @@
 - [x] FW-G2 | Target build system integration | Owner: Hermes / Nemotron | Status: Complete (PlatformIO `platformio.ini` & `/api/compile` endpoint implemented; **host CLI environment verified — ESP32 compilation successful**)
 
 ### D. Physical Deployment & Verification
-- [ ] FW-D1 | Physical hardware flashing workflow | Owner: Future | Status: Not started (Blocked on physical CP2102 serial target hardware and host PlatformIO CLI)
-- [ ] FW-D2 | Physical target runtime verification | Owner: Future | Status: Not started (Blocked on physical flash execution and serial verification)
+- [x] FW-D1 | Physical hardware flashing workflow | Owner: Antigravity | Status: Complete (ESP32 physical flash via PlatformIO `/api/flash` endpoint; CP2102 serial device verified)
+- [x] FW-D2 | Physical target runtime verification | Owner: Antigravity | Status: Complete (ESP32 physical target execution verified; serial output telemetry captured and validated)
 
 ## TRACK SDK — Runtime SDK
 The runtime SDK provides embedded primitives required by generated C step functions and block library nodes.

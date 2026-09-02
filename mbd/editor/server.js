@@ -15,6 +15,7 @@ const fs      = require('fs');
 const path    = require('path');
 const os           = require('os');
 const { execFileSync, execSync, spawnSync } = require('child_process');
+const yaml    = require('js-yaml');
 
 const app  = express();
 const PORT = Number(process.env.HYPRACCEL_EDITOR_PORT || 3737);
@@ -74,86 +75,6 @@ app.get('/workspace', (req, res) => {
     res.sendFile(path.join(__dirname, 'src/workspace.html'));
 });
 
-/* --------------------------------------------------------------------------
- * YAML parser (mirrors the logic in gen_board_config.js — no npm yaml dep)
- * ----------------------------------------------------------------------- */
-function parseSimpleYaml(content) {
-    const lines = content.split('\n');
-    const result = { boards: {} };
-    let currentBoard = null;
-    let currentCategory = null;
-    let currentPinSection = null;
-
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].split('#')[0].trimEnd();
-        if (line.trim().length === 0) continue;
-
-        const indent  = line.search(/\S/);
-        const trimmed = line.trim();
-
-        if (indent === 0 && trimmed === 'boards:') continue;
-
-        if (indent === 2 && trimmed.endsWith(':')) {
-            currentBoard = trimmed.slice(0, -1);
-            result.boards[currentBoard] = {
-                accelerators: [],
-                pins: { gpio: [], spi: {}, i2c: {}, uart: {}, pwm: [], adc: [] }
-            };
-            currentCategory = null;
-            currentPinSection = null;
-            continue;
-        }
-
-        if (indent === 4 && currentBoard) {
-            if (trimmed === 'pins:') { currentCategory = 'pins'; continue; }
-            if (trimmed === 'accelerators:') { currentCategory = 'accelerators'; currentPinSection = null; continue; }
-            if (trimmed.endsWith(':') && currentCategory !== 'pins') {
-                currentCategory = trimmed.slice(0, -1);
-            } else if (trimmed.includes(':') && currentCategory !== 'accelerators' && currentCategory !== 'pins') {
-                const [key, ...rest] = trimmed.split(':');
-                let val = rest.join(':').trim();
-                if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
-                else if (!isNaN(Number(val))) val = Number(val);
-                result.boards[currentBoard][key.trim()] = val;
-            }
-            continue;
-        }
-
-        if (indent === 6 && currentBoard) {
-            if (currentCategory === 'accelerators' && trimmed.startsWith('- "')) {
-                result.boards[currentBoard].accelerators.push(trimmed.slice(3, -1));
-                continue;
-            }
-            if (currentCategory === 'pins') {
-                if (trimmed.endsWith(':')) { currentPinSection = trimmed.slice(0, -1); continue; }
-            }
-        }
-
-        if (indent === 8 && currentBoard && currentCategory === 'pins' && currentPinSection) {
-            const sec = currentPinSection;
-            if (trimmed.startsWith('- "')) {
-                const val = trimmed.slice(3, -1);
-                if (['gpio', 'pwm', 'adc'].includes(sec)) {
-                    result.boards[currentBoard].pins[sec].push(val);
-                }
-            } else if (trimmed.includes(': {')) {
-                const [key, valStr] = trimmed.split(': {');
-                const cleanValStr = valStr.replace('}', '').trim();
-                const pairs = cleanValStr.split(',').map(s => s.trim());
-                const obj = {};
-                for (const pair of pairs) {
-                    let [k, v] = pair.split(':');
-                    if (!k || !v) continue;
-                    k = k.trim(); v = v.trim();
-                    if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1, -1);
-                    obj[k] = v;
-                }
-                result.boards[currentBoard].pins[sec][key.trim()] = obj;
-            }
-        }
-    }
-    return result;
-}
 
 /* --------------------------------------------------------------------------
  * GET /api/boards
@@ -161,8 +82,7 @@ function parseSimpleYaml(content) {
  * ----------------------------------------------------------------------- */
 app.get('/api/boards', (req, res) => {
     try {
-        const yaml    = fs.readFileSync(BOARDS_YAML, 'utf8');
-        const parsed  = parseSimpleYaml(yaml);
+        const parsed  = yaml.load(fs.readFileSync(BOARDS_YAML, 'utf8'));
         res.json(parsed.boards);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -180,8 +100,7 @@ app.post('/api/schematic/import', (req, res) => {
             return res.status(400).json({ error: 'filename and content required' });
         }
 
-        const yaml    = fs.readFileSync(BOARDS_YAML, 'utf8');
-        const parsed  = parseSimpleYaml(yaml);
+        const parsed  = yaml.load(fs.readFileSync(BOARDS_YAML, 'utf8'));
         const boardsDict = parsed.boards;
 
         // Load the importer after this module has initialized.  The resource
@@ -207,7 +126,11 @@ function defaultResourceConfig(board) {
         for (const [instance, signals] of Object.entries(pins[type] || {})) {
             resources[`${type}.${instance}`] = {
                 id: `${type}.${instance}`, type, instance, available: true,
-                assignments: Object.entries(signals).map(([role, pin]) => ({ role, pin })), configuration: {}
+                /* "devices" is a nested map of named I2C slaves (SDK-T6), not a
+                 * pin signal — exclude it from the bus pin assignments. */
+                assignments: Object.entries(signals)
+                    .filter(([role]) => role !== 'devices')
+                    .map(([role, pin]) => ({ role, pin })), configuration: {}
             };
         }
     }
@@ -234,7 +157,7 @@ function defaultResourceConfig(board) {
 function normalizeDeviceProfiles(board, devices = []) {
     if (devices == null) return [];
     if (!Array.isArray(devices)) throw new Error('Hardware devices must be an array.');
-    const parsed = parseSimpleYaml(fs.readFileSync(BOARDS_YAML, 'utf8'));
+    const parsed = yaml.load(fs.readFileSync(BOARDS_YAML, 'utf8'));
     const resources = defaultResourceConfig(parsed.boards[board]);
     const ids = new Set();
     return devices.map((device, index) => {
@@ -353,7 +276,7 @@ function readHardwareConfig(projectId = null) {
         const stored = JSON.parse(fs.readFileSync(configPath, 'utf8'));
         if (!stored.board || !Array.isArray(stored.assignments)) return stored;
         // Build the canonical resource set for the stored board first to know valid resource IDs
-        const parsed = parseSimpleYaml(fs.readFileSync(BOARDS_YAML, 'utf8'));
+        const parsed = yaml.load(fs.readFileSync(BOARDS_YAML, 'utf8'));
         const board = parsed.boards[stored.board];
         if (!board) return stored; // Unknown board, skip migration
         const canonicalResources = defaultResourceConfig(board);
@@ -375,7 +298,7 @@ function writeHardwareConfig(config, projectId = null) {
 }
 
 function projectHardware(boardKey, assignments, configurations = {}, devices = []) {
-    const parsed = parseSimpleYaml(fs.readFileSync(BOARDS_YAML, 'utf8'));
+    const parsed = yaml.load(fs.readFileSync(BOARDS_YAML, 'utf8'));
     const board = parsed.boards[boardKey];
     if (!board) throw new Error(`Unknown board '${boardKey}'.`);
     const resources = defaultResourceConfig(board);
@@ -660,7 +583,7 @@ function writeProjectBuildLog(id, content) {
 }
 
 function boardDescriptor(boardKey) {
-    const parsed = parseSimpleYaml(fs.readFileSync(BOARDS_YAML, 'utf8'));
+    const parsed = yaml.load(fs.readFileSync(BOARDS_YAML, 'utf8'));
     const board = parsed.boards[boardKey];
     if (!board) throw new Error(`Unknown board '${boardKey}'.`);
     return board;
@@ -1323,6 +1246,7 @@ void setup()
     Serial.print("HYPRACCEL_GRAPH_ID=");
     Serial.println("${graph.id}");
 
+    Serial.flush();
     int hw_status = hyp_esp32_hw_init();
     if (hw_status == 0) {
         Serial.println("HYPRACCEL_HW_INIT_OK");
@@ -1593,7 +1517,6 @@ if (require.main === module) {
 
 module.exports = {
     app,
-    parseSimpleYaml,
     defaultResourceConfig,
     projectHardware,
     validateGraphHardwareResources,

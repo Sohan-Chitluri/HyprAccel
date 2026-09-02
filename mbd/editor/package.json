@@ -5,9 +5,10 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test:projects": "node test/project_api.test.js && node test/graph_persistence.test.js && node test/graph_editor_project_flow.test.js && node test/project_materialization.test.js"
+    "test:projects": "node test/project_api.test.js && node test/graph_persistence.test.js && node test/graph_editor_project_flow.test.js && node test/project_materialization.test.js && node ../codegen/test/graph_to_c.test.js"
   },
   "dependencies": {
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "js-yaml": "^5.4.1"
   }
 }

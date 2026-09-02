@@ -26,6 +26,8 @@ extern "C" {
 #define HYP_RUNTIME_BUFFER_TOO_SMALL       -4
 #define HYP_RUNTIME_UNSUPPORTED_RESOURCE   -5
 #define HYP_RUNTIME_UNSUPPORTED_INSTANCE  -6
+#define HYP_RUNTIME_IO_ERROR               -7  /* Bus transaction failed: I2C NACK, timeout, or incomplete transfer */
+#define HYP_RUNTIME_NOT_INITIALIZED        -8  /* Resource is configured in the board but its peripheral was not initialized at runtime */
 
 /**
  * hyp_target_t — Execution backend selection
@@ -120,6 +122,54 @@ int hyp_sensor_read(const char *resource_id, void *out_value, uint32_t value_siz
  * @return HYP_RUNTIME_OK on success, otherwise a HYP_RUNTIME_* error code
  */
 int hyp_actuator_write(const char *resource_id, const void *in_value, uint32_t value_size);
+
+/* -------------------------------------------------------------------------
+ * SPI / I2C Bus Transaction Primitives (SDK-T6)
+ * ---------------------------------------------------------------------- */
+
+/**
+ * hyp_spi_transfer — Perform a full-duplex SPI transaction on a configured bus.
+ *
+ * The bus is identified by a semantic resource ID of the form "spi.<instance>"
+ * (e.g. "spi.hspi", "spi.vspi").  The instance's chip-select (CS) pin, clock
+ * frequency, and SPI mode are resolved from the generated hyp_board_config.h
+ * macros, following the same resource-resolution pattern used for GPIO/ADC/PWM.
+ *
+ * For each of the `len` bytes: the byte from tx_buf (or 0x00 when tx_buf is
+ * NULL) is clocked out while the simultaneously received byte is stored in
+ * rx_buf (when rx_buf is non-NULL).  CS is asserted low for the duration of the
+ * transfer and released high afterwards.
+ *
+ * @param resource_id  Bus resource identifier (e.g. "spi.hspi")
+ * @param tx_buf       Bytes to transmit, or NULL to clock out zeros (read-only)
+ * @param rx_buf       Buffer for received bytes, or NULL to discard (write-only)
+ * @param len          Number of bytes to transfer (must be > 0)
+ * @return HYP_RUNTIME_OK on success, otherwise a HYP_RUNTIME_* error code.
+ *         HYP_RUNTIME_NOT_INITIALIZED if the bus was never initialized.
+ */
+int hyp_spi_transfer(const char *resource_id, const uint8_t *tx_buf, uint8_t *rx_buf, size_t len);
+
+/**
+ * hyp_i2c_transact — Register-addressed I2C read or write to a named device.
+ *
+ * The device is identified by a semantic resource ID of the form
+ * "i2c.<device>" (e.g. "i2c.imu").  The device's 7-bit slave address is
+ * resolved from the generated HYP_RESOURCE_I2C_<DEVICE>_ADDRESS macros; the
+ * underlying bus must have been initialized (Wire.begin) at startup.
+ *
+ * Write (is_write=true): sends reg_addr followed by `len` bytes from `data`.
+ * Read  (is_write=false): sends reg_addr, issues a repeated start, then reads
+ * `len` bytes into `data`.
+ *
+ * @param resource_id  Device resource identifier (e.g. "i2c.imu")
+ * @param reg_addr     8-bit register address within the device
+ * @param data         Data buffer to write from / read into (must be non-NULL)
+ * @param len          Number of data bytes (must be > 0, bounded by bus buffer)
+ * @param is_write     true = write to register, false = read from register
+ * @return HYP_RUNTIME_OK on success, otherwise a HYP_RUNTIME_* error code.
+ *         HYP_RUNTIME_IO_ERROR on NACK, timeout, or incomplete transfer.
+ */
+int hyp_i2c_transact(const char *resource_id, uint8_t reg_addr, uint8_t *data, size_t len, bool is_write);
 
 /**
  * hyp_timestamp_us — Return the runtime monotonic timestamp in microseconds.

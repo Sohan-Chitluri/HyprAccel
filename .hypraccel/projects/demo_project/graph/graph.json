@@ -1,0 +1,199 @@
+{
+  "format": "hypraccel.mbd.graph",
+  "version": 1,
+  "id": "editor-graph",
+  "name": "editor-graph",
+  "nodes": [
+    {
+      "id": "time_4",
+      "type": "Time",
+      "label": "Time time_4",
+      "params": {},
+      "position": {
+        "x": 144.82652777984407,
+        "y": 126.71545928174712
+      }
+    },
+    {
+      "id": "multiply_5",
+      "type": "Multiply",
+      "label": "Multiply multiply_5",
+      "params": {},
+      "position": {
+        "x": 626.1693531527649,
+        "y": 157.26532269383713
+      }
+    },
+    {
+      "id": "multiply_6",
+      "type": "Multiply",
+      "label": "Multiply multiply_6",
+      "params": {},
+      "position": {
+        "x": 622.4936898654958,
+        "y": 305.078582111084
+      }
+    },
+    {
+      "id": "multiply_7",
+      "type": "Multiply",
+      "label": "Multiply multiply_7",
+      "params": {},
+      "position": {
+        "x": 640.1325849958745,
+        "y": 465.08855936523145
+      }
+    },
+    {
+      "id": "multiply_8",
+      "type": "Multiply",
+      "label": "Multiply multiply_8",
+      "params": {},
+      "position": {
+        "x": 623.4981934362669,
+        "y": 585.4929651574178
+      }
+    },
+    {
+      "id": "uartinput_16",
+      "type": "UARTInput",
+      "label": "UARTInput uartinput_16",
+      "params": {
+        "samplePeriodUs": 1000,
+        "baudRate": 115200,
+        "dataBits": 8,
+        "parity": "none",
+        "stopBits": 1
+      },
+      "position": {
+        "x": 1188.1740407842817,
+        "y": 478.1242458116382
+      }
+    },
+    {
+      "id": "actuatoroutput_19",
+      "type": "ActuatorOutput",
+      "label": "ActuatorOutput actuatoroutput_19",
+      "params": {
+        "target": "joint1.motor",
+        "unit": "rad/s",
+        "min": -1,
+        "max": 1,
+        "safeValue": 0
+      },
+      "position": {
+        "x": 494.00420833760825,
+        "y": 744.5250480848457
+      }
+    },
+    {
+      "id": "constant_21",
+      "type": "Constant",
+      "label": "Constant constant_21",
+      "params": {
+        "value": 13
+      },
+      "position": {
+        "x": 272.31465191287066,
+        "y": 247.66495228178218
+      }
+    },
+    {
+      "id": "constant_23",
+      "type": "Constant",
+      "label": "Constant constant_23",
+      "params": {
+        "value": 1.5
+      },
+      "position": {
+        "x": 290.9592656138323,
+        "y": 342.7524821566868
+      }
+    },
+    {
+      "id": "constant_24",
+      "type": "Constant",
+      "label": "Constant constant_24",
+      "params": {
+        "value": 18
+      },
+      "position": {
+        "x": 345.96087603166933,
+        "y": 458.3490871026493
+      }
+    },
+    {
+      "id": "constant_25",
+      "type": "Constant",
+      "label": "Constant constant_25",
+      "params": {
+        "value": 15
+      },
+      "position": {
+        "x": 269.5179598577263,
+        "y": 586.996921639285
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "time_4-value-multiply_5-a",
+      "from": {
+        "node": "time_4",
+        "port": "value"
+      },
+      "to": {
+        "node": "multiply_5",
+        "port": "a"
+      }
+    },
+    {
+      "id": "constant_21-value-multiply_5-b",
+      "from": {
+        "node": "constant_21",
+        "port": "value"
+      },
+      "to": {
+        "node": "multiply_5",
+        "port": "b"
+      }
+    },
+    {
+      "id": "constant_23-value-multiply_6-b",
+      "from": {
+        "node": "constant_23",
+        "port": "value"
+      },
+      "to": {
+        "node": "multiply_6",
+        "port": "b"
+      }
+    },
+    {
+      "id": "constant_24-value-multiply_7-b",
+      "from": {
+        "node": "constant_24",
+        "port": "value"
+      },
+      "to": {
+        "node": "multiply_7",
+        "port": "b"
+      }
+    },
+    {
+      "id": "constant_25-value-multiply_8-b",
+      "from": {
+        "node": "constant_25",
+        "port": "value"
+      },
+      "to": {
+        "node": "multiply_8",
+        "port": "b"
+      }
+    }
+  ],
+  "inputs": [],
+  "metadata": {
+    "targetBoard": "esp32"
+  }
+}

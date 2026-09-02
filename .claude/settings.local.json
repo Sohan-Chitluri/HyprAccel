@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node boards/codegen/gen_board_config.js esp32 boards/boards.yaml /tmp/claude-1000/-home-peskybird-Projects-HyprAccel/37274b25-9222-4935-836e-6ca07cce31ab/scratchpad)"
+    ]
+  }
+}

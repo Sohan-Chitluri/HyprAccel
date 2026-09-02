@@ -885,7 +885,6 @@ const hyprGraphRF = window.ReactFlow;
 const defaults = {
   SensorInput:{source:'imu.yaw_rad',valueType:'number',samplePeriodUs:1000,unit:'rad'},
   CordicOp:{operation:'sin',implementation:'auto',iterations:16},
-  KinematicsSolve:{mode:'forward',robotModel:'arm6dof',maxIterations:100,tolerance:0.0001},
   ControlLoop:{kp:1,ki:0,kd:0,samplePeriodUs:1000,outputMin:-1,outputMax:1,initialOutput:0},
   ActuatorOutput:{target:'joint1.motor',unit:'rad/s',min:-1,max:1,safeValue:0},
   Publish:{topic:'telemetry/value',transport:'telemetry',retain:false},
@@ -913,7 +912,6 @@ const defaults = {
 const descriptions = {
   SensorInput:'Board signal / sensor binding',
   CordicOp:'CORDIC accelerator with automatic, software, or hardware routing',
-  KinematicsSolve:'Robot forward/inverse kinematics solver',
   ControlLoop:'Discrete PID controller algorithm',
   ActuatorOutput:'Board motor/actuator output endpoint',
   Publish:'Telemetry payload publisher',
@@ -947,7 +945,7 @@ const categories = [
   { name: 'Outputs & Actuators', items: ['ActuatorOutput', 'PWMOutput', 'UARTOutput', 'MotorOutput'] },
   { name: 'Accelerator', items: ['CordicOp'] },
   { name: 'Control', items: ['ControlLoop'] },
-  { name: 'Robotics', items: ['KinematicsSolve', 'WheelSpeed', 'DifferentialDrive'] },
+  { name: 'Robotics', items: ['WheelSpeed', 'DifferentialDrive'] },
   { name: 'Data / Telemetry', items: ['Publish'] },
   { name: 'Signal Processing', items: ['Constant', 'Add', 'Subtract', 'Multiply', 'Gain', 'Compare', 'Saturation', 'Switch'] },
   { name: 'Communication', items: [], placeholder: 'Future expansion' },
@@ -959,7 +957,6 @@ const categories = [
 const portTypes = {
   SensorInput:{in:[],out:[['value','any'],['timestamp_us','number'],['valid','boolean']]},
   CordicOp:{in:[['angle_rad','number']],out:[['value','number']]},
-  KinematicsSolve:{in:[['joint_positions_rad','vector<number>']],out:[['end_effector_pose','pose']]},
   ControlLoop:{in:[['setpoint','number'],['measurement','number'],['enable','boolean']],out:[['command','number'],['error','number']]},
   ActuatorOutput:{in:[['command','number'],['enable','boolean']],out:[['applied','number'],['active','boolean']]},
   Publish:{in:[['value','any'],['timestamp_us','number (optional)']],out:[['published','boolean']]},
@@ -1293,11 +1290,6 @@ function renderConfig(force = false) {
   } else if (t === 'CordicOp') {
     paramGroups = [
       { name: 'CORDIC Implementation', fields: [['operation','select'],['implementation','select'],['iterations','number']] }
-    ];
-  } else if (t === 'KinematicsSolve') {
-    paramGroups = [
-      { name: 'Kinematics Setup', fields: [['mode','select'],['robotModel','text']] },
-      { name: 'Solver Precision', fields: [['maxIterations','number'],['tolerance','number']] }
     ];
   } else if (t === 'ControlLoop') {
     paramGroups = [

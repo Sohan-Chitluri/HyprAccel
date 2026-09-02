@@ -1,0 +1,12 @@
+{
+  "name": "hypraccel-board-codegen",
+  "version": "0.1.0",
+  "description": "HyprAccel board config code generator",
+  "main": "gen_board_config.js",
+  "scripts": {
+    "generate": "node gen_board_config.js"
+  },
+  "dependencies": {
+    "js-yaml": "^4.3.2"
+  }
+}

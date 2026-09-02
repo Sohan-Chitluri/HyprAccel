@@ -3,13 +3,6 @@
   "version": 1,
   "id": "arm_sine_uart_demo",
   "name": "arm_sine_uart_demo",
-  "inputs": [
-    {
-      "name": "angle_rad",
-      "type": "number",
-      "unit": "rad"
-    }
-  ],
   "nodes": [
     {
       "id": "time_1",
@@ -854,7 +847,15 @@
       }
     }
   ],
+  "inputs": [
+    {
+      "name": "angle_rad",
+      "type": "number",
+      "unit": "rad"
+    }
+  ],
   "metadata": {
+    "targetBoard": "esp32",
     "externalBindings": [
       {
         "input": "angle_rad",

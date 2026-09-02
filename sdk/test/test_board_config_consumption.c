@@ -119,6 +119,13 @@ static void test_i2c_pins(void)
 #else
     printf("[FAIL] HYP_RESOURCE_I2C_I2C0_SDA_PIN not defined\n"); g_failed++;
 #endif
+
+    /* SDK-T6: named I2C device slave-address macro emitted from boards.yaml */
+#ifdef HYP_RESOURCE_I2C_IMU_ADDRESS
+    ASSERT_EQ("I2C imu device address", HYP_RESOURCE_I2C_IMU_ADDRESS, 0x68);
+#else
+    printf("[FAIL] HYP_RESOURCE_I2C_IMU_ADDRESS not defined\n"); g_failed++;
+#endif
 }
 
 /* -------------------------------------------------------------------------

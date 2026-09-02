@@ -42,7 +42,7 @@ HDRS = $(SRC_DIR)/hyp_cordic_ref.h $(INC_DIR)/hyprccel.h
 SDK_OBJS = $(BUILD)/hyp_cordic_ref.o $(BUILD)/hyp_thejas.o $(BUILD)/hyp_esp32.o $(BUILD)/hyp_router.o $(BUILD)/hyp_pid.o $(BUILD)/hyp_encoder.o
 BOARD_CONFIG_TEST = $(BUILD)/test_board_config_consumption
 
-.PHONY: all test bench dump clean objs rtl-backend-test board-config-test sensor-actuator-test pid-test
+.PHONY: all test bench dump clean objs rtl-backend-test board-config-test sensor-actuator-test pid-test spi-i2c-test
 
 all: $(TARGET) objs $(BOARD_CONFIG_TEST)
 
@@ -89,6 +89,14 @@ sensor-actuator-test: test_sensor_actuator.c $(INC_DIR)/hyprccel.h | $(BUILD)
 pid-test: test_pid.c $(INC_DIR)/hyprccel.h $(BUILD)/hyp_pid.o | $(BUILD)
 	$(CC) $(CFLAGS) -o $(BUILD)/test_pid test_pid.c $(BUILD)/hyp_pid.o $(LDFLAGS)
 	$(BUILD)/test_pid
+
+# SDK-T6: SPI/I2C transaction primitives, exercised on the host against the
+# Arduino/SPI/Wire stubs in mock/. Compiled as C++ (the real hyp_esp32_hw.cpp is
+# C++) with the mock include dir taking precedence over any system Arduino headers.
+SPI_I2C_TEST_CXXFLAGS = -O2 -Wall -Wextra -std=c++17 -Imock -I$(INC_DIR) -I$(SRC_DIR)
+spi-i2c-test: test_spi_i2c_transact.cpp $(SRC_DIR)/hyp_esp32_hw.cpp $(INC_DIR)/hyprccel.h $(INC_DIR)/hyp_esp32_hw.h ../../boards/codegen/hyp_board_config.h | $(BUILD)
+	$(CXX) $(SPI_I2C_TEST_CXXFLAGS) -o $(BUILD)/test_spi_i2c_transact test_spi_i2c_transact.cpp $(SRC_DIR)/hyp_esp32_hw.cpp
+	$(BUILD)/test_spi_i2c_transact
 
 bench: $(TARGET)
 	@echo ""

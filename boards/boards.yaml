@@ -131,7 +131,14 @@ boards:
         hspi: { sck: "GPIO14", mosi: "GPIO13", miso: "GPIO12", cs: "GPIO15" }
         vspi: { sck: "GPIO18", mosi: "GPIO23", miso: "GPIO19", cs: "GPIO5" }
       i2c:
-        i2c0: { scl: "GPIO22", sda: "GPIO21" } # Typical defaults
+        i2c0:
+          scl: "GPIO22"
+          sda: "GPIO21"  # Typical defaults
+          # Named I2C devices on this bus. Each device's 7-bit slave address is
+          # emitted as HYP_RESOURCE_I2C_<DEVICE>_ADDRESS so the runtime can
+          # resolve "i2c.<device>" resource IDs to (bus + slave address).
+          devices:
+            imu: { address: 0x68 }  # e.g. MPU-6050 / ICM-20xxx class IMU
       uart:
         uart0: { tx: "GPIO1", rx: "GPIO3" }
         uart1: { tx: "GPIO10", rx: "GPIO9" }

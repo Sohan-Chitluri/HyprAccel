@@ -23,6 +23,18 @@
 static int next_pwm_channel = 0;
 #endif
 
+/* SDK-T6: persistent SPI bus handles so runtime transactions can reuse the
+ * peripheral configured in hyp_esp32_hw_init(). These remain NULL until the
+ * corresponding bus is initialized; hyp_spi_transfer() treats NULL as
+ * "not initialized" rather than failing silently. The captured frequency and
+ * mode are applied per-transaction via SPISettings. */
+static SPIClass *g_hspi_bus = NULL;
+static SPIClass *g_vspi_bus = NULL;
+static uint32_t  g_hspi_freq = 1000000;
+static uint32_t  g_vspi_freq = 1000000;
+static uint8_t   g_hspi_mode = SPI_MODE0;
+static uint8_t   g_vspi_mode = SPI_MODE0;
+
 int hyp_esp32_hw_init(void)
 {
     Serial.println("[INFO] Initializing ESP32 Hardware...");
@@ -598,12 +610,13 @@ int hyp_esp32_hw_init(void)
             else if (raw_mode == 2) mode = SPI_MODE2;
             else if (raw_mode == 3) mode = SPI_MODE3;
         #endif
-        (void)mode; (void)freq; /* used if device transaction APIs are called */
-        SPIClass *hspi = new SPIClass(HSPI);
-        hspi->begin(HYP_RESOURCE_SPI_HSPI_SCK_PIN,
-                    HYP_RESOURCE_SPI_HSPI_MISO_PIN,
-                    HYP_RESOURCE_SPI_HSPI_MOSI_PIN,
-                    HYP_RESOURCE_SPI_HSPI_CS_PIN);
+        g_hspi_bus = new SPIClass(HSPI);
+        g_hspi_bus->begin(HYP_RESOURCE_SPI_HSPI_SCK_PIN,
+                          HYP_RESOURCE_SPI_HSPI_MISO_PIN,
+                          HYP_RESOURCE_SPI_HSPI_MOSI_PIN,
+                          HYP_RESOURCE_SPI_HSPI_CS_PIN);
+        g_hspi_freq = (uint32_t)freq;
+        g_hspi_mode = (uint8_t)mode;
         pinMode(HYP_RESOURCE_SPI_HSPI_CS_PIN, OUTPUT);
         digitalWrite(HYP_RESOURCE_SPI_HSPI_CS_PIN, HIGH);
         Serial.println("[INFO] SPI HSPI initialized.");
@@ -627,12 +640,13 @@ int hyp_esp32_hw_init(void)
             else if (raw_mode == 2) mode = SPI_MODE2;
             else if (raw_mode == 3) mode = SPI_MODE3;
         #endif
-        (void)mode; (void)freq;
-        SPIClass *vspi = new SPIClass(VSPI);
-        vspi->begin(HYP_RESOURCE_SPI_VSPI_SCK_PIN,
-                    HYP_RESOURCE_SPI_VSPI_MISO_PIN,
-                    HYP_RESOURCE_SPI_VSPI_MOSI_PIN,
-                    HYP_RESOURCE_SPI_VSPI_CS_PIN);
+        g_vspi_bus = new SPIClass(VSPI);
+        g_vspi_bus->begin(HYP_RESOURCE_SPI_VSPI_SCK_PIN,
+                          HYP_RESOURCE_SPI_VSPI_MISO_PIN,
+                          HYP_RESOURCE_SPI_VSPI_MOSI_PIN,
+                          HYP_RESOURCE_SPI_VSPI_CS_PIN);
+        g_vspi_freq = (uint32_t)freq;
+        g_vspi_mode = (uint8_t)mode;
         pinMode(HYP_RESOURCE_SPI_VSPI_CS_PIN, OUTPUT);
         digitalWrite(HYP_RESOURCE_SPI_VSPI_CS_PIN, HIGH);
         Serial.println("[INFO] SPI VSPI initialized.");
@@ -1109,6 +1123,201 @@ static HardwareSerial *serial_for_resource(const char *instance) {
     return NULL;
 }
 
+/* ==========================================================================
+ * SDK-T6: SPI / I2C Bus Transaction Primitives
+ * ========================================================================== */
+
+/* Resolve an SPI instance name to its initialized bus handle plus the clock
+ * frequency and mode captured at init time. Returns NULL when the instance is
+ * unknown or the bus was never initialized (handle still NULL). */
+static SPIClass *spi_bus_for_instance(const char *instance, uint32_t *out_freq, uint8_t *out_mode) {
+#ifdef HYP_RESOURCE_SPI_HSPI
+    if (canonical_instance_equals(instance, "hspi")) {
+        if (out_freq) *out_freq = g_hspi_freq;
+        if (out_mode) *out_mode = g_hspi_mode;
+        return g_hspi_bus;
+    }
+#endif
+#ifdef HYP_RESOURCE_SPI_VSPI
+    if (canonical_instance_equals(instance, "vspi")) {
+        if (out_freq) *out_freq = g_vspi_freq;
+        if (out_mode) *out_mode = g_vspi_mode;
+        return g_vspi_bus;
+    }
+#endif
+    (void)out_freq; (void)out_mode;
+    return NULL;
+}
+
+/* Resolve an SPI instance name to its chip-select GPIO from board config. */
+static int spi_cs_pin_for_instance(const char *instance) {
+#ifdef HYP_RESOURCE_SPI_HSPI_CS_PIN
+    if (canonical_instance_equals(instance, "hspi")) return HYP_RESOURCE_SPI_HSPI_CS_PIN;
+#endif
+#ifdef HYP_RESOURCE_SPI_VSPI_CS_PIN
+    if (canonical_instance_equals(instance, "vspi")) return HYP_RESOURCE_SPI_VSPI_CS_PIN;
+#endif
+    return -1;
+}
+
+int hyp_spi_transfer(const char *resource_id, const uint8_t *tx_buf, uint8_t *rx_buf, size_t len) {
+    if (!resource_id || len == 0 || (!tx_buf && !rx_buf)) {
+        return HYP_RUNTIME_INVALID_ARGUMENT;
+    }
+
+    char resource_type[32];
+    char instance[64];
+    if (parse_resource_id(resource_id, resource_type, sizeof(resource_type),
+                          instance, sizeof(instance)) != 0) {
+        return HYP_RUNTIME_INVALID_RESOURCE_ID;
+    }
+    if (strcmp(resource_type, "spi") != 0) {
+        return HYP_RUNTIME_UNSUPPORTED_RESOURCE;
+    }
+    if (!is_configured_bus_resource("spi", instance)) {
+        return HYP_RUNTIME_RESOURCE_NOT_CONFIGURED;
+    }
+
+    uint32_t freq = 1000000;
+    uint8_t mode = SPI_MODE0;
+    SPIClass *bus = spi_bus_for_instance(instance, &freq, &mode);
+    if (!bus) {
+        /* Bus appears in the board map but hyp_esp32_hw_init() never created the
+         * handle (init not run, or new SPIClass failed). Surface it explicitly. */
+        Serial.print("[ERROR] hyp_spi_transfer: SPI bus not initialized for ");
+        Serial.println(instance);
+        return HYP_RUNTIME_NOT_INITIALIZED;
+    }
+
+    int cs = spi_cs_pin_for_instance(instance);
+    if (cs < 0) {
+        return HYP_RUNTIME_RESOURCE_NOT_CONFIGURED;
+    }
+
+    bus->beginTransaction(SPISettings(freq, MSBFIRST, mode));
+    digitalWrite(cs, LOW);
+    for (size_t i = 0; i < len; i++) {
+        uint8_t out_byte = tx_buf ? tx_buf[i] : 0x00;
+        uint8_t in_byte = bus->transfer(out_byte);
+        if (rx_buf) rx_buf[i] = in_byte;
+    }
+    digitalWrite(cs, HIGH);
+    bus->endTransaction();
+    return HYP_RUNTIME_OK;
+}
+
+/* I2C device address table (SDK-T6). Populated from HYP_I2C_DEVICE_TABLE, which
+ * gen_board_config.js emits from the "devices" map under each I2C bus in
+ * boards.yaml. Empty (sentinel only) when no named devices are configured. */
+typedef struct { const char *device; uint8_t address; } hyp_i2c_device_entry_t;
+static const hyp_i2c_device_entry_t hyp_i2c_device_table[] = {
+#ifdef HYP_I2C_DEVICE_TABLE
+    HYP_I2C_DEVICE_TABLE,
+#endif
+    { NULL, 0 } /* sentinel */
+};
+
+/* Look up a device's 7-bit slave address by semantic instance name. */
+static int i2c_address_for_device(const char *instance, uint8_t *out_addr) {
+    for (int i = 0; hyp_i2c_device_table[i].device != NULL; i++) {
+        if (canonical_instance_equals(instance, hyp_i2c_device_table[i].device)) {
+            if (out_addr) *out_addr = hyp_i2c_device_table[i].address;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+/* Largest single I2C payload we accept. The Arduino TwoWire buffer is 128 bytes
+ * on ESP32; capping below that (leaving room for the register-address byte)
+ * guards against silent truncation inside Wire.write(). */
+#define HYP_I2C_MAX_PAYLOAD 127
+
+/* Register-less raw I2C transfer used by the generic sensor/actuator dispatch:
+ * reads or writes `len` bytes to/from the device's current register pointer. */
+static int i2c_raw_transfer(uint8_t dev_addr, uint8_t *data, size_t len, bool is_write) {
+    if (is_write) {
+        Wire.beginTransmission(dev_addr);
+        Wire.write(data, len);
+        uint8_t rc = Wire.endTransmission();
+        if (rc != 0) {
+            Serial.print("[ERROR] i2c raw write NACK/timeout rc=");
+            Serial.println(rc);
+            return HYP_RUNTIME_IO_ERROR;
+        }
+        return HYP_RUNTIME_OK;
+    }
+    size_t got = Wire.requestFrom((int)dev_addr, (int)len);
+    if (got != len) {
+        Serial.println("[ERROR] i2c raw read short/timeout");
+        return HYP_RUNTIME_IO_ERROR;
+    }
+    for (size_t i = 0; i < len; i++) data[i] = (uint8_t)Wire.read();
+    return HYP_RUNTIME_OK;
+}
+
+int hyp_i2c_transact(const char *resource_id, uint8_t reg_addr, uint8_t *data, size_t len, bool is_write) {
+    if (!resource_id || !data || len == 0) {
+        return HYP_RUNTIME_INVALID_ARGUMENT;
+    }
+    if (len > HYP_I2C_MAX_PAYLOAD) {
+        /* Out-of-range transfer length: would overrun the TwoWire buffer. */
+        return HYP_RUNTIME_BUFFER_TOO_SMALL;
+    }
+
+    char resource_type[32];
+    char instance[64];
+    if (parse_resource_id(resource_id, resource_type, sizeof(resource_type),
+                          instance, sizeof(instance)) != 0) {
+        return HYP_RUNTIME_INVALID_RESOURCE_ID;
+    }
+    if (strcmp(resource_type, "i2c") != 0) {
+        return HYP_RUNTIME_UNSUPPORTED_RESOURCE;
+    }
+
+#ifndef HYP_RESOURCE_I2C_I2C0
+    /* No I2C bus configured on this board -> Wire.begin() was never called. */
+    return HYP_RUNTIME_RESOURCE_NOT_CONFIGURED;
+#else
+    uint8_t dev_addr = 0;
+    if (i2c_address_for_device(instance, &dev_addr) != 0) {
+        Serial.print("[WARN] hyp_i2c_transact: unknown I2C device ");
+        Serial.println(instance);
+        return HYP_RUNTIME_RESOURCE_NOT_CONFIGURED;
+    }
+
+    if (is_write) {
+        Wire.beginTransmission(dev_addr);
+        Wire.write(reg_addr);
+        Wire.write(data, len);
+        uint8_t rc = Wire.endTransmission();
+        if (rc != 0) {
+            Serial.print("[ERROR] hyp_i2c_transact write NACK/timeout rc=");
+            Serial.println(rc);
+            return HYP_RUNTIME_IO_ERROR;
+        }
+        return HYP_RUNTIME_OK;
+    }
+
+    /* Register read: address the register, issue a repeated start, then read. */
+    Wire.beginTransmission(dev_addr);
+    Wire.write(reg_addr);
+    uint8_t rc = Wire.endTransmission(false); /* false = repeated start (no STOP) */
+    if (rc != 0) {
+        Serial.print("[ERROR] hyp_i2c_transact reg-select NACK/timeout rc=");
+        Serial.println(rc);
+        return HYP_RUNTIME_IO_ERROR;
+    }
+    size_t got = Wire.requestFrom((int)dev_addr, (int)len);
+    if (got != len) {
+        Serial.println("[ERROR] hyp_i2c_transact read short/timeout");
+        return HYP_RUNTIME_IO_ERROR;
+    }
+    for (size_t i = 0; i < len; i++) data[i] = (uint8_t)Wire.read();
+    return HYP_RUNTIME_OK;
+#endif
+}
+
 uint32_t hyp_esp32_timestamp_us(void) {
     return (uint32_t)micros();
 }
@@ -1184,9 +1393,20 @@ int hyp_esp32_sensor_read(const char *resource_id, void *out_value, uint32_t val
         return HYP_RUNTIME_BUFFER_TOO_SMALL;
     }
 
-    if (strcmp(resource_type, "spi") == 0 || strcmp(resource_type, "i2c") == 0) {
-        return is_configured_bus_resource(resource_type, instance)
-            ? HYP_RUNTIME_UNSUPPORTED_RESOURCE : HYP_RUNTIME_RESOURCE_NOT_CONFIGURED;
+    if (strcmp(resource_type, "spi") == 0) {
+        /* Full-duplex read: clock out zeros and capture the received bytes.
+         * hyp_spi_transfer validates configuration and initialization state. */
+        return hyp_spi_transfer(resource_id, NULL, (uint8_t *)out_value, value_size);
+    }
+
+    if (strcmp(resource_type, "i2c") == 0) {
+        /* Register-less read of value_size bytes from the named device. Callers
+         * needing register-addressed access use hyp_i2c_transact() directly. */
+        uint8_t dev_addr = 0;
+        if (i2c_address_for_device(instance, &dev_addr) != 0) {
+            return HYP_RUNTIME_RESOURCE_NOT_CONFIGURED;
+        }
+        return i2c_raw_transfer(dev_addr, (uint8_t *)out_value, value_size, false);
     }
 
     return HYP_RUNTIME_UNSUPPORTED_RESOURCE;
@@ -1263,9 +1483,18 @@ int hyp_esp32_actuator_write(const char *resource_id, const void *in_value, uint
         return HYP_RUNTIME_OK;
     }
 
-    if (strcmp(resource_type, "spi") == 0 || strcmp(resource_type, "i2c") == 0) {
-        return is_configured_bus_resource(resource_type, instance)
-            ? HYP_RUNTIME_UNSUPPORTED_RESOURCE : HYP_RUNTIME_RESOURCE_NOT_CONFIGURED;
+    if (strcmp(resource_type, "spi") == 0) {
+        /* Full-duplex write: clock out the supplied bytes, discard received. */
+        return hyp_spi_transfer(resource_id, (const uint8_t *)in_value, NULL, value_size);
+    }
+
+    if (strcmp(resource_type, "i2c") == 0) {
+        /* Register-less write of value_size bytes to the named device. */
+        uint8_t dev_addr = 0;
+        if (i2c_address_for_device(instance, &dev_addr) != 0) {
+            return HYP_RUNTIME_RESOURCE_NOT_CONFIGURED;
+        }
+        return i2c_raw_transfer(dev_addr, (uint8_t *)in_value, value_size, true);
     }
 
     return HYP_RUNTIME_UNSUPPORTED_RESOURCE;

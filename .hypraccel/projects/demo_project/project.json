@@ -7,7 +7,7 @@
     "path": "hardware/hardware.json"
   },
   "createdAt": "2026-08-18T20:45:36.695Z",
-  "updatedAt": "2026-08-18T21:58:33.150Z",
+  "updatedAt": "2026-08-21T07:13:16.220Z",
   "activeGraphId": "arm_sine_uart_demo",
   "graphs": {
     "path": "graphs"
