@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <string>
 
 #define ESP_ARDUINO_VERSION_MAJOR 3
 
@@ -37,19 +38,32 @@ typedef enum {
     ADC_11db  = 3
 } adc_attenuation_t;
 
-/* HardwareSerial: swallow all output; report no bytes available. */
+/* HardwareSerial: swallow the actual bytes but record enough to test on:
+ * whether begin() was ever called (so tests can tell UART1/UART2 were
+ * actually initialized rather than just "configured" in the board macros),
+ * and a rolling text log of everything print()/println()'d so tests can
+ * assert on the [INFO]/[WARN]/[ERROR] lines hyp_esp32_hw.cpp emits. */
 class HardwareSerial {
 public:
-    void begin(long) {}
-    void begin(long, int, int, int) {}
-    void print(const char *) {}
-    void print(int) {}
-    void print(unsigned int) {}
-    void println(const char *) {}
-    void println(int) {}
-    void println(unsigned int) {}
+    bool began = false;
+    long began_baud = 0;
+    std::string log;
+
+    void begin(long baud) { began = true; began_baud = baud; }
+    void begin(long baud, int, int, int) { began = true; began_baud = baud; }
+    void print(const char *s) { log += s; }
+    void print(int v) { log += std::to_string(v); }
+    void print(unsigned int v) { log += std::to_string(v); }
+    void print(double v) { log += std::to_string(v); }
+    void println(const char *s) { log += s; log += "\n"; }
+    void println(int v) { log += std::to_string(v); log += "\n"; }
+    void println(unsigned int v) { log += std::to_string(v); log += "\n"; }
+    void println(double v) { log += std::to_string(v); log += "\n"; }
     int available() { return 0; }
     size_t write(const uint8_t *, size_t n) { return n; }
+
+    bool log_contains(const char *needle) const { return log.find(needle) != std::string::npos; }
+    void reset() { began = false; began_baud = 0; log.clear(); }
 };
 
 inline HardwareSerial Serial;
@@ -60,13 +74,42 @@ inline HardwareSerial Serial2;
 inline int g_mock_last_cs_pin = -1;
 inline int g_mock_last_cs_val = -1;
 
-inline void pinMode(int, int) {}
+/* pinMode()/ledcAttach() call tracking, keyed by GPIO number (0..63), so
+ * tests can assert PINFUNC gating: a pin whose function doesn't match must
+ * never reach pinMode()/ledcAttach() during hyp_esp32_hw_init(). */
+inline bool g_mock_pinmode_called[64] = { false };
+inline bool g_mock_ledc_attach_called[64] = { false };
+
+inline void mock_pin_tracking_reset(void) {
+    for (int i = 0; i < 64; i++) { g_mock_pinmode_called[i] = false; g_mock_ledc_attach_called[i] = false; }
+}
+
+inline void pinMode(int pin, int) { if (pin >= 0 && pin < 64) g_mock_pinmode_called[pin] = true; }
 inline void digitalWrite(int pin, int val) { g_mock_last_cs_pin = pin; g_mock_last_cs_val = val; }
 inline int  digitalRead(int) { return 0; }
 inline int  analogRead(int) { return 0; }
 inline void analogSetPinAttenuation(int, adc_attenuation_t) {}
-inline void ledcAttach(int, long, int) {}
+inline void ledcAttach(int pin, long, int) { if (pin >= 0 && pin < 64) g_mock_ledc_attach_called[pin] = true; }
 inline void ledcWrite(int, int) {}
 inline unsigned long micros() { return 0UL; }
+
+/* setCpuFrequencyMhz() — real ESP32 Arduino core signature returns bool
+ * (false when the requested frequency is not valid for the chip's XTAL).
+ * g_mock_cpu_freq_result lets a test force the failure path. */
+inline uint32_t g_mock_cpu_freq_last_mhz = 0;
+inline int      g_mock_cpu_freq_call_count = 0;
+inline bool     g_mock_cpu_freq_result = true;
+
+inline bool setCpuFrequencyMhz(uint32_t mhz) {
+    g_mock_cpu_freq_last_mhz = mhz;
+    g_mock_cpu_freq_call_count++;
+    return g_mock_cpu_freq_result;
+}
+
+inline void mock_cpu_freq_reset(void) {
+    g_mock_cpu_freq_last_mhz = 0;
+    g_mock_cpu_freq_call_count = 0;
+    g_mock_cpu_freq_result = true;
+}
 
 #endif /* MOCK_ARDUINO_H */

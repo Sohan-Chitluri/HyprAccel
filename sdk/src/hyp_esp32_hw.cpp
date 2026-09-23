@@ -18,6 +18,33 @@
 #include "../../boards/codegen/hyp_board_config.h"
 #endif
 
+/* -----------------------------------------------------------------------
+ * HYP_SDK_PINFUNC_MODE — desktop pin-function gating switch.
+ *
+ * hyp_board_config.h has no single marker macro that says "this header
+ * carries desktop pin-function data" (see project_defines.js
+ * buildPinFunctionBlock): web-only projects emit NO HYP_PINFUNC_* macros at
+ * all, byte-identical to the pre-desktop header. We derive the switch
+ * ourselves: if ANY HYP_PINFUNC_<GPIOn> macro is defined for any ESP32 pin
+ * listed in boards.yaml, the header came from a desktop-saved project and
+ * peripheral init below must consider ONLY pins that carry a matching
+ * HYP_PINFUNC_<GPIOn>_<FUNCTION> macro. When no HYP_PINFUNC_* macro is
+ * defined anywhere (legacy web-only headers), HYP_SDK_PINFUNC_MODE stays
+ * undefined and every #if below reduces to its original HYP_RESOURCE_*
+ * condition — behaviour is byte-for-byte unchanged.
+ * ------------------------------------------------------------------- */
+#if defined(HYP_PINFUNC_GPIO0)  || defined(HYP_PINFUNC_GPIO1)  || defined(HYP_PINFUNC_GPIO2)  || \
+    defined(HYP_PINFUNC_GPIO3)  || defined(HYP_PINFUNC_GPIO4)  || defined(HYP_PINFUNC_GPIO5)  || \
+    defined(HYP_PINFUNC_GPIO12) || defined(HYP_PINFUNC_GPIO13) || defined(HYP_PINFUNC_GPIO14) || \
+    defined(HYP_PINFUNC_GPIO15) || defined(HYP_PINFUNC_GPIO16) || defined(HYP_PINFUNC_GPIO17) || \
+    defined(HYP_PINFUNC_GPIO18) || defined(HYP_PINFUNC_GPIO19) || defined(HYP_PINFUNC_GPIO21) || \
+    defined(HYP_PINFUNC_GPIO22) || defined(HYP_PINFUNC_GPIO23) || defined(HYP_PINFUNC_GPIO25) || \
+    defined(HYP_PINFUNC_GPIO26) || defined(HYP_PINFUNC_GPIO27) || defined(HYP_PINFUNC_GPIO32) || \
+    defined(HYP_PINFUNC_GPIO33) || defined(HYP_PINFUNC_GPIO34) || defined(HYP_PINFUNC_GPIO35) || \
+    defined(HYP_PINFUNC_GPIO36) || defined(HYP_PINFUNC_GPIO39)
+#define HYP_SDK_PINFUNC_MODE 1
+#endif
+
 /* FW-P5: PWM channel counter for Arduino cores < 3 */
 #if ESP_ARDUINO_VERSION_MAJOR < 3
 static int next_pwm_channel = 0;
@@ -40,12 +67,33 @@ int hyp_esp32_hw_init(void)
     Serial.println("[INFO] Initializing ESP32 Hardware...");
 
     // -------------------------------------------------------------------------
+    // 0. Clock Configuration (desktop Studio clock tab, applied best-effort)
+    // -------------------------------------------------------------------------
+    // Runs first, before any peripheral whose baud rate / timing derives from
+    // APB_CLK, so UART/SPI/I2C/PWM init below observe the configured frequency.
+#ifdef HYP_CLOCK_CONFIG_PRESENT
+    {
+        bool cpu_freq_ok = setCpuFrequencyMhz(HYP_CPU_FREQ_MHZ);
+        #ifdef HYP_CLOCK_NONSTANDARD_CPU_FREQ
+            Serial.println("[WARN] HYP_CPU_FREQ_MHZ is not one of the ESP-IDF supported CPU frequencies (80/160/240 MHz); applying best-effort.");
+        #endif
+        if (!cpu_freq_ok) {
+            Serial.println("[ERROR] setCpuFrequencyMhz() rejected HYP_CPU_FREQ_MHZ; continuing at the default CPU frequency.");
+        } else {
+            Serial.print("[INFO] CPU frequency set to ");
+            Serial.print(HYP_CPU_FREQ_MHZ);
+            Serial.println(" MHz.");
+        }
+    }
+#endif
+
+    // -------------------------------------------------------------------------
     // 1. GPIO Configuration
     // -------------------------------------------------------------------------
     // Note: Standard C++ preprocessor does not allow #ifdef/#endif inside a macro.
     // Each GPIO pin configuration is written explicitly below.
 
-#ifdef HYP_RESOURCE_GPIO_GPIO0
+#if defined(HYP_RESOURCE_GPIO_GPIO0) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO0_GPIO))
     {
         int pin = 0; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO0_DIRECTION
@@ -64,7 +112,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#if defined(HYP_RESOURCE_GPIO_GPIO1) && !defined(HYP_RESOURCE_UART_UART0)
+#if defined(HYP_RESOURCE_GPIO_GPIO1) && !defined(HYP_RESOURCE_UART_UART0) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO1_GPIO))
     /* GPIO1 = UART0 TX: only configure as plain GPIO when UART0 is not active. */
     {
         int pin = 1; int mode = INPUT; bool is_output = false;
@@ -84,7 +132,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO2
+#if defined(HYP_RESOURCE_GPIO_GPIO2) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO2_GPIO))
     {
         int pin = 2; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO2_DIRECTION
@@ -103,7 +151,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#if defined(HYP_RESOURCE_GPIO_GPIO3) && !defined(HYP_RESOURCE_UART_UART0)
+#if defined(HYP_RESOURCE_GPIO_GPIO3) && !defined(HYP_RESOURCE_UART_UART0) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO3_GPIO))
     /* GPIO3 = UART0 RX: only configure as plain GPIO when UART0 is not active. */
     {
         int pin = 3; int mode = INPUT; bool is_output = false;
@@ -123,7 +171,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO4
+#if defined(HYP_RESOURCE_GPIO_GPIO4) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO4_GPIO))
     {
         int pin = 4; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO4_DIRECTION
@@ -142,7 +190,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO5
+#if defined(HYP_RESOURCE_GPIO_GPIO5) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO5_GPIO))
     {
         int pin = 5; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO5_DIRECTION
@@ -161,7 +209,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO12
+#if defined(HYP_RESOURCE_GPIO_GPIO12) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO12_GPIO))
     {
         int pin = 12; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO12_DIRECTION
@@ -180,7 +228,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO13
+#if defined(HYP_RESOURCE_GPIO_GPIO13) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO13_GPIO))
     {
         int pin = 13; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO13_DIRECTION
@@ -199,7 +247,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO14
+#if defined(HYP_RESOURCE_GPIO_GPIO14) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO14_GPIO))
     {
         int pin = 14; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO14_DIRECTION
@@ -218,7 +266,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO15
+#if defined(HYP_RESOURCE_GPIO_GPIO15) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO15_GPIO))
     {
         int pin = 15; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO15_DIRECTION
@@ -237,7 +285,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO16
+#if defined(HYP_RESOURCE_GPIO_GPIO16) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO16_GPIO))
     {
         int pin = 16; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO16_DIRECTION
@@ -256,7 +304,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO17
+#if defined(HYP_RESOURCE_GPIO_GPIO17) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO17_GPIO))
     {
         int pin = 17; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO17_DIRECTION
@@ -275,7 +323,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO18
+#if defined(HYP_RESOURCE_GPIO_GPIO18) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO18_GPIO))
     {
         int pin = 18; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO18_DIRECTION
@@ -294,7 +342,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO19
+#if defined(HYP_RESOURCE_GPIO_GPIO19) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO19_GPIO))
     {
         int pin = 19; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO19_DIRECTION
@@ -313,7 +361,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO21
+#if defined(HYP_RESOURCE_GPIO_GPIO21) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO21_GPIO))
     {
         int pin = 21; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO21_DIRECTION
@@ -332,7 +380,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO22
+#if defined(HYP_RESOURCE_GPIO_GPIO22) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO22_GPIO))
     {
         int pin = 22; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO22_DIRECTION
@@ -351,7 +399,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO23
+#if defined(HYP_RESOURCE_GPIO_GPIO23) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO23_GPIO))
     {
         int pin = 23; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO23_DIRECTION
@@ -370,7 +418,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO25
+#if defined(HYP_RESOURCE_GPIO_GPIO25) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO25_GPIO))
     {
         int pin = 25; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO25_DIRECTION
@@ -389,7 +437,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO26
+#if defined(HYP_RESOURCE_GPIO_GPIO26) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO26_GPIO))
     {
         int pin = 26; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO26_DIRECTION
@@ -408,7 +456,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO27
+#if defined(HYP_RESOURCE_GPIO_GPIO27) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO27_GPIO))
     {
         int pin = 27; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO27_DIRECTION
@@ -427,7 +475,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO32
+#if defined(HYP_RESOURCE_GPIO_GPIO32) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO32_GPIO))
     {
         int pin = 32; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO32_DIRECTION
@@ -446,7 +494,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO33
+#if defined(HYP_RESOURCE_GPIO_GPIO33) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO33_GPIO))
     {
         int pin = 33; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO33_DIRECTION
@@ -465,7 +513,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO34
+#if defined(HYP_RESOURCE_GPIO_GPIO34) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO34_GPIO))
     {
         int pin = 34; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO34_DIRECTION
@@ -484,7 +532,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO35
+#if defined(HYP_RESOURCE_GPIO_GPIO35) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO35_GPIO))
     {
         int pin = 35; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO35_DIRECTION
@@ -503,7 +551,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO36
+#if defined(HYP_RESOURCE_GPIO_GPIO36) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO36_GPIO))
     {
         int pin = 36; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO36_DIRECTION
@@ -522,7 +570,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_GPIO_GPIO39
+#if defined(HYP_RESOURCE_GPIO_GPIO39) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO39_GPIO))
     {
         int pin = 39; int mode = INPUT; bool is_output = false;
         #ifdef HYP_RESOURCE_GPIO_GPIO39_DIRECTION
@@ -544,7 +592,7 @@ int hyp_esp32_hw_init(void)
     // -------------------------------------------------------------------------
     // 2. UART Configuration
     // -------------------------------------------------------------------------
-#ifdef HYP_RESOURCE_UART_UART0
+#if defined(HYP_RESOURCE_UART_UART0) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO1_UART_UART0_TX) || defined(HYP_PINFUNC_GPIO3_UART_UART0_RX))
     {
         /* UART0 / Serial is already initialised by setup() before hyp_esp32_hw_init()
          * is called.  Calling Serial.begin() a second time reinitialises the UART
@@ -555,7 +603,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#if defined(HYP_RESOURCE_UART_UART1) && defined(HYP_RESOURCE_UART_UART1_TX_PIN) && defined(HYP_RESOURCE_UART_UART1_RX_PIN)
+#if defined(HYP_RESOURCE_UART_UART1) && defined(HYP_RESOURCE_UART_UART1_TX_PIN) && defined(HYP_RESOURCE_UART_UART1_RX_PIN) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO10_UART_UART1_TX) || defined(HYP_PINFUNC_GPIO9_UART_UART1_RX))
     /* ESP32-WROOM-32: GPIO9 and GPIO10 are routed to the internal SPI flash in
      * QIO mode.  Attempting Serial1.begin() on those pins corrupts flash access
      * and causes a hard fault.  Skip UART1 init when the board config assigns
@@ -575,7 +623,7 @@ int hyp_esp32_hw_init(void)
 #  endif
 #endif
 
-#ifdef HYP_RESOURCE_UART_UART2
+#if defined(HYP_RESOURCE_UART_UART2) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO17_UART_UART2_TX) || defined(HYP_PINFUNC_GPIO16_UART_UART2_RX))
     {
         long baud = 115200;
         #ifdef HYP_RESOURCE_UART_UART2_BAUD_RATE
@@ -593,7 +641,7 @@ int hyp_esp32_hw_init(void)
     // -------------------------------------------------------------------------
     // 3. SPI Configuration
     // -------------------------------------------------------------------------
-#ifdef HYP_RESOURCE_SPI_HSPI
+#if defined(HYP_RESOURCE_SPI_HSPI) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO14_SPI_HSPI_SCK) || defined(HYP_PINFUNC_GPIO13_SPI_HSPI_MOSI) || defined(HYP_PINFUNC_GPIO12_SPI_HSPI_MISO) || defined(HYP_PINFUNC_GPIO15_SPI_HSPI_CS))
     {
         #if !defined(HYP_RESOURCE_SPI_HSPI_SCK_PIN) || !defined(HYP_RESOURCE_SPI_HSPI_MOSI_PIN) \
          || !defined(HYP_RESOURCE_SPI_HSPI_MISO_PIN) || !defined(HYP_RESOURCE_SPI_HSPI_CS_PIN)
@@ -623,7 +671,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_SPI_VSPI
+#if defined(HYP_RESOURCE_SPI_VSPI) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO18_SPI_VSPI_SCK) || defined(HYP_PINFUNC_GPIO23_SPI_VSPI_MOSI) || defined(HYP_PINFUNC_GPIO19_SPI_VSPI_MISO) || defined(HYP_PINFUNC_GPIO5_SPI_VSPI_CS))
     {
         #if !defined(HYP_RESOURCE_SPI_VSPI_SCK_PIN) || !defined(HYP_RESOURCE_SPI_VSPI_MOSI_PIN) \
          || !defined(HYP_RESOURCE_SPI_VSPI_MISO_PIN) || !defined(HYP_RESOURCE_SPI_VSPI_CS_PIN)
@@ -656,7 +704,7 @@ int hyp_esp32_hw_init(void)
     // -------------------------------------------------------------------------
     // 4. I2C Configuration
     // -------------------------------------------------------------------------
-#ifdef HYP_RESOURCE_I2C_I2C0
+#if defined(HYP_RESOURCE_I2C_I2C0) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO21_I2C_I2C0_SDA) || defined(HYP_PINFUNC_GPIO22_I2C_I2C0_SCL))
     {
         #if !defined(HYP_RESOURCE_I2C_I2C0_SDA_PIN) || !defined(HYP_RESOURCE_I2C_I2C0_SCL_PIN)
             #error "I2C I2C0 enabled but HYP_RESOURCE_I2C_I2C0_SDA_PIN / _SCL_PIN not defined"
@@ -673,7 +721,7 @@ int hyp_esp32_hw_init(void)
     // -------------------------------------------------------------------------
     // 5. PWM Configuration
     // -------------------------------------------------------------------------
-#ifdef HYP_RESOURCE_PWM_GPIO25
+#if defined(HYP_RESOURCE_PWM_GPIO25) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO25_PWM))
     {
         int pin = 25; long freq = 50; int res_bits = 16; int initial_duty = 0;
         #ifdef HYP_RESOURCE_PWM_GPIO25_FREQUENCY_HZ
@@ -695,7 +743,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_PWM_GPIO26
+#if defined(HYP_RESOURCE_PWM_GPIO26) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO26_PWM))
     {
         int pin = 26; long freq = 50; int res_bits = 16; int initial_duty = 0;
         #ifdef HYP_RESOURCE_PWM_GPIO26_FREQUENCY_HZ
@@ -717,7 +765,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_PWM_GPIO27
+#if defined(HYP_RESOURCE_PWM_GPIO27) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO27_PWM))
     {
         int pin = 27; long freq = 50; int res_bits = 16; int initial_duty = 0;
         #ifdef HYP_RESOURCE_PWM_GPIO27_FREQUENCY_HZ
@@ -739,7 +787,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_PWM_GPIO32
+#if defined(HYP_RESOURCE_PWM_GPIO32) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO32_PWM))
     {
         int pin = 32; long freq = 50; int res_bits = 16; int initial_duty = 0;
         #ifdef HYP_RESOURCE_PWM_GPIO32_FREQUENCY_HZ
@@ -761,7 +809,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_PWM_GPIO33
+#if defined(HYP_RESOURCE_PWM_GPIO33) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO33_PWM))
     {
         int pin = 33; long freq = 50; int res_bits = 16; int initial_duty = 0;
         #ifdef HYP_RESOURCE_PWM_GPIO33_FREQUENCY_HZ
@@ -786,7 +834,7 @@ int hyp_esp32_hw_init(void)
     // -------------------------------------------------------------------------
     // 6. ADC Configuration
     // -------------------------------------------------------------------------
-#ifdef HYP_RESOURCE_ADC_GPIO32
+#if defined(HYP_RESOURCE_ADC_GPIO32) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO32_ADC))
     {
         int pin = 32; pinMode(pin, ANALOG); adc_attenuation_t atten = ADC_11db;
         #ifdef HYP_RESOURCE_ADC_GPIO32_ATTENUATION_DB
@@ -801,7 +849,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_ADC_GPIO33
+#if defined(HYP_RESOURCE_ADC_GPIO33) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO33_ADC))
     {
         int pin = 33; pinMode(pin, ANALOG); adc_attenuation_t atten = ADC_11db;
         #ifdef HYP_RESOURCE_ADC_GPIO33_ATTENUATION_DB
@@ -816,7 +864,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_ADC_GPIO34
+#if defined(HYP_RESOURCE_ADC_GPIO34) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO34_ADC))
     {
         int pin = 34; pinMode(pin, ANALOG); adc_attenuation_t atten = ADC_11db;
         #ifdef HYP_RESOURCE_ADC_GPIO34_ATTENUATION_DB
@@ -831,7 +879,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_ADC_GPIO35
+#if defined(HYP_RESOURCE_ADC_GPIO35) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO35_ADC))
     {
         int pin = 35; pinMode(pin, ANALOG); adc_attenuation_t atten = ADC_11db;
         #ifdef HYP_RESOURCE_ADC_GPIO35_ATTENUATION_DB
@@ -846,7 +894,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_ADC_GPIO36
+#if defined(HYP_RESOURCE_ADC_GPIO36) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO36_ADC))
     {
         int pin = 36; pinMode(pin, ANALOG); adc_attenuation_t atten = ADC_11db;
         #ifdef HYP_RESOURCE_ADC_GPIO36_ATTENUATION_DB
@@ -861,7 +909,7 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#ifdef HYP_RESOURCE_ADC_GPIO39
+#if defined(HYP_RESOURCE_ADC_GPIO39) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO39_ADC))
     {
         int pin = 39; pinMode(pin, ANALOG); adc_attenuation_t atten = ADC_11db;
         #ifdef HYP_RESOURCE_ADC_GPIO39_ATTENUATION_DB

@@ -42,7 +42,7 @@ HDRS = $(SRC_DIR)/hyp_cordic_ref.h $(INC_DIR)/hyprccel.h
 SDK_OBJS = $(BUILD)/hyp_cordic_ref.o $(BUILD)/hyp_thejas.o $(BUILD)/hyp_esp32.o $(BUILD)/hyp_router.o $(BUILD)/hyp_pid.o $(BUILD)/hyp_encoder.o
 BOARD_CONFIG_TEST = $(BUILD)/test_board_config_consumption
 
-.PHONY: all test bench dump clean objs rtl-backend-test board-config-test sensor-actuator-test pid-test spi-i2c-test
+.PHONY: all test bench dump clean objs rtl-backend-test board-config-test sensor-actuator-test pid-test spi-i2c-test pinfunc-test
 
 all: $(TARGET) objs $(BOARD_CONFIG_TEST)
 
@@ -97,6 +97,54 @@ SPI_I2C_TEST_CXXFLAGS = -O2 -Wall -Wextra -std=c++17 -Imock -I$(INC_DIR) -I$(SRC
 spi-i2c-test: test_spi_i2c_transact.cpp $(SRC_DIR)/hyp_esp32_hw.cpp $(INC_DIR)/hyprccel.h $(INC_DIR)/hyp_esp32_hw.h ../../boards/codegen/hyp_board_config.h | $(BUILD)
 	$(CXX) $(SPI_I2C_TEST_CXXFLAGS) -o $(BUILD)/test_spi_i2c_transact test_spi_i2c_transact.cpp $(SRC_DIR)/hyp_esp32_hw.cpp
 	$(BUILD)/test_spi_i2c_transact
+
+# Desktop pin-function/clock init gating (hyp_esp32_hw.cpp HYP_SDK_PINFUNC_MODE).
+# hyp_esp32_hw.cpp includes its board config header via the hardcoded relative
+# path "../../boards/codegen/hyp_board_config.h", resolved relative to
+# hyp_esp32_hw.cpp's OWN location, not the compiler's invocation directory —
+# so to compile it against a fixture header instead of the real committed one,
+# each variant mirrors the repo's sdk/src + boards/codegen layout into a
+# scratch tree under $(BUILD)/pinfunc_mirror/<variant>/ and copies the real
+# hyp_esp32_hw.cpp plus the desired fixture header into it.
+PINFUNC_TEST_CXXFLAGS = -O2 -Wall -Wextra -std=c++17 -Imock -I$(INC_DIR) -I$(SRC_DIR)
+PINFUNC_MIRROR = $(BUILD)/pinfunc_mirror
+
+$(PINFUNC_MIRROR)/desktop/sdk/src/hyp_esp32_hw.cpp: $(SRC_DIR)/hyp_esp32_hw.cpp
+	mkdir -p $(dir $@) && cp $< $@
+$(PINFUNC_MIRROR)/desktop/boards/codegen/hyp_board_config.h: fixtures/board_config_pinfunc.h
+	mkdir -p $(dir $@) && cp $< $@
+
+$(PINFUNC_MIRROR)/nonstd/sdk/src/hyp_esp32_hw.cpp: $(SRC_DIR)/hyp_esp32_hw.cpp
+	mkdir -p $(dir $@) && cp $< $@
+$(PINFUNC_MIRROR)/nonstd/boards/codegen/hyp_board_config.h: fixtures/board_config_pinfunc_nonstd.h
+	mkdir -p $(dir $@) && cp $< $@
+
+$(PINFUNC_MIRROR)/minimal/sdk/src/hyp_esp32_hw.cpp: $(SRC_DIR)/hyp_esp32_hw.cpp
+	mkdir -p $(dir $@) && cp $< $@
+$(PINFUNC_MIRROR)/minimal/boards/codegen/hyp_board_config.h: fixtures/board_config_pinfunc_minimal.h
+	mkdir -p $(dir $@) && cp $< $@
+
+pinfunc-test: test_pinfunc_gating.cpp $(INC_DIR)/hyprccel.h $(INC_DIR)/hyp_esp32_hw.h \
+              $(PINFUNC_MIRROR)/desktop/sdk/src/hyp_esp32_hw.cpp $(PINFUNC_MIRROR)/desktop/boards/codegen/hyp_board_config.h \
+              $(PINFUNC_MIRROR)/nonstd/sdk/src/hyp_esp32_hw.cpp $(PINFUNC_MIRROR)/nonstd/boards/codegen/hyp_board_config.h \
+              $(PINFUNC_MIRROR)/minimal/sdk/src/hyp_esp32_hw.cpp $(PINFUNC_MIRROR)/minimal/boards/codegen/hyp_board_config.h \
+              ../../boards/codegen/hyp_board_config.h | $(BUILD)
+	@echo ""
+	@echo ">>> [legacy] no PINFUNC macros -> unchanged full init"
+	$(CXX) $(PINFUNC_TEST_CXXFLAGS) -DHYP_PINFUNC_VARIANT_LEGACY -o $(BUILD)/test_pinfunc_legacy test_pinfunc_gating.cpp $(SRC_DIR)/hyp_esp32_hw.cpp
+	$(BUILD)/test_pinfunc_legacy
+	@echo ""
+	@echo ">>> [desktop] PINFUNC + standard 160 MHz clock -> selective init"
+	$(CXX) $(PINFUNC_TEST_CXXFLAGS) -DHYP_PINFUNC_VARIANT_DESKTOP -o $(BUILD)/test_pinfunc_desktop test_pinfunc_gating.cpp $(PINFUNC_MIRROR)/desktop/sdk/src/hyp_esp32_hw.cpp
+	$(BUILD)/test_pinfunc_desktop
+	@echo ""
+	@echo ">>> [nonstd] PINFUNC + nonstandard 100 MHz clock -> warns, doesn't fail"
+	$(CXX) $(PINFUNC_TEST_CXXFLAGS) -DHYP_PINFUNC_VARIANT_NONSTD -o $(BUILD)/test_pinfunc_nonstd test_pinfunc_gating.cpp $(PINFUNC_MIRROR)/nonstd/sdk/src/hyp_esp32_hw.cpp
+	$(BUILD)/test_pinfunc_nonstd
+	@echo ""
+	@echo ">>> [minimal] PINFUNC, single assigned pin, no clock -> nothing else inits"
+	$(CXX) $(PINFUNC_TEST_CXXFLAGS) -DHYP_PINFUNC_VARIANT_MINIMAL -o $(BUILD)/test_pinfunc_minimal test_pinfunc_gating.cpp $(PINFUNC_MIRROR)/minimal/sdk/src/hyp_esp32_hw.cpp
+	$(BUILD)/test_pinfunc_minimal
 
 bench: $(TARGET)
 	@echo ""

@@ -22,6 +22,10 @@ inline int     g_mock_wire_read_len = 0;  /* bytes made available by the test   
 inline int     g_mock_wire_read_idx = 0;
 inline int     g_mock_wire_requested = 0; /* len passed to last requestFrom()      */
 
+inline bool g_mock_wire_began = false; /* set by TwoWire::begin(); lets tests tell
+                                          * "I2C0 configured in board macros" apart
+                                          * from "I2C0 actually initialized". */
+
 inline void mock_wire_reset(void) {
     g_mock_wire_tx_count = 0;
     g_mock_wire_addr = 0;
@@ -29,6 +33,7 @@ inline void mock_wire_reset(void) {
     g_mock_wire_read_len = 0;
     g_mock_wire_read_idx = 0;
     g_mock_wire_requested = 0;
+    g_mock_wire_began = false;
 }
 
 /* Simulate a bus error: 2 = NACK on address, 3 = NACK on data, 5 = timeout. */
@@ -42,7 +47,7 @@ inline void mock_wire_set_read_data(const uint8_t *d, int n) {
 
 class TwoWire {
 public:
-    void begin(int = -1, int = -1, uint32_t = 0) {}
+    void begin(int = -1, int = -1, uint32_t = 0) { g_mock_wire_began = true; }
     void beginTransmission(uint8_t addr) { g_mock_wire_addr = addr; g_mock_wire_tx_count = 0; }
     size_t write(uint8_t b) {
         if (g_mock_wire_tx_count < 256) g_mock_wire_tx[g_mock_wire_tx_count++] = b;
