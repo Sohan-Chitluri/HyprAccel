@@ -47,10 +47,16 @@ class HardwareSerial {
 public:
     bool began = false;
     long began_baud = 0;
+    bool ended = false;
     std::string log;
 
-    void begin(long baud) { began = true; began_baud = baud; }
-    void begin(long baud, int, int, int) { began = true; began_baud = baud; }
+    void begin(long baud) { began = true; began_baud = baud; ended = false; }
+    void begin(long baud, int, int, int) { began = true; began_baud = baud; ended = false; }
+    /* Real HardwareSerial::end() (ESP32 Arduino core) detaches the UART
+     * driver and releases its RX/TX pins. Tracked here so host tests can
+     * assert the SDK ends the console port when UART0's pins are reassigned
+     * to plain GPIO (see HYP_SDK_CONSOLE_ENABLED in hyp_esp32_hw.cpp). */
+    void end() { ended = true; began = false; }
     void print(const char *s) { log += s; }
     void print(int v) { log += std::to_string(v); }
     void print(unsigned int v) { log += std::to_string(v); }
@@ -63,7 +69,7 @@ public:
     size_t write(const uint8_t *, size_t n) { return n; }
 
     bool log_contains(const char *needle) const { return log.find(needle) != std::string::npos; }
-    void reset() { began = false; began_baud = 0; log.clear(); }
+    void reset() { began = false; began_baud = 0; ended = false; log.clear(); }
 };
 
 inline HardwareSerial Serial;

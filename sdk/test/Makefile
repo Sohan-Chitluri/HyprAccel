@@ -124,10 +124,21 @@ $(PINFUNC_MIRROR)/minimal/sdk/src/hyp_esp32_hw.cpp: $(SRC_DIR)/hyp_esp32_hw.cpp
 $(PINFUNC_MIRROR)/minimal/boards/codegen/hyp_board_config.h: fixtures/board_config_pinfunc_minimal.h
 	mkdir -p $(dir $@) && cp $< $@
 
+$(PINFUNC_MIRROR)/gpio_console/sdk/src/hyp_esp32_hw.cpp: $(SRC_DIR)/hyp_esp32_hw.cpp
+	mkdir -p $(dir $@) && cp $< $@
+$(PINFUNC_MIRROR)/gpio_console/boards/codegen/hyp_board_config.h: fixtures/board_config_pinfunc_gpio_console.h
+	mkdir -p $(dir $@) && cp $< $@
+$(PINFUNC_MIRROR)/mixed_uart0/sdk/src/hyp_esp32_hw.cpp: $(SRC_DIR)/hyp_esp32_hw.cpp
+	mkdir -p $(dir $@) && cp $< $@
+$(PINFUNC_MIRROR)/mixed_uart0/boards/codegen/hyp_board_config.h: fixtures/board_config_pinfunc_gpio1_uart0_rx.h
+	mkdir -p $(dir $@) && cp $< $@
+
 pinfunc-test: test_pinfunc_gating.cpp $(INC_DIR)/hyprccel.h $(INC_DIR)/hyp_esp32_hw.h \
               $(PINFUNC_MIRROR)/desktop/sdk/src/hyp_esp32_hw.cpp $(PINFUNC_MIRROR)/desktop/boards/codegen/hyp_board_config.h \
               $(PINFUNC_MIRROR)/nonstd/sdk/src/hyp_esp32_hw.cpp $(PINFUNC_MIRROR)/nonstd/boards/codegen/hyp_board_config.h \
               $(PINFUNC_MIRROR)/minimal/sdk/src/hyp_esp32_hw.cpp $(PINFUNC_MIRROR)/minimal/boards/codegen/hyp_board_config.h \
+              $(PINFUNC_MIRROR)/gpio_console/sdk/src/hyp_esp32_hw.cpp $(PINFUNC_MIRROR)/gpio_console/boards/codegen/hyp_board_config.h \
+              $(PINFUNC_MIRROR)/mixed_uart0/sdk/src/hyp_esp32_hw.cpp $(PINFUNC_MIRROR)/mixed_uart0/boards/codegen/hyp_board_config.h \
               ../../boards/codegen/hyp_board_config.h | $(BUILD)
 	@echo ""
 	@echo ">>> [legacy] no PINFUNC macros -> unchanged full init"
@@ -145,6 +156,14 @@ pinfunc-test: test_pinfunc_gating.cpp $(INC_DIR)/hyprccel.h $(INC_DIR)/hyp_esp32
 	@echo ">>> [minimal] PINFUNC, single assigned pin, no clock -> nothing else inits"
 	$(CXX) $(PINFUNC_TEST_CXXFLAGS) -DHYP_PINFUNC_VARIANT_MINIMAL -o $(BUILD)/test_pinfunc_minimal test_pinfunc_gating.cpp $(PINFUNC_MIRROR)/minimal/sdk/src/hyp_esp32_hw.cpp
 	$(BUILD)/test_pinfunc_minimal
+	@echo ""
+	@echo ">>> [gpio_console] PINFUNC, GPIO1+GPIO3 assigned plain GPIO (UART0 unassigned) -> UART0 never enabled, console silenced"
+	$(CXX) $(PINFUNC_TEST_CXXFLAGS) -DHYP_PINFUNC_VARIANT_GPIO_CONSOLE -o $(BUILD)/test_pinfunc_gpio_console test_pinfunc_gating.cpp $(PINFUNC_MIRROR)/gpio_console/sdk/src/hyp_esp32_hw.cpp
+	$(BUILD)/test_pinfunc_gpio_console
+	@echo ""
+	@echo ">>> [mixed_uart0] PINFUNC, GPIO1 plain GPIO + GPIO3 UART0 RX -> GPIO1 configured, UART0 not active, console off"
+	$(CXX) $(PINFUNC_TEST_CXXFLAGS) -DHYP_PINFUNC_VARIANT_MIXED_UART0 -o $(BUILD)/test_pinfunc_mixed_uart0 test_pinfunc_gating.cpp $(PINFUNC_MIRROR)/mixed_uart0/sdk/src/hyp_esp32_hw.cpp
+	$(BUILD)/test_pinfunc_mixed_uart0
 
 bench: $(TARGET)
 	@echo ""

@@ -12,7 +12,7 @@
  *     log a warning (not fail); setCpuFrequencyMhz() returning false must log
  *     an error and continue.
  *
- * This same .cpp is compiled FOUR separate times (see the `pinfunc-test`
+ * This same .cpp is compiled six separate times (see the `pinfunc-test`
  * Makefile target), each time linked against a differently-configured build
  * of sdk/src/hyp_esp32_hw.cpp (achieved by mirroring the real repo layout
  * into a scratch tree so hyp_esp32_hw.cpp's hardcoded
@@ -27,8 +27,14 @@
  *                                     (PINFUNC + nonstandard 100 MHz clock block)
  *   -DHYP_PINFUNC_VARIANT_MINIMAL  -> fixtures/board_config_pinfunc_minimal.h
  *                                     (PINFUNC, only gpio.GPIO4 assigned, no clock)
+ *   -DHYP_PINFUNC_VARIANT_GPIO_CONSOLE -> fixtures/board_config_pinfunc_gpio_console.h
+ *                                     (PINFUNC, gpio.GPIO1 + gpio.GPIO3 assigned as
+ *                                     plain GPIO, uart.uart0 left UNassigned — the
+ *                                     "UART0 always enabled" bug scenario)
+ *   -DHYP_PINFUNC_VARIANT_MIXED_UART0 -> fixtures/board_config_pinfunc_gpio1_uart0_rx.h
+ *                                     (PINFUNC, gpio.GPIO1 + uart.uart0 rx=GPIO3)
  *
- * All four fixtures were generated with the real codegen
+ * All the PINFUNC fixtures were generated with the real codegen
  * (boards/codegen/gen_board_config.js --project <scratch dir>), the same
  * path desktop-saved projects go through; see the Makefile comment above
  * the fixture rules for the exact assignments used.
@@ -220,6 +226,89 @@ static void run(void)
     CHECK(hyp_spi_transfer("spi.hspi", buf, buf, 2) == HYP_RUNTIME_NOT_INITIALIZED, "minimal: SPI HSPI NOT initialized");
     CHECK(hyp_spi_transfer("spi.vspi", buf, buf, 2) == HYP_RUNTIME_NOT_INITIALIZED, "minimal: SPI VSPI NOT initialized");
     CHECK(!g_mock_wire_began, "minimal: I2C I2C0 NOT initialized");
+
+    /* GPIO1/GPIO3 are unassigned, not claimed: the console must stay up. */
+    CHECK(!Serial.ended, "minimal: Serial NOT ended (UART0 pins unclaimed, console kept)");
+    CHECK(Serial.log_contains("Initializing ESP32 Hardware"), "minimal: SDK logging still reaches Serial");
+    CHECK(hyp_esp32_sensor_read("uart.uart0", buf, sizeof(buf)) == HYP_RUNTIME_RESOURCE_NOT_CONFIGURED,
+          "minimal: uart.uart0 not a configured resource (unassigned)");
+}
+#endif
+
+/* ---- GPIO_CONSOLE: GPIO1/GPIO3 reassigned to plain GPIO, UART0 unassigned -
+ * Regression test for the "UART0 always enabled" bug: boards/boards.yaml's
+ * ESP32 UART0 resource (HYP_RESOURCE_UART_UART0) is emitted unconditionally
+ * by gen_board_config.js for every header, board-level, independent of the
+ * project. Before the fix, hyp_esp32_hw.cpp's GPIO1/GPIO3 plain-GPIO blocks
+ * were gated on `!defined(HYP_RESOURCE_UART_UART0)`, which was always false,
+ * so GPIO1/GPIO3 could never be pinMode()'d and UART0 stayed the exclusive
+ * owner of those pins even when the desktop project reassigned them.
+ *
+ * This fixture assigns gpio.GPIO1 and gpio.GPIO3 as plain GPIO and leaves
+ * uart.uart0 completely unassigned, exactly the reported scenario. Must
+ * assert: (1) GPIO1/GPIO3 DO get pinMode()'d, (2) the SDK's own UART0 init
+ * path ("UART0 already initialised") never runs, (3) is_configured_bus_resource
+ * agrees UART0 is not configured (via hyp_esp32_sensor_read), and (4) the
+ * SDK's console logging is silenced end-to-end (HYP_SDK_CONSOLE_ENABLED) and
+ * Serial.end() was called to release the pins back from the peripheral. */
+#if defined(HYP_PINFUNC_VARIANT_GPIO_CONSOLE)
+static void run(void)
+{
+    reset_all_mocks();
+    int rc = hyp_esp32_hw_init();
+    CHECK(rc == 0, "gpio_console: hyp_esp32_hw_init -> 0");
+
+    /* (1) GPIO1/GPIO3 are configured as plain GPIO. */
+    CHECK(g_mock_pinmode_called[1], "gpio_console: GPIO1 (assigned gpio) got pinMode()");
+    CHECK(g_mock_pinmode_called[3], "gpio_console: GPIO3 (assigned gpio) got pinMode()");
+
+    /* Nothing else was assigned -> no other pin/bus initializes. */
+    const int other_gpio[] = { 0, 2, 4, 5, 12, 13, 14, 15, 16, 17, 18, 19,
+                                21, 22, 23, 25, 26, 27, 32, 33, 34, 35, 36, 39 };
+    bool any_other_configured = false;
+    for (int p : other_gpio) if (g_mock_pinmode_called[p]) any_other_configured = true;
+    CHECK(!any_other_configured, "gpio_console: no other GPIO pin got pinMode()");
+
+    /* (2) The SDK never takes the UART0 init path. */
+    CHECK(!Serial.log_contains("UART0 already initialised"), "gpio_console: UART0 init path NOT taken");
+    CHECK(!Serial1.began, "gpio_console: UART1 NOT initialized");
+    CHECK(!Serial2.began, "gpio_console: UART2 NOT initialized");
+
+    /* (3) Runtime dispatch agrees UART0 is not a configured resource: a
+     * sensor_read on "uart.uart0" must report RESOURCE_NOT_CONFIGURED, not
+     * silently succeed against an unbegun/reassigned Serial port. */
+    int avail = -1;
+    int sensor_rc = hyp_esp32_sensor_read("uart.uart0", &avail, sizeof(avail));
+    CHECK(sensor_rc == HYP_RUNTIME_RESOURCE_NOT_CONFIGURED, "gpio_console: uart.uart0 sensor_read -> RESOURCE_NOT_CONFIGURED");
+
+    /* (4) Console behaviour: Serial.end() was called (releasing GPIO1/GPIO3
+     * from the UART0 peripheral) and the SDK's own logging is a total no-op
+     * — nothing at all reached the (ended) Serial port, not even the
+     * unconditional "[INFO] Initializing ESP32 Hardware..." startup line. */
+    CHECK(Serial.ended, "gpio_console: Serial.end() called to release GPIO1/GPIO3");
+    CHECK(Serial.log.empty(), "gpio_console: SDK logging fully silenced (HYP_SDK_CONSOLE_ENABLED off)");
+}
+#endif
+
+/* ---- MIXED_UART0: GPIO1 plain GPIO, GPIO3 still UART0 RX ----------------
+ * GPIO1 is claimed by another function, so UART0 (TX+RX on one peripheral)
+ * cannot run: GPIO1 must still be configured as GPIO (it used to be skipped
+ * whenever UART0 counted as active), UART0 must not be reported as a usable
+ * resource, and the console must be off. The conflict checker only warns
+ * (BUS_PARTIAL) for this layout, so the SDK has to handle it. */
+#if defined(HYP_PINFUNC_VARIANT_MIXED_UART0)
+static void run(void)
+{
+    reset_all_mocks();
+    CHECK(hyp_esp32_hw_init() == 0, "mixed_uart0: hyp_esp32_hw_init -> 0");
+    CHECK(g_mock_pinmode_called[1], "mixed_uart0: GPIO1 (assigned gpio) got pinMode()");
+    CHECK(!g_mock_pinmode_called[3], "mixed_uart0: GPIO3 (UART0 RX) not configured as GPIO");
+    CHECK(!Serial.log_contains("UART0 already initialised"), "mixed_uart0: UART0 init path NOT taken");
+    int avail = -1;
+    CHECK(hyp_esp32_sensor_read("uart.uart0", &avail, sizeof(avail)) == HYP_RUNTIME_RESOURCE_NOT_CONFIGURED,
+          "mixed_uart0: uart.uart0 not a configured resource");
+    CHECK(Serial.ended, "mixed_uart0: Serial.end() called (GPIO1 claimed)");
+    CHECK(Serial.log.empty(), "mixed_uart0: SDK logging silenced");
 }
 #endif
 

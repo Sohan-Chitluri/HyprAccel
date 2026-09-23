@@ -45,6 +45,80 @@
 #define HYP_SDK_PINFUNC_MODE 1
 #endif
 
+/* -----------------------------------------------------------------------
+ * HYP_SDK_UART0_ACTIVE — is UART0 actually the pin-owning peripheral for
+ * GPIO1/GPIO3?
+ *
+ * boards/codegen/gen_board_config.js generateHeader() emits
+ * HYP_RESOURCE_UART_UART0 unconditionally for every ESP32 header (it is a
+ * BOARD-level macro straight from boards.yaml, not a project one) — so
+ * `defined(HYP_RESOURCE_UART_UART0)` can never be used to tell whether a
+ * desktop-saved project actually left GPIO1/GPIO3 wired to UART0 or
+ * reassigned them to plain GPIO. In legacy/web mode (no PINFUNC data) there
+ * is no way to know either way, so we keep the historical assumption that
+ * UART0 is always the console (byte-for-byte unchanged behaviour). In
+ * PINFUNC mode we know precisely: UART0 is active iff GPIO1's or GPIO3's
+ * pin-function macro says so.
+ *
+ * This single macro is the one place that decides UART0's fate: it gates
+ * the UART0 init block below, the GPIO1/GPIO3 plain-GPIO blocks (mutually
+ * exclusive with UART0 use), is_configured_bus_resource()'s uart0 case, and
+ * HYP_SDK_CONSOLE_ENABLED (whether the SDK's own Serial logging may run).
+ * ------------------------------------------------------------------- */
+/* UART0 pins "claimed": GPIO1/GPIO3 carry a pin function other than their
+ * UART0 role. Unassigned pins are NOT claimed — the console keeps them. */
+#if defined(HYP_SDK_PINFUNC_MODE) && \
+    ((defined(HYP_PINFUNC_GPIO1) && !defined(HYP_PINFUNC_GPIO1_UART_UART0_TX)) || \
+     (defined(HYP_PINFUNC_GPIO3) && !defined(HYP_PINFUNC_GPIO3_UART_UART0_RX)))
+#define HYP_SDK_UART0_PINS_CLAIMED 1
+#endif
+
+#if defined(HYP_RESOURCE_UART_UART0) && \
+    (!defined(HYP_SDK_PINFUNC_MODE) || \
+     (!defined(HYP_SDK_UART0_PINS_CLAIMED) && \
+      (defined(HYP_PINFUNC_GPIO1_UART_UART0_TX) || defined(HYP_PINFUNC_GPIO3_UART_UART0_RX))))
+#define HYP_SDK_UART0_ACTIVE 1
+#endif
+
+/* -----------------------------------------------------------------------
+ * HYP_SDK_CONSOLE_ENABLED — may the SDK use Serial for its own [INFO]/
+ * [WARN]/[ERROR] logging?
+ *
+ * mbd/editor's frozen generated main.cpp (server.js materializeEsp32
+ * runtime wrapper) calls Serial.begin(115200) unconditionally before
+ * hyp_esp32_hw_init() runs, on every board — web AND desktop projects
+ * alike; web projects never carry PINFUNC data at all, so fully fixing the
+ * desktop case (never starting Serial in the first place when the console
+ * is not wanted) needs a change outside sdk/, in a future desktop-specific
+ * firmware wrapper. That is out of scope here.
+ *
+ * What the SDK CAN do unilaterally: once it knows (via HYP_SDK_UART0_ACTIVE)
+ * that GPIO1/GPIO3 were reassigned away from UART0, it must stop driving
+ * that peripheral itself — both by ending the port main.cpp already opened
+ * (see the `Serial.end()` call at the top of hyp_esp32_hw_init(), which
+ * releases GPIO1/GPIO3 back to GPIO ownership before this function's own
+ * pinMode() calls run) and by turning every one of its own Serial.print()/
+ * println() calls into a no-op (HYP_LOG_PRINT/HYP_LOG_PRINTLN below), so the
+ * SDK never toggles GPIO1 (UART0 TX) as a side effect of logging once the
+ * user owns that pin as plain GPIO. In legacy/web mode HYP_SDK_UART0_ACTIVE
+ * is always defined, so HYP_SDK_CONSOLE_ENABLED collapses to "always on" —
+ * logging behaviour for web builds is unchanged.
+ * ------------------------------------------------------------------- */
+/* The console (Serial on UART0) stays on unless a project gave GPIO1/GPIO3
+ * another function; a desktop project that simply leaves them unassigned
+ * keeps its serial output (and the runtime markers Verify looks for). */
+#if !defined(HYP_SDK_UART0_PINS_CLAIMED)
+#define HYP_SDK_CONSOLE_ENABLED 1
+#endif
+
+#if defined(HYP_SDK_CONSOLE_ENABLED)
+#define HYP_LOG_PRINTLN(x) Serial.println(x)
+#define HYP_LOG_PRINT(x) Serial.print(x)
+#else
+#define HYP_LOG_PRINTLN(x) ((void)0)
+#define HYP_LOG_PRINT(x) ((void)0)
+#endif
+
 /* FW-P5: PWM channel counter for Arduino cores < 3 */
 #if ESP_ARDUINO_VERSION_MAJOR < 3
 static int next_pwm_channel = 0;
@@ -64,7 +138,17 @@ static uint8_t   g_vspi_mode = SPI_MODE0;
 
 int hyp_esp32_hw_init(void)
 {
-    Serial.println("[INFO] Initializing ESP32 Hardware...");
+#if !defined(HYP_SDK_CONSOLE_ENABLED)
+    /* UART0's pins (GPIO1/GPIO3) were reassigned to plain GPIO by this
+     * desktop project. mbd/editor's frozen generated main.cpp still calls
+     * Serial.begin(115200) unconditionally before this function runs (see
+     * boards.yaml-independent code in mbd/editor/server.js's materializeEsp32
+     * runtime wrapper); end the port here so the GPIO1/GPIO3 pinMode() calls
+     * below take pin ownership back from the UART0 peripheral cleanly, and
+     * so nothing below can accidentally toggle GPIO1 (UART0 TX) via Serial. */
+    Serial.end();
+#endif
+    HYP_LOG_PRINTLN("[INFO] Initializing ESP32 Hardware...");
 
     // -------------------------------------------------------------------------
     // 0. Clock Configuration (desktop Studio clock tab, applied best-effort)
@@ -75,14 +159,14 @@ int hyp_esp32_hw_init(void)
     {
         bool cpu_freq_ok = setCpuFrequencyMhz(HYP_CPU_FREQ_MHZ);
         #ifdef HYP_CLOCK_NONSTANDARD_CPU_FREQ
-            Serial.println("[WARN] HYP_CPU_FREQ_MHZ is not one of the ESP-IDF supported CPU frequencies (80/160/240 MHz); applying best-effort.");
+            HYP_LOG_PRINTLN("[WARN] HYP_CPU_FREQ_MHZ is not one of the ESP-IDF supported CPU frequencies (80/160/240 MHz); applying best-effort.");
         #endif
         if (!cpu_freq_ok) {
-            Serial.println("[ERROR] setCpuFrequencyMhz() rejected HYP_CPU_FREQ_MHZ; continuing at the default CPU frequency.");
+            HYP_LOG_PRINTLN("[ERROR] setCpuFrequencyMhz() rejected HYP_CPU_FREQ_MHZ; continuing at the default CPU frequency.");
         } else {
-            Serial.print("[INFO] CPU frequency set to ");
-            Serial.print(HYP_CPU_FREQ_MHZ);
-            Serial.println(" MHz.");
+            HYP_LOG_PRINT("[INFO] CPU frequency set to ");
+            HYP_LOG_PRINT(HYP_CPU_FREQ_MHZ);
+            HYP_LOG_PRINTLN(" MHz.");
         }
     }
 #endif
@@ -112,7 +196,9 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#if defined(HYP_RESOURCE_GPIO_GPIO1) && !defined(HYP_RESOURCE_UART_UART0) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO1_GPIO))
+#if defined(HYP_RESOURCE_GPIO_GPIO1) && \
+    ((defined(HYP_SDK_PINFUNC_MODE) && defined(HYP_PINFUNC_GPIO1_GPIO)) || \
+     (!defined(HYP_SDK_PINFUNC_MODE) && !defined(HYP_RESOURCE_UART_UART0)))
     /* GPIO1 = UART0 TX: only configure as plain GPIO when UART0 is not active. */
     {
         int pin = 1; int mode = INPUT; bool is_output = false;
@@ -151,7 +237,9 @@ int hyp_esp32_hw_init(void)
     }
 #endif
 
-#if defined(HYP_RESOURCE_GPIO_GPIO3) && !defined(HYP_RESOURCE_UART_UART0) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO3_GPIO))
+#if defined(HYP_RESOURCE_GPIO_GPIO3) && \
+    ((defined(HYP_SDK_PINFUNC_MODE) && defined(HYP_PINFUNC_GPIO3_GPIO)) || \
+     (!defined(HYP_SDK_PINFUNC_MODE) && !defined(HYP_RESOURCE_UART_UART0)))
     /* GPIO3 = UART0 RX: only configure as plain GPIO when UART0 is not active. */
     {
         int pin = 3; int mode = INPUT; bool is_output = false;
@@ -592,14 +680,14 @@ int hyp_esp32_hw_init(void)
     // -------------------------------------------------------------------------
     // 2. UART Configuration
     // -------------------------------------------------------------------------
-#if defined(HYP_RESOURCE_UART_UART0) && (!defined(HYP_SDK_PINFUNC_MODE) || defined(HYP_PINFUNC_GPIO1_UART_UART0_TX) || defined(HYP_PINFUNC_GPIO3_UART_UART0_RX))
+#if defined(HYP_SDK_UART0_ACTIVE)
     {
         /* UART0 / Serial is already initialised by setup() before hyp_esp32_hw_init()
          * is called.  Calling Serial.begin() a second time reinitialises the UART
          * hardware peripheral and can flush / corrupt bytes that are still queued
          * in the TX FIFO (observed as truncated HYPRACCEL_MBD_T9_READY output).
          * Skip the redundant begin(); the port is already open at 115200 baud. */
-        Serial.println("[INFO] UART0 already initialised by setup().");
+        HYP_LOG_PRINTLN("[INFO] UART0 already initialised by setup().");
     }
 #endif
 
@@ -610,7 +698,7 @@ int hyp_esp32_hw_init(void)
      * either of those pins to the UART1 bus. */
 #  if (HYP_RESOURCE_UART_UART1_TX_PIN == 9  || HYP_RESOURCE_UART_UART1_TX_PIN == 10 || \
        HYP_RESOURCE_UART_UART1_RX_PIN == 9  || HYP_RESOURCE_UART_UART1_RX_PIN == 10)
-    Serial.println("[WARN] UART1 skipped: TX/RX pin conflicts with internal SPI flash (GPIO9/GPIO10).");
+    HYP_LOG_PRINTLN("[WARN] UART1 skipped: TX/RX pin conflicts with internal SPI flash (GPIO9/GPIO10).");
 #  else
     {
         long baud = 115200;
@@ -618,7 +706,7 @@ int hyp_esp32_hw_init(void)
             baud = HYP_RESOURCE_UART_UART1_BAUD_RATE;
         #endif
         Serial1.begin(baud, SERIAL_8N1, HYP_RESOURCE_UART_UART1_RX_PIN, HYP_RESOURCE_UART_UART1_TX_PIN);
-        Serial.println("[INFO] UART1 initialized.");
+        HYP_LOG_PRINTLN("[INFO] UART1 initialized.");
     }
 #  endif
 #endif
@@ -634,7 +722,7 @@ int hyp_esp32_hw_init(void)
         #else
             #error "UART2 enabled but HYP_RESOURCE_UART_UART2_TX_PIN / _RX_PIN not defined in hyp_board_config.h"
         #endif
-        Serial.println("[INFO] UART2 initialized.");
+        HYP_LOG_PRINTLN("[INFO] UART2 initialized.");
     }
 #endif
 
@@ -667,7 +755,7 @@ int hyp_esp32_hw_init(void)
         g_hspi_mode = (uint8_t)mode;
         pinMode(HYP_RESOURCE_SPI_HSPI_CS_PIN, OUTPUT);
         digitalWrite(HYP_RESOURCE_SPI_HSPI_CS_PIN, HIGH);
-        Serial.println("[INFO] SPI HSPI initialized.");
+        HYP_LOG_PRINTLN("[INFO] SPI HSPI initialized.");
     }
 #endif
 
@@ -697,7 +785,7 @@ int hyp_esp32_hw_init(void)
         g_vspi_mode = (uint8_t)mode;
         pinMode(HYP_RESOURCE_SPI_VSPI_CS_PIN, OUTPUT);
         digitalWrite(HYP_RESOURCE_SPI_VSPI_CS_PIN, HIGH);
-        Serial.println("[INFO] SPI VSPI initialized.");
+        HYP_LOG_PRINTLN("[INFO] SPI VSPI initialized.");
     }
 #endif
 
@@ -714,7 +802,7 @@ int hyp_esp32_hw_init(void)
             freq = HYP_RESOURCE_I2C_I2C0_FREQUENCY_HZ;
         #endif
         Wire.begin(HYP_RESOURCE_I2C_I2C0_SDA_PIN, HYP_RESOURCE_I2C_I2C0_SCL_PIN, (uint32_t)freq);
-        Serial.println("[INFO] I2C I2C0 initialized.");
+        HYP_LOG_PRINTLN("[INFO] I2C I2C0 initialized.");
     }
 #endif
 
@@ -739,7 +827,7 @@ int hyp_esp32_hw_init(void)
             int chan = next_pwm_channel++;
             if (chan < 16) { ledcSetup(chan, freq, res_bits); ledcAttachPin(pin, chan); ledcWrite(chan, initial_duty); }
         #endif
-        Serial.println("[INFO] PWM GPIO25 initialized.");
+        HYP_LOG_PRINTLN("[INFO] PWM GPIO25 initialized.");
     }
 #endif
 
@@ -761,7 +849,7 @@ int hyp_esp32_hw_init(void)
             int chan = next_pwm_channel++;
             if (chan < 16) { ledcSetup(chan, freq, res_bits); ledcAttachPin(pin, chan); ledcWrite(chan, initial_duty); }
         #endif
-        Serial.println("[INFO] PWM GPIO26 initialized.");
+        HYP_LOG_PRINTLN("[INFO] PWM GPIO26 initialized.");
     }
 #endif
 
@@ -783,7 +871,7 @@ int hyp_esp32_hw_init(void)
             int chan = next_pwm_channel++;
             if (chan < 16) { ledcSetup(chan, freq, res_bits); ledcAttachPin(pin, chan); ledcWrite(chan, initial_duty); }
         #endif
-        Serial.println("[INFO] PWM GPIO27 initialized.");
+        HYP_LOG_PRINTLN("[INFO] PWM GPIO27 initialized.");
     }
 #endif
 
@@ -805,7 +893,7 @@ int hyp_esp32_hw_init(void)
             int chan = next_pwm_channel++;
             if (chan < 16) { ledcSetup(chan, freq, res_bits); ledcAttachPin(pin, chan); ledcWrite(chan, initial_duty); }
         #endif
-        Serial.println("[INFO] PWM GPIO32 initialized.");
+        HYP_LOG_PRINTLN("[INFO] PWM GPIO32 initialized.");
     }
 #endif
 
@@ -827,7 +915,7 @@ int hyp_esp32_hw_init(void)
             int chan = next_pwm_channel++;
             if (chan < 16) { ledcSetup(chan, freq, res_bits); ledcAttachPin(pin, chan); ledcWrite(chan, initial_duty); }
         #endif
-        Serial.println("[INFO] PWM GPIO33 initialized.");
+        HYP_LOG_PRINTLN("[INFO] PWM GPIO33 initialized.");
     }
 #endif
 
@@ -845,7 +933,7 @@ int hyp_esp32_hw_init(void)
             else if (atten_val > 6.0f) atten = ADC_11db;
         #endif
         analogSetPinAttenuation(pin, atten);
-        Serial.println("[INFO] ADC GPIO32 initialized.");
+        HYP_LOG_PRINTLN("[INFO] ADC GPIO32 initialized.");
     }
 #endif
 
@@ -860,7 +948,7 @@ int hyp_esp32_hw_init(void)
             else if (atten_val > 6.0f) atten = ADC_11db;
         #endif
         analogSetPinAttenuation(pin, atten);
-        Serial.println("[INFO] ADC GPIO33 initialized.");
+        HYP_LOG_PRINTLN("[INFO] ADC GPIO33 initialized.");
     }
 #endif
 
@@ -875,7 +963,7 @@ int hyp_esp32_hw_init(void)
             else if (atten_val > 6.0f) atten = ADC_11db;
         #endif
         analogSetPinAttenuation(pin, atten);
-        Serial.println("[INFO] ADC GPIO34 initialized.");
+        HYP_LOG_PRINTLN("[INFO] ADC GPIO34 initialized.");
     }
 #endif
 
@@ -890,7 +978,7 @@ int hyp_esp32_hw_init(void)
             else if (atten_val > 6.0f) atten = ADC_11db;
         #endif
         analogSetPinAttenuation(pin, atten);
-        Serial.println("[INFO] ADC GPIO35 initialized.");
+        HYP_LOG_PRINTLN("[INFO] ADC GPIO35 initialized.");
     }
 #endif
 
@@ -905,7 +993,7 @@ int hyp_esp32_hw_init(void)
             else if (atten_val > 6.0f) atten = ADC_11db;
         #endif
         analogSetPinAttenuation(pin, atten);
-        Serial.println("[INFO] ADC GPIO36 initialized.");
+        HYP_LOG_PRINTLN("[INFO] ADC GPIO36 initialized.");
     }
 #endif
 
@@ -920,18 +1008,18 @@ int hyp_esp32_hw_init(void)
             else if (atten_val > 6.0f) atten = ADC_11db;
         #endif
         analogSetPinAttenuation(pin, atten);
-        Serial.println("[INFO] ADC GPIO39 initialized.");
+        HYP_LOG_PRINTLN("[INFO] ADC GPIO39 initialized.");
     }
 #endif
 
 #if ESP_ARDUINO_VERSION_MAJOR < 3
     if (next_pwm_channel > 16) {
-        Serial.println("[ERROR] Exceeded maximum number of PWM channels (16).");
+        HYP_LOG_PRINTLN("[ERROR] Exceeded maximum number of PWM channels (16).");
         return -1;
     }
 #endif
 
-    Serial.println("[INFO] ESP32 Hardware Initialized successfully.");
+    HYP_LOG_PRINTLN("[INFO] ESP32 Hardware Initialized successfully.");
     return 0;
 }
 
@@ -1109,8 +1197,8 @@ static int get_pin_for_resource(const char *resource_type, const char *instance)
             return hyp_resource_pin_table[i].pin;
         }
     }
-    Serial.print("[WARN] get_pin_for_resource: no configured pin for ");
-    Serial.println(key);
+    HYP_LOG_PRINT("[WARN] get_pin_for_resource: no configured pin for ");
+    HYP_LOG_PRINTLN(key);
     return -1; /* resource not configured in board config */
 }
 
@@ -1135,7 +1223,12 @@ static bool canonical_instance_equals(const char *actual, const char *expected) 
 static bool is_configured_bus_resource(const char *resource_type, const char *instance) {
     if (!resource_type || !instance) return false;
     if (strcmp(resource_type, "uart") == 0) {
-#ifdef HYP_RESOURCE_UART_UART0
+#ifdef HYP_SDK_UART0_ACTIVE
+        /* HYP_RESOURCE_UART_UART0 alone is not sufficient: it is emitted
+         * unconditionally for every ESP32 header regardless of whether this
+         * desktop project reassigned GPIO1/GPIO3 to plain GPIO.
+         * HYP_SDK_UART0_ACTIVE is the pin-function-aware derivation (see its
+         * definition near the top of this file). */
         if (canonical_instance_equals(instance, "uart0")) return true;
 #endif
 #ifdef HYP_RESOURCE_UART_UART1
@@ -1232,8 +1325,8 @@ int hyp_spi_transfer(const char *resource_id, const uint8_t *tx_buf, uint8_t *rx
     if (!bus) {
         /* Bus appears in the board map but hyp_esp32_hw_init() never created the
          * handle (init not run, or new SPIClass failed). Surface it explicitly. */
-        Serial.print("[ERROR] hyp_spi_transfer: SPI bus not initialized for ");
-        Serial.println(instance);
+        HYP_LOG_PRINT("[ERROR] hyp_spi_transfer: SPI bus not initialized for ");
+        HYP_LOG_PRINTLN(instance);
         return HYP_RUNTIME_NOT_INITIALIZED;
     }
 
@@ -1289,15 +1382,15 @@ static int i2c_raw_transfer(uint8_t dev_addr, uint8_t *data, size_t len, bool is
         Wire.write(data, len);
         uint8_t rc = Wire.endTransmission();
         if (rc != 0) {
-            Serial.print("[ERROR] i2c raw write NACK/timeout rc=");
-            Serial.println(rc);
+            HYP_LOG_PRINT("[ERROR] i2c raw write NACK/timeout rc=");
+            HYP_LOG_PRINTLN(rc);
             return HYP_RUNTIME_IO_ERROR;
         }
         return HYP_RUNTIME_OK;
     }
     size_t got = Wire.requestFrom((int)dev_addr, (int)len);
     if (got != len) {
-        Serial.println("[ERROR] i2c raw read short/timeout");
+        HYP_LOG_PRINTLN("[ERROR] i2c raw read short/timeout");
         return HYP_RUNTIME_IO_ERROR;
     }
     for (size_t i = 0; i < len; i++) data[i] = (uint8_t)Wire.read();
@@ -1329,8 +1422,8 @@ int hyp_i2c_transact(const char *resource_id, uint8_t reg_addr, uint8_t *data, s
 #else
     uint8_t dev_addr = 0;
     if (i2c_address_for_device(instance, &dev_addr) != 0) {
-        Serial.print("[WARN] hyp_i2c_transact: unknown I2C device ");
-        Serial.println(instance);
+        HYP_LOG_PRINT("[WARN] hyp_i2c_transact: unknown I2C device ");
+        HYP_LOG_PRINTLN(instance);
         return HYP_RUNTIME_RESOURCE_NOT_CONFIGURED;
     }
 
@@ -1340,8 +1433,8 @@ int hyp_i2c_transact(const char *resource_id, uint8_t reg_addr, uint8_t *data, s
         Wire.write(data, len);
         uint8_t rc = Wire.endTransmission();
         if (rc != 0) {
-            Serial.print("[ERROR] hyp_i2c_transact write NACK/timeout rc=");
-            Serial.println(rc);
+            HYP_LOG_PRINT("[ERROR] hyp_i2c_transact write NACK/timeout rc=");
+            HYP_LOG_PRINTLN(rc);
             return HYP_RUNTIME_IO_ERROR;
         }
         return HYP_RUNTIME_OK;
@@ -1352,13 +1445,13 @@ int hyp_i2c_transact(const char *resource_id, uint8_t reg_addr, uint8_t *data, s
     Wire.write(reg_addr);
     uint8_t rc = Wire.endTransmission(false); /* false = repeated start (no STOP) */
     if (rc != 0) {
-        Serial.print("[ERROR] hyp_i2c_transact reg-select NACK/timeout rc=");
-        Serial.println(rc);
+        HYP_LOG_PRINT("[ERROR] hyp_i2c_transact reg-select NACK/timeout rc=");
+        HYP_LOG_PRINTLN(rc);
         return HYP_RUNTIME_IO_ERROR;
     }
     size_t got = Wire.requestFrom((int)dev_addr, (int)len);
     if (got != len) {
-        Serial.println("[ERROR] hyp_i2c_transact read short/timeout");
+        HYP_LOG_PRINTLN("[ERROR] hyp_i2c_transact read short/timeout");
         return HYP_RUNTIME_IO_ERROR;
     }
     for (size_t i = 0; i < len; i++) data[i] = (uint8_t)Wire.read();
