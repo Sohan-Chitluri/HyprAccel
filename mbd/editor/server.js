@@ -299,7 +299,8 @@ function writeHardwareConfig(config, projectId = null) {
 
 function projectHardware(boardKey, assignments, configurations = {}, devices = []) {
     const parsed = yaml.load(fs.readFileSync(BOARDS_YAML, 'utf8'));
-    const board = parsed.boards[boardKey];
+    // Own-property lookup: keys such as 'toString' must not resolve to Object.prototype.
+    const board = Object.prototype.hasOwnProperty.call(parsed.boards, boardKey) ? parsed.boards[boardKey] : null;
     if (!board) throw new Error(`Unknown board '${boardKey}'.`);
     const resources = defaultResourceConfig(board);
     const seenPins = new Set();
@@ -507,8 +508,23 @@ function createProject(input) {
     if (!input || typeof input.name !== 'string' || !input.name.trim() || input.name.trim().length > 120) {
         throw new Error('Project name must be a non-empty string no longer than 120 characters.');
     }
+    if (input.board != null && typeof input.board !== 'string') {
+        throw new Error('Project board must be a string.');
+    }
+    if (input.board != null && input.hardware != null && input.hardware.board !== input.board) {
+        throw new Error(`Board '${input.board}' does not match hardware board '${input.hardware.board}'.`);
+    }
+    // Resolve/validate hardware up front so an invalid board or hardware payload
+    // never leaves a partial project directory behind.
+    let hardware = null;
+    if (input.hardware != null) hardware = canonicalHardware(input.hardware);
+    else if (input.board != null) hardware = projectHardware(input.board, []);
     const paths = projectPaths(id);
-    if (fs.existsSync(paths.projectDir)) throw new Error(`Project '${id}' already exists.`);
+    if (fs.existsSync(paths.projectDir)) {
+        const err = new Error(`Project '${id}' already exists.`);
+        err.code = 'EEXIST';
+        throw err;
+    }
     const now = new Date().toISOString();
     const manifest = {
         format: 'hypraccel.project', version: 1, id, name: input.name.trim(),
@@ -519,7 +535,8 @@ function createProject(input) {
     fs.mkdirSync(paths.projectDir, { recursive: true });
     try {
         writeJson(paths.manifest, manifest);
-        if (input.hardware != null) writeHardwareConfig(canonicalHardware(input.hardware), id);
+        fs.mkdirSync(paths.graphsDir, { recursive: true });
+        if (hardware != null) writeHardwareConfig(hardware, id);
         if (input.graph != null) {
             const graph = assertGraphDocument(input.graph);
             writeJson(projectGraphPath(id, graph.id), graph);
@@ -584,7 +601,8 @@ function writeProjectBuildLog(id, content) {
 
 function boardDescriptor(boardKey) {
     const parsed = yaml.load(fs.readFileSync(BOARDS_YAML, 'utf8'));
-    const board = parsed.boards[boardKey];
+    // Own-property lookup: keys such as 'toString' must not resolve to Object.prototype.
+    const board = Object.prototype.hasOwnProperty.call(parsed.boards, boardKey) ? parsed.boards[boardKey] : null;
     if (!board) throw new Error(`Unknown board '${boardKey}'.`);
     return board;
 }

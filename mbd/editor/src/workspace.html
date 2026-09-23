@@ -454,6 +454,9 @@
     box-shadow: 0 16px 35px rgba(0,0,0,0.8);
     overflow: hidden;
   }
+  .modal-card.modal-wide {
+    width: 560px;
+  }
   .modal-header {
     padding: 12px 16px;
     background: var(--panel-header);
@@ -477,7 +480,8 @@
     font-size: 11px;
     color: var(--text-muted);
   }
-  .field-group input {
+  .field-group input,
+  .field-group select {
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 4px;
@@ -486,9 +490,40 @@
     font-size: 12px;
     font-family: var(--font);
   }
-  .field-group input:focus {
+  .field-group input:focus,
+  .field-group select:focus {
     outline: none;
     border-color: var(--accent);
+  }
+  .field-group .field-hint {
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+  .field-group .field-error {
+    font-size: 10px;
+    color: var(--red);
+    min-height: 12px;
+  }
+  #newProjectError {
+    font-size: 11px;
+    color: var(--red);
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    border-radius: 4px;
+    padding: 6px 10px;
+    display: none;
+  }
+  #newProjectError.visible {
+    display: block;
+  }
+  #boardDetailPanel {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+    padding: 10px;
+    min-height: 60px;
+    font-size: 11px;
+    color: var(--text-muted);
   }
   .modal-actions {
     padding: 10px 16px;
@@ -623,19 +658,31 @@
 
 <!-- Modal: New Project -->
 <div class="modal-backdrop" id="modalNewProject">
-  <div class="modal-card">
+  <div class="modal-card modal-wide">
     <div class="modal-header">
       <span>Create New Project</span>
       <button id="btnCloseModal" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;">✕</button>
     </div>
     <div class="modal-body">
-      <div class="field-group">
-        <label for="inputProjId">Project ID (unique, letters/numbers/_/-):</label>
-        <input type="text" id="inputProjId" placeholder="e.g. demo_project" spellcheck="false" />
-      </div>
+      <div id="newProjectError"></div>
       <div class="field-group">
         <label for="inputProjName">Project Display Name:</label>
         <input type="text" id="inputProjName" placeholder="e.g. Demo Project" spellcheck="false" />
+        <div class="field-error" id="errProjName"></div>
+      </div>
+      <div class="field-group">
+        <label for="inputProjId">Project ID (unique, letters/numbers/_/-):</label>
+        <input type="text" id="inputProjId" placeholder="e.g. demo_project" spellcheck="false" />
+        <div class="field-error" id="errProjId"></div>
+      </div>
+      <div class="field-group">
+        <label for="inputProjBoard">Target Board:</label>
+        <select id="inputProjBoard"></select>
+        <div class="field-error" id="errProjBoard"></div>
+      </div>
+      <div class="field-group">
+        <label>Board Preview:</label>
+        <div id="boardDetailPanel"></div>
       </div>
     </div>
     <div class="modal-actions">
@@ -645,6 +692,7 @@
   </div>
 </div>
 
+<script src="board_detail.js"></script>
 <script>
 'use strict';
 
@@ -658,6 +706,12 @@ let activeStatus = null;
 let activeSelectedPath = null;
 let consoleText = '';
 let activeConsoleTab = 'log';
+let boardsCache = null;
+let boardsLoadPromise = null;
+let projIdManuallyEdited = false;
+let isCreatingProject = false;
+// Field errors stay hidden until a field is edited or Create is attempted.
+let newProjectTouched = new Set();
 
 /* ────────────────────────────────────────────────────────────────────────
    API Operations
@@ -1032,31 +1086,176 @@ async function runVerify() {
 /* ────────────────────────────────────────────────────────────────────────
    Project Management (Create, Delete)
    ──────────────────────────────────────────────────────────────────────── */
+const PROJECT_ID_RE = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
+
+function slugifyProjectId(name) {
+    let slug = (name || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .replace(/_{2,}/g, '_');
+    if (slug && !/^[a-z]/.test(slug)) slug = `p_${slug}`;
+    if (slug.length > 64) slug = slug.slice(0, 64).replace(/_+$/g, '');
+    return slug;
+}
+
 function openNewProjectModal() {
     document.getElementById('inputProjId').value = '';
     document.getElementById('inputProjName').value = '';
-    document.getElementById('modalNewProject').classList.add('active');
+    projIdManuallyEdited = false;
+    isCreatingProject = false;
+    newProjectTouched = new Set();
+    clearNewProjectErrors();
+
+    const modal = document.getElementById('modalNewProject');
+    modal.classList.add('active');
+
+    const panel = document.getElementById('boardDetailPanel');
+    panel.textContent = '';
+
+    loadBoardsIntoSelect().then(() => {
+        validateNewProjectForm();
+    });
+
+    setTimeout(() => document.getElementById('inputProjName').focus(), 0);
 }
 
 function closeNewProjectModal() {
     document.getElementById('modalNewProject').classList.remove('active');
 }
 
+function clearNewProjectErrors() {
+    const banner = document.getElementById('newProjectError');
+    banner.textContent = '';
+    banner.classList.remove('visible');
+    for (const id of ['errProjName', 'errProjId', 'errProjBoard']) {
+        document.getElementById(id).textContent = '';
+    }
+}
+
+function showNewProjectError(message) {
+    const banner = document.getElementById('newProjectError');
+    banner.textContent = message;
+    banner.classList.add('visible');
+}
+
+async function loadBoardsIntoSelect() {
+    const select = document.getElementById('inputProjBoard');
+    if (boardsCache) {
+        populateBoardSelect(select, boardsCache);
+        return boardsCache;
+    }
+    if (!boardsLoadPromise) {
+        select.innerHTML = '<option value="">Loading boards…</option>';
+        select.disabled = true;
+        boardsLoadPromise = apiFetch('/api/boards')
+            .then(data => {
+                boardsCache = data || {};
+                return boardsCache;
+            })
+            .catch(err => {
+                boardsLoadPromise = null;
+                throw err;
+            });
+    }
+    try {
+        const boards = await boardsLoadPromise;
+        populateBoardSelect(select, boards);
+        return boards;
+    } catch (err) {
+        select.innerHTML = '<option value="">Failed to load boards</option>';
+        select.disabled = true;
+        showNewProjectError(`Could not load target boards: ${err.message}`);
+        document.getElementById('boardDetailPanel').textContent = '';
+        return null;
+    }
+}
+
+function populateBoardSelect(select, boards) {
+    select.disabled = false;
+    select.innerHTML = '';
+    const keys = Object.keys(boards || {});
+    if (keys.length === 0) {
+        select.innerHTML = '<option value="">(No boards available)</option>';
+        select.disabled = true;
+        return;
+    }
+    for (const key of keys) {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = boards[key] && boards[key].name ? boards[key].name : key;
+        select.appendChild(opt);
+    }
+    select.value = keys.includes('esp32') ? 'esp32' : keys[0];
+    renderBoardDetail();
+}
+
+function renderBoardDetail() {
+    const select = document.getElementById('inputProjBoard');
+    const panel = document.getElementById('boardDetailPanel');
+    const key = select.value;
+    const board = boardsCache && key ? boardsCache[key] : null;
+    if (window.HyprBoardDetail) {
+        try {
+            window.HyprBoardDetail.render(panel, board || null);
+        } catch (err) {
+            panel.textContent = `Preview unavailable: ${err.message}`;
+        }
+    } else {
+        panel.textContent = board ? `${board.name || key}` : 'Select a board.';
+    }
+}
+
+function validateNewProjectForm() {
+    for (const id of ['errProjName', 'errProjId', 'errProjBoard']) document.getElementById(id).textContent = '';
+    let valid = true;
+    const setFieldError = (field, errId, message) => {
+        if (newProjectTouched.has(field)) document.getElementById(errId).textContent = message;
+        valid = false;
+    };
+
+    const name = document.getElementById('inputProjName').value.trim();
+    if (!name) {
+        setFieldError('name', 'errProjName', 'Project name is required.');
+    } else if (name.length > 120) {
+        setFieldError('name', 'errProjName', 'Project name must be 120 characters or fewer.');
+    }
+
+    const id = document.getElementById('inputProjId').value.trim();
+    if (!id || !PROJECT_ID_RE.test(id)) {
+        setFieldError('id', 'errProjId', 'ID must start with a letter and contain only letters, numbers, underscores, or hyphens (max 64 chars).');
+    } else if (projectsList.some(p => p.id === id)) {
+        setFieldError('id', 'errProjId', `A project with id '${id}' already exists.`);
+    }
+
+    const boardSelect = document.getElementById('inputProjBoard');
+    if (!boardSelect.value || boardSelect.disabled) {
+        setFieldError('board', 'errProjBoard', 'Select a target board.');
+    }
+
+    const submitBtn = document.getElementById('btnSubmitCreate');
+    submitBtn.disabled = !valid || isCreatingProject;
+
+    return valid;
+}
+
 async function submitNewProject() {
+    if (isCreatingProject) return;
+    newProjectTouched = new Set(['name', 'id', 'board']);
+    if (!validateNewProjectForm()) return;
+
     const id = document.getElementById('inputProjId').value.trim();
     const name = document.getElementById('inputProjName').value.trim();
+    const board = document.getElementById('inputProjBoard').value;
 
-    if (!id || !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(id)) {
-        alert('Invalid Project ID. Must start with a letter and contain only letters, numbers, underscores, or hyphens.');
-        return;
-    }
-    if (!name) {
-        alert('Please enter a project display name.');
-        return;
-    }
+    isCreatingProject = true;
+    const submitBtn = document.getElementById('btnSubmitCreate');
+    submitBtn.disabled = true;
+    const originalLabel = submitBtn.textContent;
+    submitBtn.textContent = 'Creating…';
+    document.getElementById('newProjectError').classList.remove('visible');
 
     try {
-        const defaultHardware = { board: 'esp32', assignments: [] };
         const defaultGraph = {
             format: 'hypraccel.mbd.graph',
             version: 1,
@@ -1066,20 +1265,24 @@ async function submitNewProject() {
                 { id: 'constant', type: 'Constant', params: { value: 1.0 }, position: { x: 100, y: 100 } }
             ],
             edges: [],
-            metadata: { targetBoard: 'esp32' }
+            metadata: { targetBoard: board }
         };
 
-        const res = await apiFetch('/api/projects', {
+        await apiFetch('/api/projects', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, name, hardware: defaultHardware, graph: defaultGraph })
+            body: JSON.stringify({ id, name, board, graph: defaultGraph })
         });
 
         closeNewProjectModal();
         logConsole(`✓ Created project '${id}'.`, 'ok');
         await refreshProjectsList(id);
     } catch (err) {
-        alert(`Could not create project: ${err.message}`);
+        showNewProjectError(err.message || 'Could not create project.');
+    } finally {
+        isCreatingProject = false;
+        submitBtn.textContent = originalLabel;
+        validateNewProjectForm();
     }
 }
 
@@ -1134,6 +1337,35 @@ document.getElementById('btnDeleteProject').addEventListener('click', deleteActi
 document.getElementById('btnCloseModal').addEventListener('click', closeNewProjectModal);
 document.getElementById('btnCancelCreate').addEventListener('click', closeNewProjectModal);
 document.getElementById('btnSubmitCreate').addEventListener('click', submitNewProject);
+
+document.getElementById('inputProjName').addEventListener('input', () => {
+    newProjectTouched.add('name');
+    if (!projIdManuallyEdited) {
+        if (document.getElementById('inputProjId').value) newProjectTouched.add('id');
+        document.getElementById('inputProjId').value = slugifyProjectId(document.getElementById('inputProjName').value);
+    }
+    validateNewProjectForm();
+});
+document.getElementById('inputProjId').addEventListener('input', (e) => {
+    newProjectTouched.add('id');
+    projIdManuallyEdited = e.target.value.trim().length > 0;
+    validateNewProjectForm();
+});
+document.getElementById('inputProjBoard').addEventListener('change', () => {
+    newProjectTouched.add('board');
+    renderBoardDetail();
+    validateNewProjectForm();
+});
+
+document.getElementById('modalNewProject').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        e.preventDefault();
+        closeNewProjectModal();
+    } else if (e.key === 'Enter' && e.target.tagName === 'INPUT') {
+        e.preventDefault();
+        if (!document.getElementById('btnSubmitCreate').disabled) submitNewProject();
+    }
+});
 
 document.getElementById('btnGenerate').addEventListener('click', runGenerate);
 document.getElementById('btnCompile').addEventListener('click', runCompile);
