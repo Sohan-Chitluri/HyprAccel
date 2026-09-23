@@ -64,6 +64,50 @@ private Q_SLOTS:
   QVERIFY(view.findChild<QLabel*>("pinDetails")->text().contains("UART0 TX"));
   QVERIFY(view.findChild<QLabel*>("geometryNotice")->text().contains("1 pin assigned"));
  }
+ void liveConflictCheckShowsBlockingErrorInRed() {
+  if (Hypr::findNodeExecutable().isEmpty())
+   QSKIP("node executable not found; set HYPRACCEL_NODE to test the live pin-conflict check.");
+  HardwareView view(QStringLiteral(BOARD_CATALOG_PATH));
+  view.selectBoard("esp32");
+  QVERIFY(view.pinModel());
+  // I2C SDA only -> BUS_INCOMPLETE error (mirrors mbd/editor pin_conflicts tests).
+  QVERIFY(view.pinModel()->assign("GPIO21", "i2c.i2c0.sda"));
+  QTRY_VERIFY_WITH_TIMEOUT(view.lastPinCheckResult().available && !view.lastPinCheckResult().errors.isEmpty(), 8000);
+  auto *issuesLabel = view.findChild<QLabel*>("pinIssues"); QVERIFY(issuesLabel);
+  QVERIFY(issuesLabel->text().contains("#ef4444"));
+  QVERIFY(issuesLabel->text().contains("blocked", Qt::CaseInsensitive));
+  QCOMPARE(view.lastPinCheckResult().errors.first().code, QString("BUS_INCOMPLETE"));
+ }
+ void liveConflictCheckShowsWarningInAmber() {
+  if (Hypr::findNodeExecutable().isEmpty())
+   QSKIP("node executable not found; set HYPRACCEL_NODE to test the live pin-conflict check.");
+  HardwareView view(QStringLiteral(BOARD_CATALOG_PATH));
+  view.selectBoard("esp32");
+  QVERIFY(view.pinModel());
+  // UART TX only -> BUS_PARTIAL warning, zero errors.
+  QVERIFY(view.pinModel()->assign("GPIO1", "uart.uart0.tx"));
+  QTRY_VERIFY_WITH_TIMEOUT(view.lastPinCheckResult().available && !view.lastPinCheckResult().warnings.isEmpty(), 8000);
+  QVERIFY(view.lastPinCheckResult().errors.isEmpty());
+  auto *issuesLabel = view.findChild<QLabel*>("pinIssues"); QVERIFY(issuesLabel);
+  QVERIFY(issuesLabel->text().contains("#f59e0b"));
+  QVERIFY(!issuesLabel->text().contains("blocked", Qt::CaseInsensitive));
+  QCOMPARE(view.lastPinCheckResult().warnings.first().code, QString("BUS_PARTIAL"));
+ }
+ void nodeMissingShowsUnavailableNeverSilentSuccess() {
+  qputenv("HYPRACCEL_NODE", "/definitely/not/a/real/node/executable");
+  HardwareView view(QStringLiteral(BOARD_CATALOG_PATH));
+  view.selectBoard("esp32");
+  QVERIFY(view.pinModel());
+  QVERIFY(view.pinModel()->assign("GPIO1", "uart.uart0.tx"));
+  auto *issuesLabel = view.findChild<QLabel*>("pinIssues"); QVERIFY(issuesLabel);
+  // Before the first result the panel says "Checking…", not "unavailable".
+  QVERIFY2(!issuesLabel->text().contains("unavailable", Qt::CaseInsensitive), qPrintable(issuesLabel->text()));
+  // Wait for the failed run's actual result (a default result is also !available).
+  QTRY_VERIFY_WITH_TIMEOUT(!view.lastPinCheckResult().unavailableReason.isEmpty(), 8000);
+  qunsetenv("HYPRACCEL_NODE");
+  QVERIFY(!view.lastPinCheckResult().available);
+  QVERIFY2(issuesLabel->text().contains("unavailable", Qt::CaseInsensitive), qPrintable(issuesLabel->text()));
+ }
  void rightClickingPinLabelResolvesThePin() {
   // Each pin's text label is a CHILD QGraphicsTextItem of its lead (data(1) ==
   // "pin" lives on the lead, not the label); the context-menu hit-test must

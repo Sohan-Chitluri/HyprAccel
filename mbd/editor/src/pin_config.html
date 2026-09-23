@@ -95,6 +95,17 @@
   .add-node-btn { display: flex; align-items: center; justify-content: center; gap: 6px; height: 36px; background: #1c2128; border: 1.5px dashed var(--border); border-radius: 10px; font-size: 12px; color: var(--muted); cursor: pointer; transition: border-color .15s, color .15s; }
   .add-node-btn:hover { border-color: var(--accent); color: var(--accent); }
 
+  /* ── Live pin-conflict check panel (shared src/pin_check_panel.js) ── */
+  .pin-check-panel { padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 11px; line-height: 1.6; background: var(--surface); flex-shrink: 0; max-height: 30%; overflow: auto; }
+  .pin-check-loading { color: var(--muted); }
+  .pin-check-empty { color: var(--accent2); }
+  .pin-check-request-error { color: var(--warn-soft); }
+  .pin-check-blocking { color: var(--warn); font-weight: 700; margin-bottom: 4px; }
+  .pin-check-errors, .pin-check-warnings { display: flex; flex-direction: column; gap: 2px; }
+  .pin-check-issue { font-family: monospace; }
+  .pin-check-issue-error { color: var(--warn); }
+  .pin-check-issue-warning { color: var(--warn-soft); }
+
   /* ── Right panel: generated output ── */
   .output-panel {
     display: flex;
@@ -287,6 +298,7 @@
       Node Pin Assignments
       <span style="margin-left:auto;font-size:10px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">Drag a resource or signal row from the left onto a matching slot</span>
     </div>
+    <div class="pin-check-panel" id="pinCheckPanel" style="display:none;"></div>
     <div class="drop-grid" id="dropGrid">
       <!-- node cards injected by JS -->
       <div class="add-node-btn" id="addSensor" data-type="SensorInput">＋ Add SensorInput</div>
@@ -329,6 +341,7 @@
   </div>
 </main>
 
+<script src="pin_check_panel.js"></script>
 <script>
 'use strict';
 /* ────────────────────────────────────────────────────────────────────────
@@ -631,6 +644,7 @@ function switchBoard(boardId, restoring) {
         renderGrid();
         setStatus('', 'No board selected.');
         document.getElementById('boardMeta').textContent = '';
+        hidePinCheckPanel();
         return;
     }
 
@@ -641,7 +655,11 @@ function switchBoard(boardId, restoring) {
     renderResourceConfig(bd);
     renderGrid();
     setStatus('ok', `Board loaded: ${bd.name || currentBoard}`);
-    if (!restoring) schedulePersist();
+    // schedulePersist() already runs the check for a live edit; on the
+    // initial restore (project/board load) it is skipped, so run the check
+    // once here instead — Hardware Setup must show conflicts as soon as it
+    // opens, not only after the next edit.
+    if (!restoring) schedulePersist(); else requestPinCheck();
 }
 
 function resourceDefaults(type) {
@@ -695,6 +713,56 @@ function renderResourceConfig(board) {
     }
 }
 
+/* ────────────────────────────────────────────────────────────────────────
+   Live pin-conflict check (shared src/pin_check_panel.js)
+
+   Reuses the SAME checkPinConflicts() codegen would block on, via
+   POST /api/hardware/check, so this panel shows exactly what /api/generate
+   (btnGenerate, below) would refuse. Debounced (~250ms) and latest-wins via
+   HyprPinCheckPanel.createController(); fires from schedulePersist() — the
+   single place every assignment/resource-config change already funnels
+   through — and once on initial load.
+   ──────────────────────────────────────────────────────────────────────── */
+const pinCheckController = window.HyprPinCheckPanel.createController({
+    onState(state) {
+        const panel = document.getElementById('pinCheckPanel');
+        if (!panel) return;
+        panel.style.display = '';
+        const summary = window.HyprPinCheckPanel.renderPanel(document, panel, state);
+        highlightPinCheckIssues(state.status === 'ok' ? summary : null);
+    }
+});
+
+/* Marks the drop-slot for any pin/resource an issue names with the existing
+   `.slot-drop.conflict` style (already used elsewhere on this page for pin
+   conflicts), so the affected row is obvious without a page redesign. */
+function highlightPinCheckIssues(summary) {
+    document.querySelectorAll('.slot-drop.pin-check-flagged').forEach(el => el.classList.remove('conflict', 'pin-check-flagged'));
+    if (!summary) return;
+    const flagged = new Set();
+    for (const issue of [...summary.errors, ...summary.warnings]) {
+        if (issue.pin) flagged.add(issue.pin);
+    }
+    if (!flagged.size) return;
+    document.querySelectorAll('.slot-drop[data-pin]').forEach(el => {
+        if (flagged.has(el.getAttribute('data-pin'))) el.classList.add('conflict', 'pin-check-flagged');
+    });
+}
+
+function requestPinCheck() {
+    if (!currentBoard) { hidePinCheckPanel(); return; }
+    pinCheckController.requestCheck(hardwarePayload());
+}
+
+function hidePinCheckPanel() {
+    pinCheckController.cancel();
+    const panel = document.getElementById('pinCheckPanel');
+    if (!panel) return;
+    panel.style.display = 'none';
+    panel.innerHTML = '';
+    highlightPinCheckIssues(null);
+}
+
 function hardwarePayload() {
     return {
         board: currentBoard,
@@ -740,6 +808,7 @@ function schedulePersist() {
             .then(result => { savedHardware = result.hardware || savedHardware; })
             .catch(() => setStatus('warn', 'Hardware configuration could not be saved.'));
     }, 200);
+    requestPinCheck();
 }
 
 /* ────────────────────────────────────────────────────────────────────────
@@ -858,7 +927,7 @@ function renderGrid() {
             row.innerHTML = `
                 <span class="slot-label">${slot.role.toUpperCase()}</span>
                 <div class="slot-drop ${isFilled ? 'filled' : ''}" id="${dropId}"
-                     data-nodeid="${nd.id}" data-role="${slot.role}">
+                     data-nodeid="${nd.id}" data-role="${slot.role}"${isFilled ? ` data-pin="${slot.pin}" data-resource="${slot.peripheral || ''}"` : ''}>
                     ${isFilled
                         ? `<span class="slot-pin">${slot.pin}</span><span style="font-size:9px;color:var(--muted);margin-left:4px">${slot.peripheral || ''}</span>`
                         : `<span class="slot-placeholder">drop pin here</span>`}

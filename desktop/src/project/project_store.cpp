@@ -116,12 +116,14 @@ const Board *findBoard(const QList<Board> &boards, const QString &id)
     return nullptr;
 }
 
+} // namespace
+
 // existing: the project's current hardware.json (may be empty). When it targets
 // the same board, state the desktop does not edit yet — per-resource
 // configuration, device profiles and graph-node bindings written by the web
 // editor — is carried over instead of being reset.
-QJsonObject buildHardwareJson(const Board &board, const QMap<QString, QString> &pinAssignments,
-                              const QJsonObject &existing)
+QJsonObject ProjectStore::hardwareJson(const Board &board, const QMap<QString, QString> &pinAssignments,
+                                        const QJsonObject &existing)
 {
     const bool sameBoard = existing.value("board").toString() == board.id;
     QHash<QString, QString> existingNodes; // "pin|resource|role" -> node
@@ -171,6 +173,8 @@ QJsonObject buildHardwareJson(const Board &board, const QMap<QString, QString> &
     root["devices"] = sameBoard && existing.value("devices").isArray() ? existing.value("devices").toArray() : QJsonArray();
     return root;
 }
+
+namespace {
 
 QJsonObject buildClockJson(const QString &boardId, const ClockConfig &clock, const ClockResult &result)
 {
@@ -294,7 +298,7 @@ void ProjectStore::save(const QString &root, const ProjectSnapshot &snapshot, co
 
     writeJsonFile(paths.manifest, QJsonDocument(manifest));
     const auto existingHardware = readJsonFile(paths.hardware).object();
-    writeJsonFile(paths.hardware, QJsonDocument(buildHardwareJson(*board, snapshot.pinAssignments, existingHardware)));
+    writeJsonFile(paths.hardware, QJsonDocument(ProjectStore::hardwareJson(*board, snapshot.pinAssignments, existingHardware)));
     writeJsonFile(paths.clock, QJsonDocument(buildClockJson(snapshot.board, snapshot.clock, snapshot.clockResult)));
 }
 

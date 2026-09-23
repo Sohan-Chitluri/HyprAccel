@@ -1,7 +1,9 @@
 #pragma once
 
+#include "board_catalog.h"
 #include "clock_tree.h"
 
+#include <QJsonObject>
 #include <QMap>
 #include <QString>
 
@@ -39,6 +41,15 @@ public:
     // Reads manifest + hardware.json (+ clock.json if present). Throws on missing
     // or invalid manifest. Unknown resource/role pairs are skipped.
     static ProjectSnapshot load(const QString &root, const QString &id);
+
+    // Pure: the exact hardware.json object save() writes, exposed so other
+    // callers (e.g. the live pin-conflict check, desktop/src/pincheck) can
+    // build the SAME payload without duplicating this serialization.
+    // `existing` is the project's current hardware.json (may be empty
+    // QJsonObject()); when it targets the same board, per-resource
+    // configuration/devices/graph-node bindings are carried over.
+    static QJsonObject hardwareJson(const Board &board, const QMap<QString, QString> &pinAssignments,
+                                     const QJsonObject &existing = QJsonObject());
 };
 
 } // namespace Hypr

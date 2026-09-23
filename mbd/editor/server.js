@@ -1031,6 +1031,39 @@ app.post('/api/generate', (req, res) => {
 });
 
 /* --------------------------------------------------------------------------
+ * POST /api/hardware/check
+ * Body: { board, assignments, configurations?, devices?, projectId? } — same
+ * shape /api/generate takes. Runs the SAME mergeProjectConfig →
+ * checkPinConflicts chain /api/generate uses, so the UIs can show live
+ * pin-conflict feedback as assignments change, without writing anything.
+ * Deliberately does NOT call readHardwareConfig() (which has the side effect
+ * of rewriting hardware.json on migration) — projectHardware() builds the
+ * canonical hardware object straight from the request body instead.
+ * ----------------------------------------------------------------------- */
+app.post('/api/hardware/check', (req, res) => {
+    try {
+        const projectId = requestedProjectId(req);
+        const { board, assignments, configurations, devices } = req.body || {};
+        if (!board || !Array.isArray(assignments)) {
+            return res.status(400).json({ error: 'Missing board or assignments.' });
+        }
+        const hardware = projectHardware(board, assignments, configurations || {}, devices || []);
+        const boardData = boardDescriptor(board);
+        const clock = projectId ? readClockConfig(projectPaths(projectId).projectDir) : null;
+        const config = mergeProjectConfig(hardware, clock, boardData);
+        let graphs = [];
+        if (projectId) {
+            readProjectManifest(projectId);
+            graphs = listProjectGraphs(projectId).map(entry => readProjectGraph(projectId, entry.id));
+        }
+        const conflicts = checkPinConflicts(config, boardData, graphs);
+        res.json({ errors: conflicts.errors, warnings: conflicts.warnings });
+    } catch (err) {
+        res.status(400).json({ error: err.message || 'Pin conflict check failed.' });
+    }
+});
+
+/* --------------------------------------------------------------------------
  * POST /api/build
  * Body: a hypraccel.mbd.graph object from graph_editor.html.
  * The existing graph_to_c.js remains the source of truth for validation and

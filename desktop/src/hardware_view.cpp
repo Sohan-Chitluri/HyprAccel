@@ -14,6 +14,10 @@
 #include <QPainter>
 #include <algorithm>
 
+#ifndef PIN_CHECK_SCRIPT_PATH
+#define PIN_CHECK_SCRIPT_PATH ""
+#endif
+
 HardwareView::HardwareView(const QString &path, QWidget *parent) : QWidget(parent) {
  auto *layout = new QVBoxLayout(this); layout->setContentsMargins(0,0,0,0); layout->setSpacing(0);
  auto *toolbar = new QHBoxLayout; toolbar->setContentsMargins(12,8,12,8);
@@ -41,12 +45,16 @@ HardwareView::HardwareView(const QString &path, QWidget *parent) : QWidget(paren
  middle->addWidget(PinoutStyle::createLegend(center));
  notice = new QLabel; notice->setObjectName("geometryNotice"); notice->setWordWrap(true); notice->setContentsMargins(12,8,12,8); middle->addWidget(notice); split->addWidget(center);
  auto *inspector = new QWidget; inspector->setMinimumWidth(230); auto *right = new QVBoxLayout(inspector);
- right->addWidget(new QLabel("PIN INSPECTOR")); details = new QLabel; details->setObjectName("pinDetails"); details->setWordWrap(true); details->setTextInteractionFlags(Qt::TextSelectableByMouse); right->addWidget(details); right->addStretch(); split->addWidget(inspector);
+ right->addWidget(new QLabel("PIN INSPECTOR")); details = new QLabel; details->setObjectName("pinDetails"); details->setWordWrap(true); details->setTextInteractionFlags(Qt::TextSelectableByMouse); right->addWidget(details);
+ right->addWidget(new QLabel("ISSUES")); issues = new QLabel; issues->setObjectName("pinIssues"); issues->setWordWrap(true); issues->setTextFormat(Qt::RichText); issues->setTextInteractionFlags(Qt::TextSelectableByMouse); right->addWidget(issues);
+ right->addStretch(); split->addWidget(inspector);
  split->setSizes({240,840,320});
+ pinCheck = new Hypr::PinCheckRunner(QStringLiteral(PIN_CHECK_SCRIPT_PATH), path, this);
+ connect(pinCheck,&Hypr::PinCheckRunner::resultReady,this,[this](const Hypr::PinCheckResult &result){ lastCheck = result; hasCheckResult = true; renderIssues(); });
  connect(selector,&QComboBox::currentIndexChanged,this,[this]{refresh();});
- connect(scene,&QGraphicsScene::selectionChanged,this,[this]{updateInspector();});
- connect(model,&Hypr::PinAssignmentModel::assignmentChanged,this,[this](const QString&,const QString&){updateInspector();updateNotice();});
- connect(model,&Hypr::PinAssignmentModel::reset,this,[this]{updateInspector();updateNotice();});
+ connect(scene,&QGraphicsScene::selectionChanged,this,[this]{updateInspector();renderIssues();});
+ connect(model,&Hypr::PinAssignmentModel::assignmentChanged,this,[this](const QString&,const QString&){updateInspector();updateNotice();requestPinCheck();});
+ connect(model,&Hypr::PinAssignmentModel::reset,this,[this]{updateInspector();updateNotice();requestPinCheck();});
  connect(canvas,&QGraphicsView::customContextMenuRequested,this,[this](const QPoint &pos){
   QGraphicsItem *item = canvas->itemAt(pos);
   while(item && item->data(1).toString() != "pin") item = item->parentItem();
@@ -76,6 +84,7 @@ HardwareView::~HardwareView() {
  // Disconnect before any child destruction starts.
  disconnect(scene, nullptr, this, nullptr);
  disconnect(model, nullptr, this, nullptr);
+ disconnect(pinCheck, nullptr, this, nullptr);
 }
 QString HardwareView::boardId() const {return selector->currentData().toString();}
 bool HardwareView::selectBoard(const QString &id) {int index=selector->findData(id); if(index<0)return false; selector->setCurrentIndex(index); return true;}
@@ -122,4 +131,40 @@ void HardwareView::updateInspector() {
  const QString pin = selected.first()->data(0).toString();
  const QString text = PinMenu::inspectorText(*model, pin);
  details->setText(text.isEmpty() ? "Select a pin to inspect descriptor capabilities." : text);
+}
+void HardwareView::requestPinCheck() {
+ const Hypr::Board *board = model->board();
+ if(!board) { lastCheck = Hypr::PinCheckResult(); hasCheckResult = false; issues->clear(); return; }
+ pinCheck->requestCheck(*board, model->assignments());
+}
+// Renders the "ISSUES" section from the last pin-conflict check result:
+// errors in red, warnings in amber, a one-line "unavailable" notice if the
+// check itself could not run (node missing / script failed / timed out —
+// never silently shown as "no issues" in that case). If the currently
+// selected pin is mentioned by an issue, that line is bolded.
+void HardwareView::renderIssues() {
+ const auto selected = scene->selectedItems();
+ const QString selectedPin = selected.size() == 1 ? selected.first()->data(0).toString() : QString();
+ if(!hasCheckResult) { issues->setText(model->board() ? "<span style='color:#9ca3af;'>Checking pin conflicts…</span>" : QString()); return; }
+ if(!lastCheck.available) {
+  const QString reason = lastCheck.unavailableReason.isEmpty() ? "unknown reason." : lastCheck.unavailableReason;
+  issues->setText("<span style='color:#f59e0b;'>Conflict check unavailable: " + reason.toHtmlEscaped() + "</span>");
+  return;
+ }
+ if(lastCheck.errors.isEmpty() && lastCheck.warnings.isEmpty()) { issues->setText("<span style='color:#22c55e;'>No pin conflicts.</span>"); return; }
+ QStringList lines;
+ auto renderIssue = [&](const Hypr::PinCheckIssue &issue, const QString &color) {
+  QString location = !issue.pin.isEmpty() ? ("[" + issue.pin + "] ") : (!issue.resource.isEmpty() ? ("[" + issue.resource + "] ") : QString());
+  QString text = (location + issue.message).toHtmlEscaped();
+  const bool matchesSelection = !selectedPin.isEmpty() && issue.pin == selectedPin;
+  if(matchesSelection) text = "<b>" + text + "</b>";
+  lines << "<div style='color:" + color + ";'>" + text + "</div>";
+ };
+ if(!lastCheck.errors.isEmpty()) {
+  lines << "<div style='color:#ef4444;font-weight:600;'>" + QString::number(lastCheck.errors.size())
+      + (lastCheck.errors.size()==1?" error":" errors") + " — build will be blocked.</div>";
+  for(const auto &issue: lastCheck.errors) renderIssue(issue, "#ef4444");
+ }
+ for(const auto &issue: lastCheck.warnings) renderIssue(issue, "#f59e0b");
+ issues->setText(lines.join(QString()));
 }

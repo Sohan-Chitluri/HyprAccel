@@ -343,6 +343,30 @@
     word-break: break-all;
   }
 
+  /* Pin-conflict check panel (Hardware Setup: hardware/hardware.json) */
+  .pin-check-panel {
+    flex-shrink: 0;
+    max-height: 40%;
+    overflow: auto;
+    border-top: 1px solid var(--border);
+    background: var(--panel-header);
+    padding: 10px 16px;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+  .pin-check-loading { color: var(--text-muted); }
+  .pin-check-empty { color: var(--green); }
+  .pin-check-request-error { color: var(--orange); }
+  .pin-check-blocking {
+    color: var(--red);
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .pin-check-errors, .pin-check-warnings { display: flex; flex-direction: column; gap: 2px; }
+  .pin-check-issue { font-family: var(--font-mono); }
+  .pin-check-issue-error { color: var(--red); }
+  .pin-check-issue-warning { color: var(--orange); }
+
   /* Bottom Panel: Console & Logs */
   .bottom-dock {
     grid-column: 2;
@@ -634,6 +658,7 @@
     <div class="source-viewport" id="sourceViewport">
       <pre id="sourceCode">// Select a file from the project tree to view contents</pre>
     </div>
+    <div class="pin-check-panel" id="pinCheckPanel" style="display:none;"></div>
   </main>
 
   <!-- Bottom Dock: Build Log & Console Output -->
@@ -693,6 +718,7 @@
 </div>
 
 <script src="board_detail.js"></script>
+<script src="pin_check_panel.js"></script>
 <script>
 'use strict';
 
@@ -981,6 +1007,43 @@ function renderEmptyState() {
 }
 
 /* ────────────────────────────────────────────────────────────────────────
+   Pin-conflict check (Hardware Setup: hardware/hardware.json)
+
+   Thin adapter over the shared src/pin_check_panel.js module (same one
+   pin_config.html uses): reuses the SAME checkPinConflicts() codegen would
+   block on, via POST /api/hardware/check (mbd/editor/server.js), so the
+   panel shows live errors/warnings as hardware.json is assigned, not only
+   after a failed build.
+   ──────────────────────────────────────────────────────────────────────── */
+const pinCheckController = window.HyprPinCheckPanel.createController({
+    onState(state) {
+        const panel = document.getElementById('pinCheckPanel');
+        if (!panel) return;
+        panel.style.display = '';
+        window.HyprPinCheckPanel.renderPanel(document, panel, state);
+    }
+});
+
+function hidePinCheckPanel() {
+    const panel = document.getElementById('pinCheckPanel');
+    pinCheckController.cancel();
+    if (!panel) return;
+    panel.style.display = 'none';
+    panel.innerHTML = '';
+}
+
+/** Debounced (~250ms) entry point: call on every in-UI assignment change. */
+function requestPinCheck(hardware) {
+    pinCheckController.requestCheck({
+        board: hardware.board,
+        assignments: hardware.assignments || [],
+        configurations: Object.fromEntries(Object.entries(hardware.resources || {}).map(([id, r]) => [id, r.configuration || {}])),
+        devices: hardware.devices || [],
+        projectId: activeProjectId
+    });
+}
+
+/* ────────────────────────────────────────────────────────────────────────
    Source Viewer
    ──────────────────────────────────────────────────────────────────────── */
 async function loadSourceFile(relativePath) {
@@ -990,12 +1053,24 @@ async function loadSourceFile(relativePath) {
     document.getElementById('sourcePathDisplay').innerHTML = `<span>📄 ${relativePath}</span>`;
     const sourceEl = document.getElementById('sourceCode');
     sourceEl.textContent = 'Loading source file...';
+    if (relativePath !== 'hardware/hardware.json') hidePinCheckPanel();
 
     try {
         const data = await apiFetch(`/api/projects/${encodeURIComponent(activeProjectId)}/source?path=${encodeURIComponent(relativePath)}`);
         sourceEl.textContent = data.content;
+        // Hardware Setup: hardware/hardware.json is the pin/peripheral
+        // assignment file surfaced by this workspace shell. Run the live
+        // conflict check the moment it opens (and any time its content is
+        // reloaded), same as codegen would block on.
+        if (relativePath === 'hardware/hardware.json') {
+            let hardware = null;
+            try { hardware = JSON.parse(data.content); } catch (_) { hardware = null; }
+            if (hardware && hardware.board) requestPinCheck(hardware);
+            else hidePinCheckPanel();
+        }
     } catch (err) {
         sourceEl.textContent = `// Could not load project file '${relativePath}': ${err.message}`;
+        if (relativePath === 'hardware/hardware.json') hidePinCheckPanel();
     }
 }
 
