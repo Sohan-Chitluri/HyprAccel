@@ -82,6 +82,37 @@ boards:
         - "ADC2"
         - "ADC3"
 
+    # Clock tree (Clock Configuration tab). Consumed by Hypr::ClockCatalog
+    # (desktop/src/clock/clock_tree.h) and mapped 1:1 onto Hypr::ClockNode /
+    # Hypr::ClockTree. Nodes are listed in topological order: every node's
+    # `inputs` already appear earlier in this list. Each node cites its
+    # source in `ref`; nodes marked "unverified" in `note` have no public
+    # register-level documentation and are not user-editable.
+    clocks:
+      nodes:
+        - id: osc
+          label: "System oscillator"
+          kind: source
+          freq_mhz: 100
+          editable: false
+          ref: "C-DAC ARIES v2.0 product page (cdac.in/index.aspx?id=product_details&productId=ARIESv2.0): \"ARIES v2.0 is a development platform based on THEJAS32 ASIC which operates at a frequency of 100MHz\""
+          note: "unverified — no public THEJAS32/VEGA ET1031 datasheet or technical reference manual describing the physical oscillator, any PLL, or clock-tree registers was found; only the fixed 100 MHz system operating frequency is documented on C-DAC's ARIES product pages. The related ARIES v3.0 board (same THEJAS32/VEGA ET1031 SoC family) is documented with a 100 MHz board oscillator (CIRCUITSTATE \"Getting Started with C-DAC Aries V3 THEJAS32\" guide), consistent with this value."
+        - id: cpu_clk
+          label: "System clock"
+          kind: gate
+          inputs: ["osc"]
+          editable: false
+          ref: "C-DAC ARIES v2.0 product page (cdac.in): \"Clock Speed: 100 MHz\""
+          note: "unverified — modelled as a direct pass-through of the system oscillator; no PLL or divider stage is documented for THEJAS32"
+        - id: periph_clk
+          label: "Peripheral clocks"
+          kind: output
+          inputs: ["cpu_clk"]
+          editable: false
+          ref: "unverified — no VEGA/THEJAS32 technical reference manual was found"
+          note: "unverified — no public register-level clock-tree documentation for VEGA ET1031/THEJAS32 peripherals (UART/SPI/I2C/PWM/ADC) was found; assumed to run from the system clock domain like the CPU, matching the single 100 MHz clock_freq_mhz declared for this board. Revise if C-DAC publishes a VEGA/THEJAS32 clock TRM."
+      peripheral_outputs: ["periph_clk"]
+
   # -------------------------------------------------------------------------
   # ESP32 (Secondary target)
   # Standard ESP-WROOM-32 module.
@@ -159,3 +190,120 @@ boards:
         - "GPIO35"
         - "GPIO36"
         - "GPIO39"
+
+    # Clock tree (Clock Configuration tab). See the schema note on the
+    # thejas32 board above. Defaults reproduce CPU_CLK = 240 MHz / APB_CLK =
+    # 80 MHz, matching this board's clock_freq_mhz.
+    clocks:
+      nodes:
+        - id: xtal
+          label: "XTAL"
+          kind: source
+          freq_mhz: 40
+          editable: false
+          ref: "ESP32 Series Datasheet (Espressif); ESP32-WROOM-32 module / ESP32 DevKitC-V1 (esp32dev) ship a 40 MHz crystal"
+          note: "fixed by the module's crystal; not user-selectable in software"
+        - id: rc_fast
+          label: "RC_FAST (8M)"
+          kind: source
+          freq_mhz: 8
+          editable: false
+          ref: "ESP32 Technical Reference Manual, Chapter \"Reset and Clock\": internal ~8 MHz RC oscillator (RTC8M_CLK / RC_FAST_CLK)"
+          note: "untrimmed internal RC oscillator; frequency is nominal, not precise"
+        - id: bbpll
+          label: "PLL (BBPLL)"
+          kind: pll
+          inputs: ["xtal"]
+          options: [8, 12]
+          default: "12"
+          editable: true
+          max_mhz: 480
+          ref: "ESP32 Technical Reference Manual, Chapter \"Reset and Clock\": main PLL (BBPLL) produces PLL_CLK of 320 MHz or 480 MHz"
+          note: "modelled as a multiplier of the fitted 40 MHz XTAL (x8 -> 320 MHz, x12 -> 480 MHz); the real BBPLL locks to a fixed 320/480 MHz output looked up from a table keyed by XTAL frequency rather than a literal integer multiply, but esp32dev only ships the 40 MHz crystal so the two views agree"
+        - id: cpu_mux
+          label: "CPU_CLK source"
+          kind: mux
+          inputs: ["bbpll", "xtal", "rc_fast"]
+          default: "bbpll"
+          editable: true
+          ref: "ESP32 Technical Reference Manual, Chapter \"Reset and Clock\": RTC_CNTL_SOC_CLK_SEL field of RTC_CNTL_CLK_CONF_REG selects the CPU_CLK source among XTAL_CLK, PLL_CLK, RTC8M_CLK and APLL_CLK"
+          note: "APLL_CLK is also a documented SOC_CLK_SEL option but is normally reserved for I2S/audio and is not exposed as a CPU clock source by ESP-IDF; omitted here rather than guess its usable range"
+        - id: cpu_div
+          label: "CPU_CLK"
+          kind: divider
+          inputs: ["cpu_mux"]
+          options: [1, 2, 3, 4, 6]
+          default: "2"
+          editable: true
+          max_mhz: 240
+          ref: "ESP32 Technical Reference Manual, Chapter \"Reset and Clock\": CPU_CLKDIV field; ESP32 Series Datasheet maximum CPU frequency 240 MHz"
+          note: "documented combinations (ESP-IDF rtc_clk CPU-frequency table): PLL 480/div2 = 240 MHz, PLL 320/div2 = 160 MHz, PLL 320/div4 = 80 MHz; other divider values are accepted by this model but are not documented combinations"
+        - id: apb_pll
+          label: "APB (PLL path)"
+          kind: divider
+          inputs: ["bbpll"]
+          options: [4, 6]
+          default: "6"
+          editable: false
+          follows:
+            node: bbpll
+            map: { "8": 4, "12": 6 }
+          ref: "ESP32 Technical Reference Manual, Chapter \"Reset and Clock\": APB_CLK is 80 MHz whenever CPU_CLK is derived from PLL_CLK"
+          note: "hardware-selected divisor holding APB at 80 MHz: PLL 320 MHz / 4, PLL 480 MHz / 6"
+        - id: apb_clk
+          label: "APB_CLK"
+          kind: mux
+          inputs: ["apb_pll", "cpu_div"]
+          default: "apb_pll"
+          editable: false
+          follows:
+            node: cpu_mux
+            map: { bbpll: apb_pll, xtal: cpu_div, rc_fast: cpu_div }
+          ref: "ESP32 Technical Reference Manual, Chapter \"Reset and Clock\": APB_CLK = 80 MHz for PLL_CLK sources; APB_CLK = CPU_CLK when CPU_CLK is sourced from XTAL_CLK or RC_FAST_CLK"
+          note: "tracks the CPU_CLK source automatically; not user-selectable"
+        - id: ref_tick
+          label: "REF_TICK"
+          kind: source
+          freq_mhz: 1
+          editable: false
+          ref: "ESP32 Technical Reference Manual, Chapter \"Reset and Clock\": REF_TICK, a nominal 1 MHz tick derived from the active CPU clock source via per-source *_TICK_NUM dividers"
+          note: "modelled as a fixed 1 MHz tick (ESP-IDF programs the per-source tick dividers to keep it at 1 MHz); behaviour for non-default CPU sources and dividers is unverified"
+        - id: uart_clk_sel
+          label: "UART clock source"
+          kind: mux
+          inputs: ["apb_clk", "ref_tick"]
+          default: "apb_clk"
+          editable: true
+          ref: "ESP32 Technical Reference Manual, Chapter \"UART Controller\": UART clock source select (APB_CLK or REF_TICK, the latter keeping baud rate stable across CPU frequency changes)"
+        - id: uart_clk
+          label: "UART"
+          kind: output
+          inputs: ["uart_clk_sel"]
+          editable: false
+          ref: "ESP32 Technical Reference Manual, Chapter \"UART Controller\""
+        - id: ledc_clk_sel
+          label: "LEDC clock source"
+          kind: mux
+          inputs: ["apb_clk", "rc_fast"]
+          default: "apb_clk"
+          editable: true
+          ref: "ESP32 Technical Reference Manual, Chapter \"LED PWM Controller (LEDC)\": LEDC clock source select (APB_CLK or RC_FAST_CLK)"
+        - id: ledc_clk
+          label: "LEDC (PWM)"
+          kind: output
+          inputs: ["ledc_clk_sel"]
+          editable: false
+          ref: "ESP32 Technical Reference Manual, Chapter \"LED PWM Controller (LEDC)\""
+        - id: i2c_clk
+          label: "I2C"
+          kind: output
+          inputs: ["apb_clk"]
+          editable: false
+          ref: "ESP32 Technical Reference Manual, Chapter \"I2C Controller\": I2C is clocked from APB_CLK"
+        - id: spi_clk
+          label: "SPI"
+          kind: output
+          inputs: ["apb_clk"]
+          editable: false
+          ref: "ESP32 Technical Reference Manual, Chapter \"SPI Controller\": GP-SPI is clocked from APB_CLK"
+      peripheral_outputs: ["uart_clk", "ledc_clk", "i2c_clk", "spi_clk"]
