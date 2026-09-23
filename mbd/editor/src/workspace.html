@@ -1020,8 +1020,18 @@ Binary Format: ESP32 Application Image (.bin)
 /* ────────────────────────────────────────────────────────────────────────
    Actions (Generate, Compile, Flash, Verify)
    ──────────────────────────────────────────────────────────────────────── */
+/* Actions need a graph; say so on screen instead of silently doing nothing
+   (projects saved from the desktop app start without one). */
+function requireActiveGraph(action) {
+    if (activeProjectId && activeGraphId) return true;
+    logConsole(activeProjectId
+        ? `✗ ${action} needs a graph: project '${activeProjectId}' has no graphs yet. Open the Graph Editor to add one.`
+        : `✗ ${action}: select a project first.`, 'err');
+    return false;
+}
+
 async function runGenerate() {
-    if (!activeProjectId || !activeGraphId) return;
+    if (!requireActiveGraph('Generate')) return;
     logConsole(`[ACTION] Starting generation for project '${activeProjectId}' graph '${activeGraphId}'...`, 'info');
     try {
         const data = await apiFetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graphs/${encodeURIComponent(activeGraphId)}/generate`, { method: 'POST' });
@@ -1036,7 +1046,7 @@ async function runGenerate() {
 }
 
 async function runCompile() {
-    if (!activeProjectId || !activeGraphId) return;
+    if (!requireActiveGraph('Build')) return;
     logConsole(`[ACTION] Starting build/compile for project '${activeProjectId}'...`, 'info');
     try {
         const data = await apiFetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graphs/${encodeURIComponent(activeGraphId)}/compile`, { method: 'POST' });
@@ -1050,7 +1060,7 @@ async function runCompile() {
 }
 
 async function runFlash() {
-    if (!activeProjectId || !activeGraphId) return;
+    if (!requireActiveGraph('Flash')) return;
     logConsole(`[ACTION] Starting Flash for project '${activeProjectId}'...`, 'info');
     try {
         const data = await apiFetch('/api/flash', {
@@ -1067,7 +1077,7 @@ async function runFlash() {
 }
 
 async function runVerify() {
-    if (!activeProjectId || !activeGraphId) return;
+    if (!requireActiveGraph('Verify')) return;
     logConsole(`[ACTION] Starting Hardware Verification for project '${activeProjectId}'...`, 'info');
     try {
         const data = await apiFetch('/api/verify', {

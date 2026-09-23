@@ -29,6 +29,9 @@
 const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
+const { readProjectConfig } = require('./project_config');
+const { checkPinConflicts } = require('./pin_conflicts');
+const { injectProjectDefines } = require('./project_defines');
 
 /**
  * Extract a GPIO number from a string such as "GPIO14" -> 14.
@@ -211,16 +214,47 @@ function generateHeader(boardKey, boardData) {
     return out;
 }
 
+/**
+ * --project <projectDir>: reads the project's merged hardware+clock config,
+ * validates the project's board matches <target_board>, checks for pin
+ * conflicts (no graphs are known to the CLI, so graphs = []), and injects the
+ * project's macros ('materialize' variant, matching mbd/editor/server.js
+ * materializeEsp32) into the generated header text.
+ */
+function applyProjectConfig(headerContent, targetBoard, boardData, projectDir, yamlPath) {
+    const config = readProjectConfig(projectDir, yamlPath);
+    if (config.board !== targetBoard) {
+        console.error(`Error: Project board '${config.board}' does not match target board '${targetBoard}'.`);
+        process.exit(1);
+    }
+    const { errors, warnings } = checkPinConflicts(config, boardData, []);
+    if (errors.length > 0) {
+        for (const issue of errors) console.error(issue.message);
+        process.exit(1);
+    }
+    const warningMessages = warnings.map(issue => issue.message);
+    return injectProjectDefines(headerContent, config, boardData, { variant: 'materialize', warnings: warningMessages });
+}
+
 function main() {
     const args = process.argv.slice(2);
     if (args.length < 3) {
-        console.error("Usage: node gen_board_config.js <target_board> <boards.yaml> <out_dir>");
+        console.error("Usage: node gen_board_config.js <target_board> <boards.yaml> <out_dir> [--project <projectDir>]");
         process.exit(1);
     }
 
     const targetBoard = args[0];
     const yamlPath = args[1];
     const outDir = args[2];
+    let projectDir = null;
+    const projectFlagIndex = args.indexOf('--project');
+    if (projectFlagIndex !== -1) {
+        projectDir = args[projectFlagIndex + 1];
+        if (!projectDir) {
+            console.error('Error: --project requires a project directory argument.');
+            process.exit(1);
+        }
+    }
 
     if (!fs.existsSync(yamlPath)) {
         console.error(`Error: File ${yamlPath} not found.`);
@@ -236,7 +270,10 @@ function main() {
         process.exit(1);
     }
 
-    const headerContent = generateHeader(targetBoard, parsed.boards[targetBoard]);
+    let headerContent = generateHeader(targetBoard, parsed.boards[targetBoard]);
+    if (projectDir) {
+        headerContent = applyProjectConfig(headerContent, targetBoard, parsed.boards[targetBoard], projectDir, yamlPath);
+    }
 
     if (!fs.existsSync(outDir)) {
         fs.mkdirSync(outDir, { recursive: true });
@@ -248,4 +285,8 @@ function main() {
     console.log(`Successfully generated ${outPath} for ${targetBoard}`);
 }
 
-main();
+if (require.main === module) {
+    main();
+}
+
+module.exports = { generateHeader };

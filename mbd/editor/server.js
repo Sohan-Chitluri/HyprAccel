@@ -16,6 +16,9 @@ const path    = require('path');
 const os           = require('os');
 const { execFileSync, execSync, spawnSync } = require('child_process');
 const yaml    = require('js-yaml');
+const { readProjectConfig, readClockConfig, mergeProjectConfig } = require('../../boards/codegen/project_config');
+const { checkPinConflicts } = require('../../boards/codegen/pin_conflicts');
+const { injectProjectDefines } = require('../../boards/codegen/project_defines');
 
 const app  = express();
 const PORT = Number(process.env.HYPRACCEL_EDITOR_PORT || 3737);
@@ -636,50 +639,13 @@ function projectPlatformioIni(boardKey) {
         `    -I generated\n`;
 }
 
-function assignmentMacroBase(assignment) {
-    return assignment.node.replace(/[^A-Za-z0-9_]/g, '_').replace(/_+/g, '_').replace(/_$/, '').toUpperCase();
-}
-
-function peripheralMacroBase(assignment) {
-    const resource = assignment.resource.replace(/[^A-Za-z0-9_]/g, '_').replace(/_+/g, '_').replace(/_$/, '').toUpperCase();
-    return `${assignmentMacroBase(assignment)}_${resource}`;
-}
-
-function injectHardwareHeader(headerPath, hardware) {
-    let headerText = fs.readFileSync(headerPath, 'utf8');
-    const pinDefines = ['', '/* MBD Pin Assignments — generated from project hardware.json */'];
-    const definedPeripherals = new Set();
-    for (const assignment of hardware.assignments || []) {
-        const macroBase = assignmentMacroBase(assignment);
-        pinDefines.push(`#define HYP_PIN_${macroBase}_${assignment.role.toUpperCase()} "${assignment.pin}"  /* ${assignment.node} → ${assignment.resource}.${assignment.role} */`);
-        const peripheralMacro = peripheralMacroBase(assignment);
-        if (!definedPeripherals.has(peripheralMacro)) {
-            pinDefines.push(`#define HYP_PERIPH_${peripheralMacro} "${assignment.resource}"`);
-            definedPeripherals.add(peripheralMacro);
-        }
-    }
-    const resourceDefines = ['', '/* Hardware Setup resources — generated from project hardware.json */'];
-    for (const resource of Object.values(hardware.resources || {})) {
-        const macro = resource.id.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
-        const assigned = (hardware.assignments || []).filter(item => item.resource === resource.id);
-        if (assigned.length > 0 || resource.type === 'accelerator') resourceDefines.push(`#define HYP_RESOURCE_${macro} 1`);
-        for (const [key, value] of Object.entries(resource.configuration || {})) {
-            const keyMacro = key.replace(/([a-z])([A-Z])/g, '$1_$2').toUpperCase().replace(/[^A-Z0-9_]/g, '_');
-            resourceDefines.push(`#define HYP_RESOURCE_${macro}_${keyMacro} ${typeof value === 'number' ? value : JSON.stringify(String(value))}`);
-        }
-    }
-    const marker = '#endif /* HYP_BOARD_CONFIG_H */';
-    headerText = headerText.replace(marker, pinDefines.concat(resourceDefines).join('\n') + '\n\n' + marker);
-    fs.writeFileSync(headerPath, headerText, 'utf8');
-}
-
 function loadProjectInputs(projectId, graphId = null) {
     const paths = projectPaths(projectId);
     readProjectManifest(projectId);
-    const hardware = readJson(paths.hardware, 'project hardware');
+    if (!fs.existsSync(paths.hardware)) throw new Error(`Project '${projectId}' has no hardware configuration.`);
+    const hardware = readProjectConfig(paths.projectDir, BOARDS_YAML);
     const selectedGraphId = resolveProjectGraphId(projectId, graphId);
     const graph = readProjectGraph(projectId, selectedGraphId);
-    if (!hardware) throw new Error(`Project '${projectId}' has no hardware configuration.`);
     return { paths, hardware, graphId: selectedGraphId, graph: assertGraphDocument(graph) };
 }
 
@@ -1034,6 +1000,15 @@ app.post('/api/generate', (req, res) => {
         }
 
         const hardware = projectHardware(board, assignments, configurations, devices);
+        const boardData = boardDescriptor(board);
+        const clock = projectId ? readClockConfig(projectPaths(projectId).projectDir) : null;
+        const config = mergeProjectConfig(hardware, clock, boardData);
+        const conflicts = checkPinConflicts(config, boardData, []);
+        if (conflicts.errors.length > 0) {
+            return res.status(400).json({ error: conflicts.errors.map(issue => issue.message).join('; '), issues: conflicts.errors });
+        }
+        const warnings = conflicts.warnings.map(issue => issue.message);
+
         if (projectId) readProjectManifest(projectId);
         writeHardwareConfig(hardware, projectId);
         if (projectId) touchProject(projectId);
@@ -1046,46 +1021,10 @@ app.post('/api/generate', (req, res) => {
         const headerPath  = path.join(CODEGEN_OUT, 'hyp_board_config.h');
         let   headerText  = fs.readFileSync(headerPath, 'utf8');
 
-        /* Inject the MBD pin assignments as #defines — MBD-T1b wiring */
-        if (assignments.length > 0) {
-            const pinDefines = [
-                '',
-                '/* MBD Pin Assignments — generated by pin_config UI (MBD-T1b) */'
-            ];
-            const definedPeripherals = new Set();
-            for (const a of hardware.assignments) {
-                const macroBase = assignmentMacroBase(a);
-                pinDefines.push(`#define HYP_PIN_${macroBase}_${a.role.toUpperCase()} "${a.pin}"  /* ${a.node} → ${a.resource}.${a.role} */`);
-                const peripheralMacro = peripheralMacroBase(a);
-                if (!definedPeripherals.has(peripheralMacro)) {
-                    pinDefines.push(`#define HYP_PERIPH_${peripheralMacro} "${a.resource}"`);
-                    definedPeripherals.add(peripheralMacro);
-                }
-            }
-            headerText = headerText.replace(
-                '#endif /* HYP_BOARD_CONFIG_H */',
-                pinDefines.join('\n') + '\n\n#endif /* HYP_BOARD_CONFIG_H */'
-            );
-            fs.writeFileSync(headerPath, headerText, 'utf8');
-        }
-
-        /* Resource identities and configuration are emitted once here, not
-           recreated by graph nodes.  Values remain plain generic project
-           settings; the ESP32 backend interprets the selected board's pins. */
-        const resourceDefines = ['','/* Hardware Setup resources — generated from project hardware.json */'];
-        for (const resource of Object.values(hardware.resources)) {
-            const macro = resource.id.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
-            const assigned = hardware.assignments.filter(item => item.resource === resource.id);
-            if (assigned.length > 0) resourceDefines.push(`#define HYP_RESOURCE_${macro} 1`);
-            for (const [key, value] of Object.entries(resource.configuration || {})) {
-                const keyMacro = key.replace(/([a-z])([A-Z])/g, '$1_$2').toUpperCase().replace(/[^A-Z0-9_]/g, '_');
-                resourceDefines.push(`#define HYP_RESOURCE_${macro}_${keyMacro} ${typeof value === 'number' ? value : JSON.stringify(String(value))}`);
-            }
-        }
-        headerText = headerText.replace('#endif /* HYP_BOARD_CONFIG_H */', resourceDefines.join('\n') + '\n\n#endif /* HYP_BOARD_CONFIG_H */');
+        headerText = injectProjectDefines(headerText, config, boardData, { variant: 'api', warnings });
         fs.writeFileSync(headerPath, headerText, 'utf8');
 
-        res.json({ success: true, header: headerText, assignments: hardware.assignments, hardware });
+        res.json({ success: true, header: headerText, assignments: hardware.assignments, hardware, warnings });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -1210,6 +1149,14 @@ function materializeEsp32(graph, projectId = null, graphId = null) {
     const hardware = projectInputs ? projectInputs.hardware : readHardwareConfig();
     const boardKey = hardware.board || 'esp32';
     const targetGenerated = projectInputs ? projectInputs.paths.generated : ESP32_GENERATED;
+    const boardData = boardDescriptor(boardKey);
+    const conflicts = checkPinConflicts(hardware, boardData, [graph]);
+    if (conflicts.errors.length > 0) {
+        const err = new Error(conflicts.errors.map(issue => issue.message).join('; '));
+        err.code = 'EINVARIANT';
+        throw err;
+    }
+    const pinWarnings = conflicts.warnings.map(issue => issue.message);
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hypraccel-esp32-'));
     try {
         validateGraphHardwareResources(graph, projectId, hardware);
@@ -1235,7 +1182,9 @@ function materializeEsp32(graph, projectId = null, graphId = null) {
         } finally {
             fs.rmSync(headerDir, { recursive: true, force: true });
         }
-        injectHardwareHeader(path.join(targetGenerated, 'hyp_board_config.h'), hardware);
+        const boardHeaderPath = path.join(targetGenerated, 'hyp_board_config.h');
+        const boardHeaderText = fs.readFileSync(boardHeaderPath, 'utf8');
+        fs.writeFileSync(boardHeaderPath, injectProjectDefines(boardHeaderText, hardware, boardData, { variant: 'materialize', warnings: pinWarnings }), 'utf8');
         fs.writeFileSync(path.join(targetGenerated, 'main.cpp'), `/* Generated MBD-T9 runtime wrapper; graph.c is the application logic. */
 #include <Arduino.h>
 #include "hyprccel.h"
@@ -1303,7 +1252,8 @@ void loop()
             generatedDir: targetGenerated,
             platformio: projectId ? projectInputs.paths.platformio : path.join(ESP32_PROJECT, 'platformio.ini'),
             environment: platformioEnvironment(boardKey),
-            board: boardKey
+            board: boardKey,
+            warnings: pinWarnings
         };
     } finally {
         fs.rmSync(tempDir, { recursive: true, force: true });
