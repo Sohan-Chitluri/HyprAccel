@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 project(HyprAccelStudio VERSION 0.1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
-find_package(Qt6 REQUIRED COMPONENTS Widgets Test)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Test Network)
 add_executable(hypraccel-studio src/main.cpp)
 target_link_libraries(hypraccel-studio PRIVATE Qt6::Widgets)
 enable_testing()
@@ -11,17 +11,18 @@ endif()
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/board/CMakeLists.txt)
   add_subdirectory(src/board)
 endif()
-target_sources(hypraccel-studio PRIVATE src/hardware_view.cpp)
+target_sources(hypraccel-studio PRIVATE src/hardware_view.cpp src/mbd_view.cpp src/mbd_view.h)
+set_target_properties(hypraccel-studio PROPERTIES AUTOMOC ON)
 # Pin/clock configuration components. Each subdirectory defines one library
 # (studio_config, studio_pinout, studio_pinmenu, studio_clock, studio_project)
 # plus its own tests; they are linked in once present.
-set(HYPR_COMPONENTS "config;pinout;pinmenu;clock;project;pincheck" CACHE STRING "Configuration components to build")
+set(HYPR_COMPONENTS "config;pinout;pinmenu;clock;project;pincheck;mbd;mbd/nodes" CACHE STRING "Configuration components to build")
 foreach(component ${HYPR_COMPONENTS})
   if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/${component}/CMakeLists.txt)
     add_subdirectory(src/${component})
   endif()
 endforeach()
-foreach(library studio_config studio_pinout studio_pinmenu studio_clock studio_project studio_pincheck)
+foreach(library studio_config studio_pinout studio_pinmenu studio_clock studio_project studio_pincheck studio_mbd studio_mbd_nodes)
   if(TARGET ${library})
     target_link_libraries(hypraccel-studio PRIVATE ${library})
   endif()
@@ -49,3 +50,17 @@ set_tests_properties(hardware_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offsc
 add_test(NAME startup COMMAND hypraccel-studio --smoke-test)
 add_test(NAME launcher_theme COMMAND hypraccel-studio --theme-test)
 set_tests_properties(startup launcher_theme PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 10)
+# MBD tab integration (desktop/src/mbd_view.*): canvas + palette + inspector +
+# GraphStore + graph_to_c.js bridge wired together; round-trips against the
+# web editor's own functions and codegen.
+if(TARGET studio_mbd AND TARGET studio_mbd_nodes AND TARGET studio_project)
+  add_executable(mbd_view_test tests/mbd_view_test.cpp src/mbd_view.cpp src/mbd_view.h)
+  set_target_properties(mbd_view_test PROPERTIES AUTOMOC ON)
+  target_include_directories(mbd_view_test PRIVATE src)
+  target_link_libraries(mbd_view_test PRIVATE Qt6::Widgets Qt6::Test Qt6::Network studio_mbd studio_mbd_nodes studio_project)
+  target_compile_definitions(mbd_view_test PRIVATE
+      HYPRACCEL_REPO_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/.."
+      WEB_GRAPH_HARNESS="${CMAKE_CURRENT_SOURCE_DIR}/src/project/tests/web_graph_harness.js")
+  add_test(NAME mbd_view COMMAND mbd_view_test)
+  set_tests_properties(mbd_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 60)
+endif()

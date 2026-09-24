@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "board": "esp32",
+  "resources": {
+    "gpio.GPIO4": {
+      "id": "gpio.GPIO4",
+      "type": "gpio",
+      "instance": "GPIO4",
+      "available": true,
+      "assignments": [{ "role": "gpio", "pin": "GPIO4" }],
+      "configuration": {}
+    },
+    "gpio.GPIO5": {
+      "id": "gpio.GPIO5",
+      "type": "gpio",
+      "instance": "GPIO5",
+      "available": true,
+      "assignments": [{ "role": "gpio", "pin": "GPIO5" }],
+      "configuration": {}
+    },
+    "gpio.GPIO6": {
+      "id": "gpio.GPIO6",
+      "type": "gpio",
+      "instance": "GPIO6",
+      "available": false,
+      "assignments": [{ "role": "gpio", "pin": "GPIO6" }],
+      "configuration": {}
+    },
+    "adc.GPIO32": {
+      "id": "adc.GPIO32",
+      "type": "adc",
+      "instance": "GPIO32",
+      "available": true,
+      "assignments": [{ "role": "input", "pin": "GPIO32" }],
+      "configuration": {}
+    },
+    "accelerator.cordic": {
+      "id": "accelerator.cordic",
+      "type": "accelerator",
+      "instance": "cordic",
+      "available": true,
+      "assignments": [],
+      "configuration": { "iterations": 16 }
+    },
+    "accelerator.unconfigured": {
+      "id": "accelerator.unconfigured",
+      "type": "accelerator",
+      "instance": "unconfigured",
+      "available": true,
+      "assignments": [],
+      "configuration": {}
+    }
+  },
+  "assignments": [
+    { "node": "SensorInput[1]", "role": "gpio", "pin": "GPIO4", "resource": "gpio.GPIO4" }
+  ],
+  "devices": []
+}

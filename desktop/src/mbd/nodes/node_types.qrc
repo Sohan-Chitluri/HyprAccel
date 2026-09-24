@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/mbd/nodes">
+        <file alias="node_types.json">node_types.json</file>
+    </qresource>
+</RCC>

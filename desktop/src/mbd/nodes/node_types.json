@@ -1,0 +1,1761 @@
+{
+  "types": [
+    {
+      "key": "SensorInput",
+      "displayName": "SensorInput",
+      "description": "Board signal / sensor binding",
+      "category": "Inputs & Sensors",
+      "defaults": [
+        {
+          "key": "source",
+          "value": "imu.yaw_rad"
+        },
+        {
+          "key": "valueType",
+          "value": "number"
+        },
+        {
+          "key": "samplePeriodUs",
+          "value": 1000
+        },
+        {
+          "key": "unit",
+          "value": "rad"
+        }
+      ],
+      "ports": {
+        "dynamic": false,
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "value",
+            "type": "any"
+          },
+          {
+            "name": "timestamp_us",
+            "type": "number"
+          },
+          {
+            "name": "valid",
+            "type": "boolean"
+          }
+        ]
+      },
+      "inspectorGroups": [
+        {
+          "name": "Sensor Settings",
+          "fields": [
+            {
+              "key": "source",
+              "kind": "text"
+            },
+            {
+              "key": "valueType",
+              "kind": "select",
+              "options": [
+                {
+                  "value": "number",
+                  "label": "number"
+                },
+                {
+                  "value": "boolean",
+                  "label": "boolean"
+                },
+                {
+                  "value": "vector<number>",
+                  "label": "vector<number>"
+                },
+                {
+                  "value": "pose",
+                  "label": "pose"
+                },
+                {
+                  "value": "any",
+                  "label": "any"
+                }
+              ]
+            },
+            {
+              "key": "samplePeriodUs",
+              "kind": "number"
+            },
+            {
+              "key": "unit",
+              "kind": "text"
+            }
+          ]
+        }
+      ],
+      "hardwareResourceTypes": [
+        "gpio",
+        "adc",
+        "uart"
+      ],
+      "special": {
+        "customCode": false,
+        "accelerator": false
+      }
+    },
+    {
+      "key": "CordicOp",
+      "displayName": "CORDIC",
+      "description": "CORDIC accelerator with automatic, software, or hardware routing",
+      "category": "Accelerator",
+      "defaults": [
+        {
+          "key": "operation",
+          "value": "sin"
+        },
+        {
+          "key": "implementation",
+          "value": "auto"
+        },
+        {
+          "key": "iterations",
+          "value": 16
+        }
+      ],
+      "ports": {
+        "dynamic": true,
+        "inputs": [
+          {
+            "name": "angle_rad",
+            "type": "number"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "value",
+            "type": "number"
+          }
+        ]
+      },
+      "inspectorGroups": [
+        {
+          "name": "CORDIC Implementation",
+          "fields": [
+            {
+              "key": "operation",
+              "kind": "select",
+              "options": [
+                {
+                  "value": "sin",
+                  "label": "sin"
+                },
+                {
+                  "value": "cos",
+                  "label": "cos"
+                },
+                {
+                  "value": "sincos",
+                  "label": "sincos"
+                },
+                {
+                  "value": "atan2",
+                  "label": "atan2"
+                }
+              ]
+            },
+            {
+              "key": "implementation",
+              "kind": "select",
+              "options": [
+                {
+                  "value": "auto",
+                  "label": "Automatic"
+                },
+                {
+                  "value": "software",
+                  "label": "Software"
+                },
+                {
+                  "value": "hardware",
+                  "label": "Hardware Accelerator"
+                }
+              ]
+            },
+            {
+              "key": "iterations",
+              "kind": "number"
+            }
+          ]
+        }
+      ],
+      "hardwareResourceTypes": [
+        "accelerator"
+      ],
+      "special": {
+        "customCode": false,
+        "accelerator": true
+      }
+    },
+    {
+      "key": "ControlLoop",
+      "displayName": "ControlLoop",
+      "description": "Discrete PID controller algorithm",
+      "category": "Control",
+      "defaults": [
+        {
+          "key": "kp",
+          "value": 1
+        },
+        {
+          "key": "ki",
+          "value": 0
+        },
+        {
+          "key": "kd",
+          "value": 0
+        },
+        {
+          "key": "samplePeriodUs",
+          "value": 1000
+        },
+        {
+          "key": "outputMin",
+          "value": -1
+        },
+        {
+          "key": "outputMax",
+          "value": 1
+        },
+        {
+          "key": "initialOutput",
+          "value": 0
+        }
+      ],
+      "ports": {
+        "dynamic": false,
+        "inputs": [
+          {
+            "name": "setpoint",
+            "type": "number"
+          },
+          {
+            "name": "measurement",
+            "type": "number"
+          },
+          {
+            "name": "enable",
+            "type": "boolean"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "command",
+            "type": "number"
+          },
+          {
+            "name": "error",
+            "type": "number"
+          }
+        ]
+      },
+      "inspectorGroups": [
+        {
+          "name": "PID Gains",
+          "fields": [
+            {
+              "key": "kp",
+              "kind": "number"
+            },
+            {
+              "key": "ki",
+              "kind": "number"
+            },
+            {
+              "key": "kd",
+              "kind": "number"
+            }
+          ]
+        },
+        {
+          "name": "Execution Limits",
+          "fields": [
+            {
+              "key": "samplePeriodUs",
+              "kind": "number"
+            },
+            {
+              "key": "outputMin",
+              "kind": "number"
+            },
+            {
+              "key": "outputMax",
+              "kind": "number"
+            },
+            {
+              "key": "initialOutput",
+              "kind": "number"
+            }
+          ]
+        }
+      ],
+      "hardwareResourceTypes": [],
+      "special": {
+        "customCode": false,
+        "accelerator": false
+      }
+    },
+    {
+      "key": "ActuatorOutput",
+      "displayName": "ActuatorOutput",
+      "description": "Board motor/actuator output endpoint",
+      "category": "Outputs & Actuators",
+      "defaults": [
+        {
+          "key": "target",
+          "value": "joint1.motor"
+        },
+        {
+          "key": "unit",
+          "value": "rad/s"
+        },
+        {
+          "key": "min",
+          "value": -1
+        },
+        {
+          "key": "max",
+          "value": 1
+        },
+        {
+          "key": "safeValue",
+          "value": 0
+        }
+      ],
+      "ports": {
+        "dynamic": false,
+        "inputs": [
+          {
+            "name": "command",
+            "type": "number"
+          },
+          {
+            "name": "enable",
+            "type": "boolean"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "applied",
+            "type": "number"
+          },
+          {
+            "name": "active",
+            "type": "boolean"
+          }
+        ]
+      },
+      "inspectorGroups": [
+        {
+          "name": "Actuator Settings",
+          "fields": [
+            {
+              "key": "target",
+              "kind": "text"
+            },
+            {
+              "key": "unit",
+              "kind": "text"
+            },
+            {
+              "key": "min",
+              "kind": "number"
+            },
+            {
+              "key": "max",
+              "kind": "number"
+            },
+            {
+              "key": "safeValue",
+              "kind": "number"
+            }
+          ]
+        }
+      ],
+      "hardwareResourceTypes": [
+        "gpio",
+        "pwm",
+        "uart"
+      ],
+      "special": {
+        "customCode": false,
+        "accelerator": false
+      }
+    },
+    {
+      "key": "Publish",
+      "displayName": "Publish",
+      "description": "Telemetry payload publisher",
+      "category": "Data / Telemetry",
+      "defaults": [
+        {
+          "key": "topic",
+          "value": "telemetry/value"
+        },
+        {
+          "key": "transport",
+          "value": "telemetry"
+        },
+        {
+          "key": "retain",
+          "value": false
+        }
+      ],
+      "ports": {
+        "dynamic": false,
+        "inputs": [
+          {
+            "name": "value",
+            "type": "any"
+          },
+          {
+            "name": "timestamp_us",
+            "type": "number (optional)"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "published",
+            "type": "boolean"
+          }
+        ]
+      },
+      "inspectorGroups": [
+        {
+          "name": "Telemetry Binding",
+          "fields": [
+            {
+              "key": "topic",
+              "kind": "text"
+            },
+            {
+              "key": "transport",
+              "kind": "select",
+              "options": [
+                {
+                  "value": "telemetry",
+                  "label": "telemetry"
+                },
+                {
+                  "value": "log",
+                  "label": "log"
+                },
+                {
+                  "value": "host",
+                  "label": "host"
+                }
+              ]
+            },
+            {
+              "key": "retain",
+              "kind": "check"
+            }
+          ]
+        }
+      ],
+      "hardwareResourceTypes": [],
+      "special": {
+        "customCode": false,
+        "accelerator": false
+      }
+    },
+    {
+      "key": "Constant",
+      "displayName": "Constant",
+      "description": "Constant numeric value",
+      "category": "Signal Processing",
+      "defaults": [
+        {
+          "key": "value",
+          "value": 1
+        }
+      ],
+      "ports": {
+        "dynamic": false,
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "value",
+            "type": "number"
+          }
+        ]
+      },
+      "inspectorGroups": [
+        {
+          "name": "Value",
+          "fields": [
+            {
+              "key": "value",
+              "kind": "number"
+            }
+          ]
+        }
+      ],
+      "hardwareResourceTypes": [],
+      "special": {
+        "customCode": false,
+        "accelerator": false
+      }
+    },
+    {
+      "key": "Add",
+      "displayName": "Add",
+      "description": "Add two inputs (a + b)",
+      "category": "Signal Processing",
+      "defaults": [],
+      "ports": {
+        "dynamic": false,
+        "inputs": [
+          {
+            "name": "a",
+            "type": "number"
+          },
+          {
+            "name": "b",
+            "type": "number"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "value",
+            "type": "number"
+          }
+        ]
+      },
+      "inspectorGroups": [],
+      "hardwareResourceTypes": [],
+      "special": {
+        "customCode": false,
+        "accelerator": false
+      }
+    },
+    {
+      "key": "Subtract",
+      "displayName": "Subtract",
+      "description": "Subtract two inputs (a - b)",
+      "category": "Signal Processing",
+      "defaults": [],
+      "ports": {
+        "dynamic": false,
+        "inputs": [
+          {
+            "name": "a",
+            "type": "number"
+          },
+          {
+            "name": "b",
+            "type": "number"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "value",
+            "type": "number"
+          }
+        ]
+      },
+      "inspectorGroups": [],
+      "hardwareResourceTypes": [],
+      "special": {
+        "customCode": false,
+        "accelerator": false
+      }
+    },
+    {
+      "key": "Multiply",
+      "displayName": "Multiply",
+      "description": "Multiply two inputs (a * b)",
+      "category": "Signal Processing",
+      "defaults": [],
+      "ports": {
+        "dynamic": false,
+        "inputs": [
+          {
+            "name": "a",
+            "type": "number"
+          },
+          {
+            "name": "b",
+            "type": "number"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "value",
+            "type": "number"
+          }
+        ]
+      },
+      "inspectorGroups": [],
+      "hardwareResourceTypes": [],
+      "special": {
+        "customCode": false,
+        "accelerator": false
+      }
+    },
+    {
+      "key": "Gain",
+      "displayName": "Gain",
+      "description": "Multiply input by gain factor",
+      "category": "Signal Processing",
+      "defaults": [
+        {
+          "key": "gain",
+          "value": 1
+        }
+      ],
+      "ports": {
+        "dynamic": false,
+        "inputs": [
+          {
+            "name": "input",
+            "type": "number"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "value",
+            "type": "number"
+          }
+        ]
+      },
+      "inspectorGroups": [
+        {
+          "name": "Gain",
+          "fields": [
+            {
+              "key": "gain",
+              "kind": "number"
+            }
+          ]
+        }
+      ],
+      "hardwareResourceTypes": [],
+      "special": {
+        "customCode": false,
+        "accelerator": false
+      }
+    },
+    {
+      "key": "Compare",
+      "displayName": "Compare",
+      "description": "Compare input against threshold",
+      "category": "Signal Processing",
+      "defaults": [
+        {
+          "key": "operation",
+          "value": "gt"
+        },
+        {
+          "key": "threshold",
+          "value": 0
+        }
+      ],
+      "ports": {
+        "dynamic": false,
+        "inputs": [
+          {
+            "name": "input",
+            "type": "number"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "result",
+            "type": "boolean"
+          }
+        ]
+      },
+      "inspectorGroups": [
+        {
+          "name": "Comparison",
+          "fields": [
+            {
+              "key": "operation",
+              "kind": "select",
+              "options": [
+                {
+                  "value": "gt",
+                  "label": "> (greater than)"
+                },
+                {
+                  "value": "lt",
+                  "label": "< (less than)"
+                },
+                {
+                  "value": "ge",
+                  "label": ">= (greater or equal)"
+                },
+                {
+                  "value": "le",
+                  "label": "<= (less or equal)"
+                },
+                {
+                  "value": "eq",
+                  "label": "== (equal)"
+                },
+                {
+                  "value": "ne",
+                  "label": "!= (not equal)"
+                }
+              ]
+            },
+            {
+              "key": "threshold",
+              "kind": "number"
+            }
+          ]
+        }
+      ],
+      "hardwareResourceTypes": [],
+      "special": {
+        "customCode": false,
+        "accelerator": false
+      }
+    },
+    {
+      "key": "Saturation",
+      "displayName": "Saturation",
+      "description": "Clamp input between min/max",
+      "category": "Signal Processing",
+      "defaults": [
+        {
+          "key": "min",
+          "value": -1
+        },
+        {
+          "key": "max",
+          "value": 1
+        }
+      ],
+      "ports": {
+        "dynamic": false,
+        "inputs": [
+          {
+            "name": "input",
+            "type": "number"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "value",
+            "type": "number"
+          }
+        ]
+      },
+      "inspectorGroups": [
+        {
+          "name": "Limits",
+          "fields": [
+            {
+              "key": "min",
+              "kind": "number"
+            },
+            {
+              "key": "max",
+              "kind": "number"
+            }
+          ]
+        }
+      ],
+      "hardwareResourceTypes": [],
+      "special": {
+        "customCode": false,
+        "accelerator": false
+      }
+    },
+    {
+      "key": "Switch",
+      "displayName": "Switch",
+      "description": "Select between true/false values based on condition",
+      "category": "Signal Processing",
+      "defaults": [],
+      "ports": {
+        "dynamic": false,
+        "inputs": [
+          {
+            "name": "condition",
+            "type": "boolean"
+          },
+          {
+            "name": "true_value",
+            "type": "number"
+          },
+          {
+            "name": "false_value",
+            "type": "number"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "value",
+            "type": "number"
+          }
+        ]
+      },
+      "inspectorGroups": [],
+      "hardwareResourceTypes": [],
+      "special": {
+        "customCode": false,
+        "accelerator": false
+      }
+    },
+    {
+      "key": "Time",
+      "displayName": "Time",
+      "description": "Elapsed runtime time in seconds",
+      "category": "Timing",
+      "defaults": [],
+      "ports": {
+        "dynamic": false,
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "value",
+            "type": "number"
+          }
+        ]
+      },
+      "inspectorGroups": [],
+      "hardwareResourceTypes": [],
+      "special": {
+        "customCode": false,
+        "accelerator": false
+      }
+    },
+    {
+      "key": "CustomCode",
+      "displayName": "CustomCode",
+      "description": "Scoped user-defined C body with configurable numeric inputs",
+      "category": "Custom",
+      "defaults": [
+        {
+          "key": "inputs",
+          "value": [
+            "value"
+          ]
+        },
+        {
+          "key": "code",
+          "value": "/* Inputs are available by name, for example: printf(\"%d\\n\", (int)value); */"
+        }
+      ],
+      "ports": {
+        "dynamic": true,
+        "inputs": [
+          {
+            "name": "value",
+            "type": "number"
+          }
+        ],
+        "outputs": []
+      },
+      "inspectorGroups": [],
+      "hardwareResourceTypes": [],
+      "special": {
+        "customCode": true,
+        "accelerator": false
+      }
+    },
+    {
+      "key": "GPIOInput",
+      "displayName": "GPIOInput",
+      "description": "Digital GPIO input with optional inversion",
+      "category": "Inputs & Sensors",
+      "defaults": [
+        {
+          "key": "samplePeriodUs",
+          "value": 1000
+        },
+        {
+          "key": "invert",
+          "value": false
+        }
+      ],
+      "ports": {
+        "dynamic": false,
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "value",
+            "type": "boolean"
+          }
+        ]
+      },
+      "inspectorGroups": [
+        {
+          "name": "GPIO Settings",
+          "fields": [
+            {
+              "key": "samplePeriodUs",
+              "kind": "number"
+            },
+            {
+              "key": "invert",
+              "kind": "check"
+            }
+          ]
+        }
+      ],
+      "hardwareResourceTypes": [
+        "gpio"
+      ],
+      "special": {
+        "customCode": false,
+        "accelerator": false
+      }
+    },
+    {
+      "key": "ADCInput",
+      "displayName": "ADCInput",
+      "description": "Analog-to-digital converter input",
+      "category": "Inputs & Sensors",
+      "defaults": [
+        {
+          "key": "samplePeriodUs",
+          "value": 1000
+        },
+        {
+          "key": "unit",
+          "value": "V"
+        },
+        {
+          "key": "minValue",
+          "value": 0
+        },
+        {
+          "key": "maxValue",
+          "value": 3.3
+        }
+      ],
+      "ports": {
+        "dynamic": false,
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "value",
+            "type": "number"
+          }
+        ]
+      },
+      "inspectorGroups": [
+        {
+          "name": "ADC Settings",
+          "fields": [
+            {
+              "key": "samplePeriodUs",
+              "kind": "number"
+            },
+            {
+              "key": "unit",
+              "kind": "text"
+            },
+            {
+              "key": "minValue",
+              "kind": "number"
+            },
+            {
+              "key": "maxValue",
+              "kind": "number"
+            }
+          ]
+        }
+      ],
+      "hardwareResourceTypes": [
+        "adc"
+      ],
+      "special": {
+        "customCode": false,
+        "accelerator": false
+      }
+    },
+    {
+      "key": "PWMOutput",
+      "displayName": "PWMOutput",
+      "description": "Pulse-width modulation output",
+      "category": "Outputs & Actuators",
+      "defaults": [
+        {
+          "key": "min",
+          "value": 0
+        },
+        {
+          "key": "max",
+          "value": 255
+        },
+        {
+          "key": "unit",
+          "value": "%"
+        },
+        {
+          "key": "safeValue",
+          "value": 0
+        }
+      ],
+      "ports": {
+        "dynamic": false,
+        "inputs": [
+          {
+            "name": "value",
+            "type": "number"
+          },
+          {
+            "name": "enable",
+            "type": "boolean"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "applied",
+            "type": "number"
+          },
+          {
+            "name": "active",
+            "type": "boolean"
+          }
+        ]
+      },
+      "inspectorGroups": [
+        {
+          "name": "PWM Settings",
+          "fields": [
+            {
+              "key": "min",
+              "kind": "number"
+            },
+            {
+              "key": "max",
+              "kind": "number"
+            },
+            {
+              "key": "unit",
+              "kind": "text"
+            },
+            {
+              "key": "safeValue",
+              "kind": "number"
+            }
+          ]
+        }
+      ],
+      "hardwareResourceTypes": [
+        "pwm"
+      ],
+      "special": {
+        "customCode": false,
+        "accelerator": false
+      }
+    },
+    {
+      "key": "UARTInput",
+      "displayName": "UARTInput",
+      "description": "UART serial input (reads available bytes)",
+      "category": "Inputs & Sensors",
+      "defaults": [
+        {
+          "key": "samplePeriodUs",
+          "value": 1000
+        },
+        {
+          "key": "baudRate",
+          "value": 115200
+        },
+        {
+          "key": "dataBits",
+          "value": 8
+        },
+        {
+          "key": "parity",
+          "value": "none"
+        },
+        {
+          "key": "stopBits",
+          "value": 1
+        }
+      ],
+      "ports": {
+        "dynamic": false,
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "value",
+            "type": "number"
+          },
+          {
+            "name": "valid",
+            "type": "boolean"
+          }
+        ]
+      },
+      "inspectorGroups": [
+        {
+          "name": "UART Settings",
+          "fields": [
+            {
+              "key": "samplePeriodUs",
+              "kind": "number"
+            },
+            {
+              "key": "baudRate",
+              "kind": "number"
+            },
+            {
+              "key": "dataBits",
+              "kind": "select",
+              "options": [
+                {
+                  "value": 5,
+                  "label": "5"
+                },
+                {
+                  "value": 6,
+                  "label": "6"
+                },
+                {
+                  "value": 7,
+                  "label": "7"
+                },
+                {
+                  "value": 8,
+                  "label": "8"
+                }
+              ]
+            },
+            {
+              "key": "parity",
+              "kind": "select",
+              "options": [
+                {
+                  "value": "none",
+                  "label": "none"
+                },
+                {
+                  "value": "even",
+                  "label": "even"
+                },
+                {
+                  "value": "odd",
+                  "label": "odd"
+                }
+              ]
+            },
+            {
+              "key": "stopBits",
+              "kind": "select",
+              "options": [
+                {
+                  "value": 1,
+                  "label": "1"
+                },
+                {
+                  "value": 2,
+                  "label": "2"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "hardwareResourceTypes": [
+        "uart"
+      ],
+      "special": {
+        "customCode": false,
+        "accelerator": false
+      }
+    },
+    {
+      "key": "UARTOutput",
+      "displayName": "UARTOutput",
+      "description": "UART serial output (writes bytes)",
+      "category": "Outputs & Actuators",
+      "defaults": [
+        {
+          "key": "baudRate",
+          "value": 115200
+        },
+        {
+          "key": "dataBits",
+          "value": 8
+        },
+        {
+          "key": "parity",
+          "value": "none"
+        },
+        {
+          "key": "stopBits",
+          "value": 1
+        }
+      ],
+      "ports": {
+        "dynamic": false,
+        "inputs": [
+          {
+            "name": "data",
+            "type": "number"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "sent",
+            "type": "boolean"
+          }
+        ]
+      },
+      "inspectorGroups": [
+        {
+          "name": "UART Settings",
+          "fields": [
+            {
+              "key": "baudRate",
+              "kind": "number"
+            },
+            {
+              "key": "dataBits",
+              "kind": "select",
+              "options": [
+                {
+                  "value": 5,
+                  "label": "5"
+                },
+                {
+                  "value": 6,
+                  "label": "6"
+                },
+                {
+                  "value": 7,
+                  "label": "7"
+                },
+                {
+                  "value": 8,
+                  "label": "8"
+                }
+              ]
+            },
+            {
+              "key": "parity",
+              "kind": "select",
+              "options": [
+                {
+                  "value": "none",
+                  "label": "none"
+                },
+                {
+                  "value": "even",
+                  "label": "even"
+                },
+                {
+                  "value": "odd",
+                  "label": "odd"
+                }
+              ]
+            },
+            {
+              "key": "stopBits",
+              "kind": "select",
+              "options": [
+                {
+                  "value": 1,
+                  "label": "1"
+                },
+                {
+                  "value": 2,
+                  "label": "2"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "hardwareResourceTypes": [
+        "uart"
+      ],
+      "special": {
+        "customCode": false,
+        "accelerator": false
+      }
+    },
+    {
+      "key": "EncoderInput",
+      "displayName": "EncoderInput",
+      "description": "Quadrature encoder position/velocity input",
+      "category": "Inputs & Sensors",
+      "defaults": [
+        {
+          "key": "samplePeriodUs",
+          "value": 1000
+        },
+        {
+          "key": "pulsesPerRevolution",
+          "value": 1024
+        },
+        {
+          "key": "quadrature",
+          "value": true
+        }
+      ],
+      "ports": {
+        "dynamic": false,
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "position",
+            "type": "number"
+          },
+          {
+            "name": "velocity",
+            "type": "number"
+          },
+          {
+            "name": "valid",
+            "type": "boolean"
+          }
+        ]
+      },
+      "inspectorGroups": [
+        {
+          "name": "Encoder Settings",
+          "fields": [
+            {
+              "key": "samplePeriodUs",
+              "kind": "number"
+            },
+            {
+              "key": "pulsesPerRevolution",
+              "kind": "number"
+            },
+            {
+              "key": "quadrature",
+              "kind": "check"
+            }
+          ]
+        }
+      ],
+      "hardwareResourceTypes": [
+        "encoder"
+      ],
+      "special": {
+        "customCode": false,
+        "accelerator": false
+      }
+    },
+    {
+      "key": "MotorOutput",
+      "displayName": "MotorOutput",
+      "description": "DC motor speed/torque output (via PWM)",
+      "category": "Outputs & Actuators",
+      "defaults": [
+        {
+          "key": "min",
+          "value": -255
+        },
+        {
+          "key": "max",
+          "value": 255
+        },
+        {
+          "key": "unit",
+          "value": "%"
+        },
+        {
+          "key": "safeValue",
+          "value": 0
+        }
+      ],
+      "ports": {
+        "dynamic": false,
+        "inputs": [
+          {
+            "name": "command",
+            "type": "number"
+          },
+          {
+            "name": "enable",
+            "type": "boolean"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "applied",
+            "type": "number"
+          },
+          {
+            "name": "active",
+            "type": "boolean"
+          }
+        ]
+      },
+      "inspectorGroups": [
+        {
+          "name": "Motor Settings",
+          "fields": [
+            {
+              "key": "min",
+              "kind": "number"
+            },
+            {
+              "key": "max",
+              "kind": "number"
+            },
+            {
+              "key": "unit",
+              "kind": "text"
+            },
+            {
+              "key": "safeValue",
+              "kind": "number"
+            }
+          ]
+        }
+      ],
+      "hardwareResourceTypes": [
+        "motor"
+      ],
+      "special": {
+        "customCode": false,
+        "accelerator": false
+      }
+    },
+    {
+      "key": "WheelSpeed",
+      "displayName": "WheelSpeed",
+      "description": "Converts encoder pulses to linear speed",
+      "category": "Robotics",
+      "defaults": [
+        {
+          "key": "pulsesPerRevolution",
+          "value": 1024
+        },
+        {
+          "key": "wheelRadiusMeters",
+          "value": 0.05
+        }
+      ],
+      "ports": {
+        "dynamic": false,
+        "inputs": [
+          {
+            "name": "encoder_count",
+            "type": "number"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "speed",
+            "type": "number"
+          }
+        ]
+      },
+      "inspectorGroups": [
+        {
+          "name": "Wheel Settings",
+          "fields": [
+            {
+              "key": "pulsesPerRevolution",
+              "kind": "number"
+            },
+            {
+              "key": "wheelRadiusMeters",
+              "kind": "number"
+            }
+          ]
+        }
+      ],
+      "hardwareResourceTypes": [],
+      "special": {
+        "customCode": false,
+        "accelerator": false
+      }
+    },
+    {
+      "key": "DifferentialDrive",
+      "displayName": "DifferentialDrive",
+      "description": "Converts linear/angular velocity to left/right motor commands",
+      "category": "Robotics",
+      "defaults": [
+        {
+          "key": "trackWidthMeters",
+          "value": 0.3
+        }
+      ],
+      "ports": {
+        "dynamic": false,
+        "inputs": [
+          {
+            "name": "linear_velocity",
+            "type": "number"
+          },
+          {
+            "name": "angular_velocity",
+            "type": "number"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "left_cmd",
+            "type": "number"
+          },
+          {
+            "name": "right_cmd",
+            "type": "number"
+          }
+        ]
+      },
+      "inspectorGroups": [
+        {
+          "name": "Drive Settings",
+          "fields": [
+            {
+              "key": "trackWidthMeters",
+              "kind": "number"
+            }
+          ]
+        }
+      ],
+      "hardwareResourceTypes": [],
+      "special": {
+        "customCode": false,
+        "accelerator": false
+      }
+    }
+  ],
+  "categories": [
+    {
+      "name": "Inputs & Sensors",
+      "items": [
+        "SensorInput",
+        "GPIOInput",
+        "ADCInput",
+        "UARTInput",
+        "EncoderInput"
+      ]
+    },
+    {
+      "name": "Outputs & Actuators",
+      "items": [
+        "ActuatorOutput",
+        "PWMOutput",
+        "UARTOutput",
+        "MotorOutput"
+      ]
+    },
+    {
+      "name": "Accelerator",
+      "items": [
+        "CordicOp"
+      ]
+    },
+    {
+      "name": "Control",
+      "items": [
+        "ControlLoop"
+      ]
+    },
+    {
+      "name": "Robotics",
+      "items": [
+        "WheelSpeed",
+        "DifferentialDrive"
+      ]
+    },
+    {
+      "name": "Data / Telemetry",
+      "items": [
+        "Publish"
+      ]
+    },
+    {
+      "name": "Signal Processing",
+      "items": [
+        "Constant",
+        "Add",
+        "Subtract",
+        "Multiply",
+        "Gain",
+        "Compare",
+        "Saturation",
+        "Switch"
+      ]
+    },
+    {
+      "name": "Communication",
+      "items": [],
+      "placeholder": "Future expansion"
+    },
+    {
+      "name": "Timing",
+      "items": [
+        "Time"
+      ]
+    },
+    {
+      "name": "Hardware",
+      "items": [],
+      "placeholder": "Future expansion"
+    },
+    {
+      "name": "Custom",
+      "items": [
+        "CustomCode"
+      ]
+    }
+  ],
+  "codegenSupportedTypes": [
+    "CordicOp",
+    "Publish",
+    "SensorInput",
+    "ActuatorOutput",
+    "Constant",
+    "Add",
+    "Subtract",
+    "Multiply",
+    "Gain",
+    "Compare",
+    "Saturation",
+    "Switch",
+    "Time",
+    "CustomCode",
+    "ControlLoop",
+    "GPIOInput",
+    "ADCInput",
+    "PWMOutput",
+    "UARTInput",
+    "UARTOutput",
+    "EncoderInput",
+    "MotorOutput",
+    "WheelSpeed",
+    "DifferentialDrive"
+  ],
+  "codegenSources": {
+    "CordicOp": {
+      "byOperation": {
+        "sin": [
+          "value"
+        ],
+        "cos": [
+          "value"
+        ],
+        "sincos": [
+          "sin",
+          "cos"
+        ]
+      }
+    },
+    "Publish": {
+      "ports": []
+    },
+    "SensorInput": {
+      "ports": []
+    },
+    "ActuatorOutput": {
+      "ports": []
+    },
+    "Constant": {
+      "ports": [
+        "value"
+      ]
+    },
+    "Add": {
+      "ports": [
+        "value"
+      ]
+    },
+    "Subtract": {
+      "ports": [
+        "value"
+      ]
+    },
+    "Multiply": {
+      "ports": [
+        "value"
+      ]
+    },
+    "Gain": {
+      "ports": [
+        "value"
+      ]
+    },
+    "Compare": {
+      "ports": [
+        "result"
+      ]
+    },
+    "Saturation": {
+      "ports": [
+        "value"
+      ]
+    },
+    "Switch": {
+      "ports": [
+        "value"
+      ]
+    },
+    "Time": {
+      "ports": [
+        "value"
+      ]
+    },
+    "CustomCode": {
+      "ports": []
+    },
+    "ControlLoop": {
+      "ports": [
+        "command",
+        "error"
+      ]
+    },
+    "GPIOInput": {
+      "ports": [
+        "value"
+      ]
+    },
+    "ADCInput": {
+      "ports": [
+        "value"
+      ]
+    },
+    "PWMOutput": {
+      "ports": [
+        "applied",
+        "active"
+      ]
+    },
+    "UARTInput": {
+      "ports": [
+        "value",
+        "valid"
+      ]
+    },
+    "UARTOutput": {
+      "ports": [
+        "sent"
+      ]
+    },
+    "EncoderInput": {
+      "ports": [
+        "position",
+        "velocity",
+        "valid"
+      ]
+    },
+    "MotorOutput": {
+      "ports": [
+        "applied",
+        "active"
+      ]
+    },
+    "WheelSpeed": {
+      "ports": [
+        "speed"
+      ]
+    },
+    "DifferentialDrive": {
+      "ports": [
+        "left_cmd",
+        "right_cmd"
+      ]
+    }
+  }
+}

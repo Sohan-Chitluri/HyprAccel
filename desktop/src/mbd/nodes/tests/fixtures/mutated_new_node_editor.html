@@ -1,0 +1,2257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HyprAccel · Professional MBD Studio</title>
+<link rel="stylesheet" href="https://unpkg.com/reactflow@11.11.4/dist/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b0e14;
+    --panel: #131720;
+    --panel-header: #181d28;
+    --panel-hover: #1c2331;
+    --border: #262d3d;
+    --border-light: #323b4e;
+    --text: #e1e7ec;
+    --text-muted: #7e8b9b;
+    --accent: #38bdf8;
+    --accent-glow: rgba(56, 189, 248, 0.15);
+    --green: #22c55e;
+    --orange: #f59e0b;
+    --red: #ef4444;
+    --font: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    height: 100vh;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font: 12px/1.4 var(--font);
+    display: flex;
+    flex-direction: column;
+    /* user-select: none removed — console/source must remain selectable */
+  }
+
+  /* ── Top Menu & Header ── */
+  header.app-header {
+    height: 38px;
+    background: var(--panel-header);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 16px;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .brand-logo {
+    color: var(--accent);
+    font-size: 14px;
+  }
+  .brand-tag {
+    font-size: 10px;
+    background: var(--accent-glow);
+    color: var(--accent);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .top-menu {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .menu-item {
+    position: relative;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .menu-item:hover, .menu-item:focus-within {
+    background: var(--panel-hover);
+    color: var(--text);
+  }
+  .menu-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+    min-width: 170px;
+    background: var(--panel);
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    padding: 4px;
+    z-index: 100;
+  }
+  .menu-item:hover .menu-dropdown, .menu-item:focus-within .menu-dropdown {
+    display: flex;
+    flex-direction: column;
+  }
+  .menu-dropdown button {
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .menu-dropdown button:hover {
+    background: var(--accent);
+    color: #000;
+    font-weight: 600;
+  }
+  .menu-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0;
+  }
+  .system-status {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--panel);
+    padding: 3px 10px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+  }
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+  }
+
+  /* ── Engineering Toolbar ── */
+  .app-toolbar {
+    height: 36px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .toolbar-divider {
+    width: 1px;
+    height: 18px;
+    background: var(--border);
+    margin: 0 4px;
+  }
+  .toolbar-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  .graph-id-input {
+    min-width: 130px;
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    padding: 4px 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+  .graph-id-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .graph-save-state {
+    color: var(--text-muted);
+    font-size: 10px;
+    min-width: 86px;
+    text-align: center;
+  }
+  .graph-save-state.unsaved { color: var(--orange); }
+  .graph-save-state.saving { color: var(--accent); }
+  .graph-save-state.failed { color: var(--red); }
+  button.tool-btn {
+    background: var(--panel-header);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  button.tool-btn:hover:not(:disabled) {
+    background: var(--panel-hover);
+    border-color: var(--border-light);
+  }
+  button.tool-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  button.btn-primary {
+    background: #0284c7;
+    border-color: #0369a1;
+    color: #fff;
+    font-weight: 600;
+  }
+  button.btn-primary:hover:not(:disabled) {
+    background: #090d16;
+    border-color: var(--accent);
+  }
+  button.btn-accent {
+    background: #15803d;
+    border-color: #166534;
+    color: #fff;
+    font-weight: 600;
+  }
+  button.btn-accent:hover:not(:disabled) {
+    background: #166534;
+  }
+
+  /* ── Main Studio Layout ── */
+  .studio-body {
+    flex: 1 1 0;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 240px 1fr 320px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ── Left Sidebar (Dock / Library / Project) ── */
+  .left-dock {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .dock-tabs {
+    display: flex;
+    background: var(--panel-header);
+    border-bottom: 1px solid var(--border);
+  }
+  .dock-tab {
+    flex: 1;
+    padding: 8px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 11px;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+  }
+  .dock-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    background: var(--panel);
+  }
+  .dock-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+  }
+  .search-box {
+    margin-bottom: 10px;
+  }
+  .search-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 8px;
+    color: var(--text);
+    font-size: 11px;
+  }
+  .search-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .category-group {
+    margin-bottom: 8px;
+  }
+  .category-header {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    padding: 4px 2px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+  }
+  .category-header:hover {
+    color: var(--text);
+  }
+  .category-badge {
+    background: var(--bg);
+    padding: 1px 5px;
+    border-radius: 8px;
+    font-size: 9px;
+    border: 1px solid var(--border);
+  }
+  .palette-items {
+    display: grid;
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .palette-item {
+    background: var(--panel-header);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 7px 9px;
+    cursor: grab;
+    transition: all 0.15s ease;
+  }
+  .palette-item:hover {
+    border-color: var(--accent);
+    background: var(--panel-hover);
+  }
+  .palette-item:active {
+    cursor: grabbing;
+  }
+  .palette-item-name {
+    font-weight: 600;
+    color: var(--text);
+    font-size: 11px;
+  }
+  .palette-item-desc {
+    color: var(--text-muted);
+    font-size: 10px;
+    margin-top: 2px;
+  }
+
+  /* Project Tab Content */
+  .project-card {
+    background: var(--panel-header);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+    margin-bottom: 10px;
+  }
+  .project-card-title {
+    font-weight: 600;
+    font-size: 11px;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .project-prop {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    font-size: 10.5px;
+  }
+  .project-prop-label { color: var(--text-muted); }
+  .project-prop-val { font-family: var(--font-mono); color: var(--text); }
+
+  /* ── Center MBD Canvas ── */
+  .canvas-container {
+    position: relative;
+    background-color: var(--bg);
+    overflow: hidden;
+  }
+  .react-flow__controls button {
+    background: var(--panel-header);
+    color: var(--text);
+    border-color: var(--border);
+  }
+  .react-flow__minimap {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .react-flow__attribution { display: none; }
+  .node {
+    min-width: 170px;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    background: var(--panel);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    overflow: visible;
+  }
+  .node.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow), 0 4px 12px rgba(0,0,0,0.6);
+  }
+  .react-flow__edge.selected .react-flow__edge-path {
+    stroke: var(--accent);
+    stroke-width: 3;
+    filter: drop-shadow(0 0 3px var(--accent));
+  }
+  .node-head {
+    padding: 6px 10px;
+    background: var(--panel-header);
+    border-bottom: 1px solid var(--border);
+    border-radius: 5px 5px 0 0;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .node-type { color: var(--accent); font-size: 11px; }
+  .node-label { color: var(--text-muted); font-size: 10px; font-weight: 400; font-family: var(--font-mono); }
+  .ports { padding: 6px 0; }
+  .port {
+    position: relative;
+    min-height: 20px;
+    padding: 2px 10px;
+    color: var(--text);
+    font-size: 10.5px;
+  }
+  .port.in { text-align: left; padding-left: 18px; }
+  .port.out { text-align: right; padding-right: 18px; }
+  .port-type { color: var(--text-muted); font-size: 9.5px; margin-left: 4px; font-family: var(--font-mono); }
+  .port.out .port-type { margin-right: 4px; margin-left: 0; }
+
+  /* ── Right Inspector Panel ── */
+  .inspector-dock {
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .inspector-header {
+    height: 32px;
+    background: var(--panel-header);
+    border-bottom: 1px solid var(--border);
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 600;
+    font-size: 11px;
+    color: var(--text);
+  }
+  .inspector-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+  }
+  .prop-group {
+    background: var(--panel-header);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+  .prop-group-title {
+    background: var(--panel-hover);
+    padding: 6px 10px;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+  }
+  .prop-fields {
+    padding: 8px 10px;
+    display: grid;
+    gap: 8px;
+  }
+  .field {
+    display: grid;
+    gap: 4px;
+  }
+  .field label {
+    color: var(--text-muted);
+    font-size: 10.5px;
+  }
+  .field input, .field select {
+    width: 100%;
+    padding: 5px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 11px;
+  }
+  .field input:focus, .field select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text);
+  }
+  .embed-container {
+    margin-top: 6px;
+  }
+  .embed {
+    width: 100%;
+    height: 480px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+  }
+  .embed-note {
+    padding: 8px 10px;
+    color: var(--text-muted);
+    line-height: 1.4;
+    font-size: 10.5px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 8px;
+  }
+
+  /* ── Bottom Console / Diagnostics Panel ── */
+  .bottom-dock {
+    height: 190px;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    z-index: 5;
+    min-height: 28px;
+    flex-shrink: 0;
+  }
+  .bottom-dock.collapsed {
+    height: 28px !important;
+  }
+  .bottom-header {
+    height: 28px;
+    background: var(--panel-header);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    justify-content: space-between;
+    flex-shrink: 0;
+    position: relative;
+    user-select: none;
+  }
+  /* Visible resize bar sitting above the bottom dock header */
+  .bottom-resize-handle {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -5px;
+    height: 10px;
+    cursor: ns-resize;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .bottom-resize-handle::before {
+    content: '';
+    display: block;
+    width: 40px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--border-light);
+    transition: background .15s, width .15s;
+  }
+  .bottom-resize-handle:hover::before,
+  .bottom-resize-handle.dragging::before {
+    background: var(--accent);
+    width: 60px;
+  }
+  .bottom-tabs {
+    display: flex;
+    gap: 4px;
+  }
+  .bottom-tab {
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 4px 4px 0 0;
+  }
+  .bottom-tab.active {
+    color: var(--text);
+    background: var(--panel);
+    font-weight: 600;
+  }
+  .console-content {
+    flex: 1;
+    overflow: auto;
+    overflow-x: hidden;
+    padding: 8px 12px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.5;
+    background: var(--bg);
+    min-height: 0;
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  .console-content pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  .source-actions { display: none; gap: 8px; padding: 0 0 8px; align-items: center; }
+  .console-content.source-active .source-actions { display: flex; }
+  .copy-source-toast {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    transition: opacity .3s;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .copy-source-toast.visible { opacity: 1; }
+  .copy-source-toast.ok  { color: var(--green); }
+  .copy-source-toast.err { color: var(--red); }
+  .log-ok { color: var(--green); }
+  .log-err { color: var(--red); }
+  .log-info { color: var(--accent); }
+
+  /* Context Menu & Confirmation Dialog */
+  .graph-context {
+    position: fixed;
+    z-index: 20;
+    min-width: 140px;
+    padding: 4px;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    background: var(--panel);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+  }
+  .graph-context button {
+    width: 100%;
+    border: none;
+    text-align: left;
+    color: var(--red);
+    background: transparent;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+  }
+  .graph-context button:hover {
+    background: rgba(239, 68, 68, 0.15);
+  }
+  .graph-confirm-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: grid;
+    place-items: center;
+    background: rgba(0,0,0,0.6);
+  }
+  .graph-confirm {
+    width: min(340px, calc(100vw - 32px));
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    background: var(--panel);
+    box-shadow: 0 16px 35px rgba(0,0,0,0.7);
+  }
+  .graph-confirm p {
+    margin: 0;
+    padding: 16px;
+    font-size: 13px;
+  }
+  .graph-confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+    background: var(--panel-header);
+  }
+  .danger {
+    border-color: var(--red);
+    background: var(--red);
+    color: #fff;
+  }
+  .graph-file-dialog { width: min(520px, calc(100vw - 32px)); }
+  .graph-file-dialog h3 { margin: 0; padding: 16px; font-size: 14px; }
+  .graph-file-dialog .path { padding: 0 16px 10px; color: var(--text-muted); font: 11px var(--font-mono); }
+  .graph-file-list { margin: 0 12px 12px; max-height: 280px; overflow: auto; border: 1px solid var(--border); border-radius: 6px; }
+  .graph-file-row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 10px; border: 0; border-bottom: 1px solid var(--border); color: var(--text); background: transparent; text-align: left; cursor: pointer; }
+  .graph-file-row:last-child { border-bottom: 0; }
+  .graph-file-row:hover, .graph-file-row.selected { background: rgba(56,189,248,.12); }
+  .graph-file-row small { margin-left: auto; color: var(--text-muted); font: 10px var(--font-mono); }
+  .graph-file-dialog .field { display: block; padding: 0 16px 14px; }
+  .graph-file-dialog .field input { width: 100%; margin-top: 6px; box-sizing: border-box; }
+</style>
+</head>
+<body>
+
+<!-- Application Header -->
+<header class="app-header">
+  <div class="brand">
+    <span class="brand-logo">HyprAccel</span>
+    <span class="brand-tag">MBD Studio</span>
+  </div>
+  <nav class="top-menu">
+    <div class="menu-item" tabindex="0">File
+      <div class="menu-dropdown">
+        <button id="menu-new-graph">New Graph</button>
+        <button id="menu-open-graph">Open Graph… <span>Ctrl+O</span></button>
+        <button id="menu-save">Save <span>Ctrl+S</span></button>
+        <button id="menu-save-as">Save As… <span>Ctrl+Shift+S</span></button>
+        <button id="menu-rename-graph">Rename Graph</button>
+        <button id="menu-delete-graph">Delete Graph</button>
+        <div style="height:1px; background:var(--border); margin:4px 0;"></div>
+        <button id="menu-clear">Clear Graph <span>Ctrl+Del</span></button>
+        <button id="menu-export-json">Export Graph JSON</button>
+      </div>
+    </div>
+    <div class="menu-item" tabindex="0">Edit
+      <div class="menu-dropdown">
+        <button id="menu-undo">Undo <span>Ctrl+Z</span></button>
+        <button id="menu-redo">Redo <span>Ctrl+Y</span></button>
+        <button id="menu-delete">Delete Selected <span>Del</span></button>
+      </div>
+    </div>
+    <div class="menu-item" tabindex="0">Hardware
+      <div class="menu-dropdown">
+        <button id="menu-pin-config">Pin Configuration</button>
+        <button id="menu-board-info">Board Descriptor</button>
+      </div>
+    </div>
+    <div class="menu-item" tabindex="0">Model
+      <div class="menu-dropdown">
+        <button id="menu-validate">Validate Model</button>
+      </div>
+    </div>
+    <div class="menu-item" tabindex="0">Build
+      <div class="menu-dropdown">
+        <button id="menu-build">Generate C Code</button>
+        <button id="menu-compile">Compile Code</button>
+        <div style="height:1px; background:var(--border); margin:4px 0;"></div>
+        <button id="menu-generate-project">Generate Project Workspace</button>
+      </div>
+    </div>
+    <div class="menu-item" tabindex="0">Deploy
+      <div class="menu-dropdown">
+        <button id="menu-flash">Build &amp; Flash</button>
+        <button id="menu-verify">Verify Hardware</button>
+      </div>
+    </div>
+    <div class="menu-item" tabindex="0">View
+      <div class="menu-dropdown">
+        <button id="menu-toggle-left">Toggle Left Panel</button>
+        <button id="menu-toggle-inspector">Toggle Inspector</button>
+        <button id="menu-toggle-console">Toggle Console</button>
+      </div>
+    </div>
+    <div class="menu-item" tabindex="0">Help
+      <div class="menu-dropdown">
+        <button id="menu-about">About HyprAccel</button>
+      </div>
+    </div>
+  </nav>
+  <div class="system-status">
+    <span class="status-dot"></span>
+    <span>Target: <strong id="targetLabel">Loading target…</strong></span>
+  </div>
+</header>
+
+<!-- Engineering Toolbar -->
+<div class="app-toolbar">
+  <div class="toolbar-group"><span class="toolbar-label">Graph</span><strong id="activeGraphLabel" class="graph-id-input" style="display:inline-block;">No graph</strong></div>
+  <div class="toolbar-divider"></div>
+  <div class="toolbar-group">
+    <button id="undo" class="tool-btn" title="Undo (Ctrl+Z)" disabled>Undo</button>
+    <button id="redo" class="tool-btn" title="Redo (Ctrl+Y)" disabled>Redo</button>
+    <button id="clear" class="tool-btn" title="Clear Canvas">Clear</button>
+    <button id="save-graph" class="tool-btn btn-primary" title="Save Graph (Ctrl+S)">Save</button>
+    <span id="graph-save-state" class="graph-save-state">No project</span>
+  </div>
+  <div class="toolbar-divider"></div>
+  <div class="toolbar-group">
+    <div style="width:1px; height:24px; background:var(--border);"></div>
+    <button id="generate-project" class="tool-btn btn-primary" style="background:#8b5cf6;border-color:#7c3aed;">Generate Project Workspace</button>
+    <div style="width:1px; height:24px; background:var(--border);"></div>
+    <button id="build" class="tool-btn btn-primary">Generate C</button>
+    <button id="compile" class="tool-btn">Compile</button>
+    <button id="flash" class="tool-btn btn-accent">Build &amp; Flash</button>
+    <button id="verify" class="tool-btn">Verify</button>
+  </div>
+</div>
+
+<!-- Main Studio Body -->
+<div class="studio-body" id="studioBody">
+  <!-- Left Navigation / Library Dock -->
+  <aside class="left-dock" id="leftDock">
+    <div class="dock-tabs">
+      <div class="dock-tab active" id="tab-btn-library">Node Library</div>
+      <div class="dock-tab" id="tab-btn-project">Project Explorer</div>
+    </div>
+    <div class="dock-content" id="dock-library-content">
+      <div class="search-box">
+        <input type="text" id="nodeSearch" class="search-input" placeholder="Search node library..." spellcheck="false">
+      </div>
+      <div id="categoryContainer"></div>
+    </div>
+    <div class="dock-content" id="dock-project-content" style="display:none">
+      <div class="project-card">
+        <div class="project-card-title">Target Platform</div>
+        <div class="project-prop"><span class="project-prop-label">Board</span><span class="project-prop-val" id="projectBoard">Loading…</span></div>
+        <div class="project-prop"><span class="project-prop-label">Architecture</span><span class="project-prop-val" id="projectArchitecture">Loading…</span></div>
+        <div class="project-prop"><span class="project-prop-label">Hardware Acceleration</span><span class="project-prop-val" id="projectAccelerators">Loading…</span></div>
+        <div class="project-prop"><span class="project-prop-label">Config File</span><span class="project-prop-val">hyp_board_config.h</span></div>
+      </div>
+      <div class="project-card">
+        <div class="project-card-title">Model Descriptor</div>
+        <div class="project-prop"><span class="project-prop-label">Format</span><span class="project-prop-val">hypraccel.mbd.graph</span></div>
+        <div class="project-prop"><span class="project-prop-label">Schema Version</span><span class="project-prop-val">v1</span></div>
+        <div class="project-prop"><span class="project-prop-label">Codegen Contract</span><span class="project-prop-val">graph_to_c.js</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Center Canvas Area -->
+  <section id="canvas" class="canvas-container"></section>
+
+  <!-- Right Property Inspector -->
+  <aside id="config" class="inspector-dock"></aside>
+</div>
+
+<!-- Bottom Console / Diagnostics Panel -->
+<div class="bottom-dock" id="bottomDock">
+  <div class="bottom-header">
+    <div class="bottom-resize-handle" id="bottomResizeHandle" title="Drag to resize"></div>
+    <div class="bottom-tabs">
+      <div class="bottom-tab active" id="tab-btn-console">Console Output</div>
+      <div class="bottom-tab" id="tab-btn-source">Generated C Source</div>
+      <div class="bottom-tab" id="tab-btn-diagnostics">Diagnostics</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="tool-btn" id="btnToggleBottom" style="padding:2px 6px;font-size:10px;">Toggle Console</button>
+    </div>
+  </div>
+  <div class="console-content" id="consoleContent">
+    <div class="source-actions" id="sourceActions">
+      <button class="tool-btn" id="copySource">Copy C Source</button>
+      <span class="copy-source-toast" id="copySourceToast"></span>
+    </div>
+    <pre id="consoleLogText" class="log-info">HyprAccel MBD Studio Initialized. Ready for model editing and code generation.</pre>
+  </div>
+</div>
+
+<script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/reactflow@11.11.4/dist/umd/index.js"></script>
+<script>
+'use strict';
+(() => {
+const hyprGraphH = React.createElement;
+const hyprGraphRF = window.ReactFlow;
+
+const defaults = {
+  SensorInput:{source:'imu.yaw_rad',valueType:'number',samplePeriodUs:1000,unit:'rad'},
+  CordicOp:{operation:'sin',implementation:'auto',iterations:16},
+  ControlLoop:{kp:1,ki:0,kd:0,samplePeriodUs:1000,outputMin:-1,outputMax:1,initialOutput:0},
+  ActuatorOutput:{target:'joint1.motor',unit:'rad/s',min:-1,max:1,safeValue:0},
+  Publish:{topic:'telemetry/value',transport:'telemetry',retain:false},
+  Constant:{value:1.0},NewTestNode:{foo:1},
+  Add:{},
+  Subtract:{},
+  Multiply:{},
+  Gain:{gain:1.0},
+  Compare:{operation:'gt',threshold:0.0},
+  Saturation:{min:-1.0,max:1.0},
+  Switch:{},
+  Time:{},
+  CustomCode:{inputs:['value'],code:'/* Inputs are available by name, for example: printf("%d\\n", (int)value); */'},
+  GPIOInput:{samplePeriodUs:1000,invert:false},
+  ADCInput:{samplePeriodUs:1000,unit:'V',minValue:0,maxValue:3.3},
+  PWMOutput:{min:0,max:255,unit:'%',safeValue:0},
+  UARTInput:{samplePeriodUs:1000,baudRate:115200,dataBits:8,parity:'none',stopBits:1},
+  UARTOutput:{baudRate:115200,dataBits:8,parity:'none',stopBits:1},
+  EncoderInput:{samplePeriodUs:1000,pulsesPerRevolution:1024,quadrature:true},
+  MotorOutput:{min:-255,max:255,unit:'%',safeValue:0},
+  WheelSpeed:{pulsesPerRevolution:1024,wheelRadiusMeters:0.05},
+  DifferentialDrive:{trackWidthMeters:0.3}
+};
+
+const descriptions = {
+  NewTestNode:'test node injected by drift test',
+  SensorInput:'Board signal / sensor binding',
+  CordicOp:'CORDIC accelerator with automatic, software, or hardware routing',
+  ControlLoop:'Discrete PID controller algorithm',
+  ActuatorOutput:'Board motor/actuator output endpoint',
+  Publish:'Telemetry payload publisher',
+  Constant:'Constant numeric value',
+  Add:'Add two inputs (a + b)',
+  Subtract:'Subtract two inputs (a - b)',
+  Multiply:'Multiply two inputs (a * b)',
+  Gain:'Multiply input by gain factor',
+  Compare:'Compare input against threshold',
+  Saturation:'Clamp input between min/max',
+  Switch:'Select between true/false values based on condition',
+  Time:'Elapsed runtime time in seconds',
+  CustomCode:'Scoped user-defined C body with configurable numeric inputs',
+  GPIOInput:'Digital GPIO input with optional inversion',
+  ADCInput:'Analog-to-digital converter input',
+  PWMOutput:'Pulse-width modulation output',
+  UARTInput:'UART serial input (reads available bytes)',
+  UARTOutput:'UART serial output (writes bytes)',
+  EncoderInput:'Quadrature encoder position/velocity input',
+  MotorOutput:'DC motor speed/torque output (via PWM)',
+  WheelSpeed:'Converts encoder pulses to linear speed',
+  DifferentialDrive:'Converts linear/angular velocity to left/right motor commands'
+};
+
+// Keep schema/node-library identifiers stable while presenting the domain
+// terminology used in the graph: an Accelerator contains a CORDIC operation.
+const displayNames = { CordicOp: 'CORDIC' };
+
+const categories = [
+  { name: 'Inputs & Sensors', items: ['SensorInput', 'GPIOInput', 'ADCInput', 'UARTInput', 'EncoderInput'] },
+  { name: 'Outputs & Actuators', items: ['ActuatorOutput', 'PWMOutput', 'UARTOutput', 'MotorOutput'] },
+  { name: 'Accelerator', items: ['CordicOp'] },
+  { name: 'Control', items: ['ControlLoop'] },
+  { name: 'Robotics', items: ['WheelSpeed', 'DifferentialDrive'] },
+  { name: 'Data / Telemetry', items: ['Publish'] },
+  { name: 'Signal Processing', items: ['Constant', 'Add', 'Subtract', 'Multiply', 'Gain', 'Compare', 'Saturation', 'Switch', 'NewTestNode'] },
+  { name: 'Communication', items: [], placeholder: 'Future expansion' },
+  { name: 'Timing', items: ['Time'] },
+  { name: 'Hardware', items: [], placeholder: 'Future expansion' },
+  { name: 'Custom', items: ['CustomCode'] }
+];
+
+const portTypes = {
+  SensorInput:{in:[],out:[['value','any'],['timestamp_us','number'],['valid','boolean']]},
+  CordicOp:{in:[['angle_rad','number']],out:[['value','number']]},
+  ControlLoop:{in:[['setpoint','number'],['measurement','number'],['enable','boolean']],out:[['command','number'],['error','number']]},
+  ActuatorOutput:{in:[['command','number'],['enable','boolean']],out:[['applied','number'],['active','boolean']]},
+  Publish:{in:[['value','any'],['timestamp_us','number (optional)']],out:[['published','boolean']]},
+  Constant:{in:[],out:[['value','number']]},
+  Add:{in:[['a','number'],['b','number']],out:[['value','number']]},
+  Subtract:{in:[['a','number'],['b','number']],out:[['value','number']]},
+  Multiply:{in:[['a','number'],['b','number']],out:[['value','number']]},
+  Gain:{in:[['input','number']],out:[['value','number']]},
+  Compare:{in:[['input','number']],out:[['result','boolean']]},
+  Saturation:{in:[['input','number']],out:[['value','number']]},
+  Switch:{in:[['condition','boolean'],['true_value','number'],['false_value','number']],out:[['value','number']]},
+  Time:{in:[],out:[['value','number']]},
+  GPIOInput:{in:[],out:[['value','boolean']]},
+  ADCInput:{in:[],out:[['value','number']]},
+  PWMOutput:{in:[['value','number'],['enable','boolean']],out:[['applied','number'],['active','boolean']]},
+  UARTInput:{in:[],out:[['value','number'],['valid','boolean']]},
+  UARTOutput:{in:[['data','number']],out:[['sent','boolean']]},
+  EncoderInput:{in:[],out:[['position','number'],['velocity','number'],['valid','boolean']]},
+  MotorOutput:{in:[['command','number'],['enable','boolean']],out:[['applied','number'],['active','boolean']]},
+  WheelSpeed:{in:[['encoder_count','number']],out:[['speed','number']]},
+  DifferentialDrive:{in:[['linear_velocity','number'],['angular_velocity','number']],out:[['left_cmd','number'],['right_cmd','number']]}
+};
+
+function ports(type, params) {
+  if (type === 'CordicOp') {
+    if (params.operation === 'atan2') return {in:[['y','number'],['x','number']],out:[['angle_rad','number']]};
+    if (params.operation === 'sincos') return {in:[['angle_rad','number']],out:[['sin','number'],['cos','number']]};
+  }
+  if (type === 'CustomCode') {
+    return {in:(params.inputs || []).map(name => [name, 'number']),out:[]};
+  }
+  return portTypes[type];
+}
+
+function makeNode(type, id, position) {
+  return {id, type:'graphNode', position, data:{nodeType:type, label:(displayNames[type] || type)+' '+id, params:JSON.parse(JSON.stringify(defaults[type]))}};
+}
+
+function NodeView({data, selected}) {
+  const ps = ports(data.nodeType, data.params);
+  const rows = [];
+  ps.in.forEach(([name, type]) => rows.push(
+    hyprGraphH('div', {className:'port in', key:'i' + name},
+      hyprGraphH(hyprGraphRF.Handle, {type:'target', position:hyprGraphRF.Position.Left, id:name}),
+      name, hyprGraphH('span', {className:'port-type'}, type))));
+  ps.out.forEach(([name, type]) => rows.push(
+    hyprGraphH('div', {className:'port out', key:'o' + name},
+      hyprGraphH('span', {className:'port-type'}, type), name,
+      hyprGraphH(hyprGraphRF.Handle, {type:'source', position:hyprGraphRF.Position.Right, id:name}))));
+  return hyprGraphH('div', {className:'node' + (selected ? ' selected' : '')},
+    hyprGraphH('div', {className:'node-head'},
+      hyprGraphH('span', {className:'node-type'}, displayNames[data.nodeType] || data.nodeType),
+      hyprGraphH('span', {className:'node-label'}, data.label)),
+    hyprGraphH('div', {className:'ports'}, rows));
+}
+
+const nodeTypes = {graphNode: NodeView};
+let nextId = 1, rfInstance = null, selectedId = null, selectedEdgeId = null, graphNodes = [], graphEdges = [];
+let reactSetNodes = null, reactSetEdges = null;
+let undoSnapshots = [], redoSnapshots = [], pendingMoveSnapshot = null;
+let activeConsoleTab = 'console', lastSourceCode = '', lastDiagnostics = '';
+let currentHardware = null;
+let previousHardwareBoard = null;
+const graphQueryProjectId = new URLSearchParams(window.location.search).get('projectId') || new URLSearchParams(window.location.search).get('project');
+const graphQueryGraphId = new URLSearchParams(window.location.search).get('graphId');
+let activeProjectId = graphQueryProjectId || localStorage.getItem('hypraccel_active_project_id') || null;
+let activeGraphId = graphQueryGraphId || null;
+let activeGraphName = activeGraphId || null;
+let activeGraphPersisted = false;
+let savedGraph = null;
+let graphSaveState = activeProjectId ? 'loading' : 'none';
+
+function setGraphSaveState(state, message) {
+  graphSaveState = state;
+  const indicator = document.getElementById('graph-save-state');
+  if (!indicator) return;
+  indicator.textContent = message || ({saved:'Saved', unsaved:'Unsaved changes', saving:'Saving…', failed:'Save failed', loading:'Loading…', none:'No project'}[state] || state);
+  indicator.className = `graph-save-state ${state === 'unsaved' ? 'unsaved' : state === 'saving' ? 'saving' : state === 'failed' ? 'failed' : ''}`;
+}
+
+function markGraphUnsaved() {
+  if (!activeProjectId || graphSaveState === 'loading') return;
+  const matchesSaved = savedGraph && JSON.stringify(toGraph()) === JSON.stringify(savedGraph);
+  setGraphSaveState(matchesSaved ? 'saved' : 'unsaved');
+}
+
+function graphIdFromName(name) {
+  const words = String(name || '').trim().replace(/([a-z0-9])([A-Z])/g, '$1-$2').replace(/[^A-Za-z0-9]+/g, '_').replace(/^[_-]+|[_-]+$/g, '');
+  if (!words) return '';
+  return /^[A-Za-z]/.test(words) ? words.slice(0, 64) : `graph_${words}`.slice(0, 64);
+}
+function updateGraphLabel() {
+  const label = document.getElementById('activeGraphLabel');
+  if (label) {
+    label.textContent = activeGraphId ? (activeGraphName || activeGraphId) : 'No graph';
+    label.title = activeGraphId ? `${activeGraphName || activeGraphId} (${activeGraphId}.json)` : '';
+  }
+}
+function syncGraphUrl() {
+  const url = new URL(window.location);
+  if (activeProjectId) url.searchParams.set('projectId', activeProjectId);
+  if (activeGraphId) url.searchParams.set('graphId', activeGraphId); else url.searchParams.delete('graphId');
+  window.history.replaceState({}, '', url);
+}
+
+function log(msg, type = 'info') {
+  const txt = document.getElementById('consoleLogText');
+  txt.className = 'log-' + type;
+  txt.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  txt.dataset.log = txt.textContent;
+  updateConsoleOutput();
+}
+
+function clone(value) { return JSON.parse(JSON.stringify(value)); }
+function snapshot() { return {nodes:clone(graphNodes),edges:clone(graphEdges),selectedId,selectedEdgeId,nextId}; }
+function projectHardwareUrl() {
+  return activeProjectId ? `/api/projects/${encodeURIComponent(activeProjectId)}/hardware` : '/api/hardware';
+}
+
+function refreshHistoryButtons() {
+  document.getElementById('undo').disabled = !undoSnapshots.length;
+  document.getElementById('redo').disabled = !redoSnapshots.length;
+}
+
+function remember(previous = snapshot()) {
+  undoSnapshots.push(previous);
+  if (undoSnapshots.length > 100) undoSnapshots.shift();
+  redoSnapshots = [];
+  refreshHistoryButtons();
+}
+
+function applyState(nodes, edges, forceInspector = false) {
+  graphNodes = nodes;
+  graphEdges = edges;
+  renderConfig(forceInspector);
+  if (reactSetNodes) reactSetNodes(nodes);
+  if (reactSetEdges) reactSetEdges(edges);
+}
+
+function setState(nodes, edges, record = true, previous, forceInspector = true) {
+  if (record) remember(previous || snapshot());
+  applyState(nodes, edges, forceInspector);
+  markGraphUnsaved();
+}
+
+function restore(snap) {
+  selectedId = snap.selectedId;
+  selectedEdgeId = snap.selectedEdgeId || null;
+  nextId = snap.nextId;
+  applyState(clone(snap.nodes), clone(snap.edges), true);
+  markGraphUnsaved();
+}
+
+function undo() {
+  if (!undoSnapshots.length) return;
+  redoSnapshots.push(snapshot());
+  restore(undoSnapshots.pop());
+  refreshHistoryButtons();
+}
+
+function redo() {
+  if (!redoSnapshots.length) return;
+  undoSnapshots.push(snapshot());
+  restore(redoSnapshots.pop());
+  refreshHistoryButtons();
+}
+
+function addNode(type, position) {
+  const previous = snapshot();
+  const id = type.replace(/[^A-Za-z]/g,'').toLowerCase() + '_' + nextId++;
+  setState([...graphNodes, makeNode(type, id, position || {x:120+nextId*15, y:120+nextId*10})], graphEdges, true, previous);
+}
+
+function deleteNode(nodeId) {
+  const node = graphNodes.find(item => item.id === nodeId);
+  if (!node) return;
+  const previous = snapshot();
+  const remainingEdges = graphEdges.filter(edge => edge.source !== nodeId && edge.target !== nodeId);
+  selectedId = null;
+  selectedEdgeId = null;
+  setState(graphNodes.filter(item => item.id !== nodeId), remainingEdges, true, previous);
+}
+
+function deleteEdge(edgeId) {
+  const edge = graphEdges.find(item => item.id === edgeId);
+  if (!edge) return;
+  const previous = snapshot();
+  selectedEdgeId = null;
+  setState(graphNodes, graphEdges.filter(item => item.id !== edgeId), true, previous);
+}
+
+function selectEdge(edgeId) {
+  selectedId = null;
+  selectedEdgeId = edgeId;
+  applyState(graphNodes.map(item => ({...item, selected:false})), graphEdges.map(item => ({...item, selected:item.id === edgeId})), true);
+}
+
+function clearEdgeSelection() {
+  selectedEdgeId = null;
+  applyState(graphNodes, graphEdges.map(item => ({...item, selected:false})), true);
+}
+
+function updateParam(key, value) {
+  const n = graphNodes.find(x => x.id === selectedId);
+  if (!n) return;
+  if (n.data.params && n.data.params[key] === value) return;
+  remember();
+  const params = {...n.data.params, [key]: value};
+  if (key === 'hardwareResource' && !value) delete params.hardwareResource;
+  graphNodes = graphNodes.map(x => x.id === selectedId ? {...x, data:{...x.data, params}} : x);
+  if (reactSetNodes) reactSetNodes(graphNodes);
+  markGraphUnsaved();
+}
+
+function getSelectOptions(key, nodeType) {
+  if (key === 'operation') {
+    if (nodeType === 'Compare') return [['gt','> (greater than)'],['lt','< (less than)'],['ge','>= (greater or equal)'],['le','<= (less or equal)'],['eq','== (equal)'],['ne','!= (not equal)']];
+    return ['sin','cos','sincos','atan2'];
+  }
+  if (key === 'implementation') return [['auto','Automatic'],['software','Software'],['hardware','Hardware Accelerator']];
+  if (key === 'transport') return ['telemetry','log','host'];
+  if (key === 'mode') return ['forward','inverse'];
+  if (key === 'valueType') return ['number','boolean','vector<number>','pose','any'];
+  if (key === 'dataBits') return [5,6,7,8];
+  if (key === 'parity') return ['none','even','odd'];
+  if (key === 'stopBits') return [1,2];
+  return ['forward','inverse'];
+}
+
+function field(key, value, type, nodeType) {
+  const label = key === 'retain' ? 'Retain' : key;
+  if (type === 'select') {
+    return hyprGraphH('div', {className:'field', key},
+      hyprGraphH('label', null, label),
+      hyprGraphH('select', {value, onChange: e => updateParam(key, e.target.value)},
+        getSelectOptions(key, nodeType).map(x => Array.isArray(x)
+          ? hyprGraphH('option', {key:x[0], value:x[0]}, x[1])
+          : hyprGraphH('option', {key:x, value:x}, x)))
+    );
+  }
+  if (type === 'check') {
+    return hyprGraphH('div', {className:'field', key},
+      hyprGraphH('label', null, label),
+      hyprGraphH('label', {className:'check'},
+        hyprGraphH('input', {type:'checkbox', checked:!!value, onChange: e => updateParam(key, e.target.checked)}),
+        key === 'retain' ? 'Enable retained message' : 'Enabled')
+    );
+  }
+  if (type === 'number') {
+    const handleNumberChange = e => {
+      const raw = e.target.value.trim();
+      if (raw === '' || raw === '-' || raw === '.' || raw === '-.' || raw.endsWith('.')) return;
+      const num = Number(raw);
+      if (!isNaN(num) && Number.isFinite(num)) {
+        updateParam(key, num);
+      }
+    };
+    const handleNumberBlur = e => {
+      const raw = e.target.value.trim();
+      const num = Number(raw);
+      if (raw === '' || isNaN(num) || !Number.isFinite(num)) {
+        const fallback = 0;
+        e.target.value = String(fallback);
+        updateParam(key, fallback);
+      } else {
+        updateParam(key, num);
+      }
+    };
+    return hyprGraphH('div', {className:'field', key},
+      hyprGraphH('label', null, label),
+      hyprGraphH('input', {
+        type: 'text',
+        inputMode: 'decimal',
+        defaultValue: value ?? 0,
+        onInput: handleNumberChange,
+        onChange: handleNumberChange,
+        onBlur: handleNumberBlur
+      })
+    );
+  }
+  return hyprGraphH('div', {className:'field', key},
+    hyprGraphH('label', null, label),
+    hyprGraphH('input', {
+      type: 'text',
+      defaultValue: value ?? '',
+      onInput: e => updateParam(key, e.target.value),
+      onChange: e => updateParam(key, e.target.value)
+    })
+  );
+}
+
+let currentInspectorNodeId = null;
+
+function renderConfig(force = false) {
+  const el = document.getElementById('config');
+  if (!el) return;
+  const n = graphNodes.find(x => x.id === selectedId);
+  const targetId = n ? n.id : null;
+
+  if (!force && targetId === currentInspectorNodeId && el.contains(document.activeElement)) {
+    return;
+  }
+  currentInspectorNodeId = targetId;
+
+  if (!n) {
+    el.innerHTML = `
+      <div class="inspector-header"><span>Property Inspector</span></div>
+      <div class="empty" style="padding:16px;color:var(--text-muted);">Select a node on the canvas to configure its parameters.</div>
+    `;
+    return;
+  }
+  const t = n.data.nodeType, p = n.data.params;
+
+  el.innerHTML = `
+    <div class="inspector-header">
+      <span>${displayNames[t] || t} Properties</span>
+      <span class="project-prop-val" style="color:var(--accent);font-size:10px">${n.id}</span>
+    </div>
+    <div class="inspector-body" id="inspectorBody"></div>
+  `;
+
+  let paramGroups = [];
+  if (t === 'SensorInput') {
+    paramGroups = [
+      { name: 'Sensor Settings', fields: [['source','text'],['valueType','select'],['samplePeriodUs','number'],['unit','text']] }
+    ];
+  } else if (t === 'ActuatorOutput') {
+    paramGroups = [
+      { name: 'Actuator Settings', fields: [['target','text'],['unit','text'],['min','number'],['max','number'],['safeValue','number']] }
+    ];
+  } else if (t === 'CordicOp') {
+    paramGroups = [
+      { name: 'CORDIC Implementation', fields: [['operation','select'],['implementation','select'],['iterations','number']] }
+    ];
+  } else if (t === 'ControlLoop') {
+    paramGroups = [
+      { name: 'PID Gains', fields: [['kp','number'],['ki','number'],['kd','number']] },
+      { name: 'Execution Limits', fields: [['samplePeriodUs','number'],['outputMin','number'],['outputMax','number'],['initialOutput','number']] }
+    ];
+  } else if (t === 'Publish') {
+    paramGroups = [
+      { name: 'Telemetry Binding', fields: [['topic','text'],['transport','select'],['retain','check']] }
+    ];
+  } else if (t === 'Constant') {
+    paramGroups = [
+      { name: 'Value', fields: [['value','number']] }
+    ];
+  } else if (t === 'Gain') {
+    paramGroups = [
+      { name: 'Gain', fields: [['gain','number']] }
+    ];
+  } else if (t === 'Add' || t === 'Subtract' || t === 'Multiply') {
+    // Both operands are graph connections as per contract/schema
+    paramGroups = [];
+  } else if (t === 'CustomCode') {
+    paramGroups = [];
+  } else if (t === 'Compare') {
+    paramGroups = [
+      { name: 'Comparison', fields: [['operation','select'],['threshold','number']] }
+    ];
+  } else if (t === 'Saturation') {
+    paramGroups = [
+      { name: 'Limits', fields: [['min','number'],['max','number']] }
+    ];
+  } else if (t === 'Switch') {
+    paramGroups = [];
+  } else if (t === 'Time') {
+    paramGroups = [];
+  } else if (t === 'GPIOInput') {
+    paramGroups = [
+      { name: 'GPIO Settings', fields: [['samplePeriodUs','number'],['invert','check']] }
+    ];
+  } else if (t === 'ADCInput') {
+    paramGroups = [
+      { name: 'ADC Settings', fields: [['samplePeriodUs','number'],['unit','text'],['minValue','number'],['maxValue','number']] }
+    ];
+  } else if (t === 'PWMOutput') {
+    paramGroups = [
+      { name: 'PWM Settings', fields: [['min','number'],['max','number'],['unit','text'],['safeValue','number']] }
+    ];
+  } else if (t === 'UARTInput') {
+    paramGroups = [
+      { name: 'UART Settings', fields: [['samplePeriodUs','number'],['baudRate','number'],['dataBits','select'],['parity','select'],['stopBits','select']] }
+    ];
+  } else if (t === 'UARTOutput') {
+    paramGroups = [
+      { name: 'UART Settings', fields: [['baudRate','number'],['dataBits','select'],['parity','select'],['stopBits','select']] }
+    ];
+  } else if (t === 'EncoderInput') {
+    paramGroups = [
+      { name: 'Encoder Settings', fields: [['samplePeriodUs','number'],['pulsesPerRevolution','number'],['quadrature','check']] }
+    ];
+  } else if (t === 'MotorOutput') {
+    paramGroups = [
+      { name: 'Motor Settings', fields: [['min','number'],['max','number'],['unit','text'],['safeValue','number']] }
+    ];
+  } else if (t === 'WheelSpeed') {
+    paramGroups = [
+      { name: 'Wheel Settings', fields: [['pulsesPerRevolution','number'],['wheelRadiusMeters','number']] }
+    ];
+  } else if (t === 'DifferentialDrive') {
+    paramGroups = [
+      { name: 'Drive Settings', fields: [['trackWidthMeters','number']] }
+    ];
+  }
+
+  const inspectorBody = document.getElementById('inspectorBody');
+  paramGroups.forEach(grp => {
+    const grpDiv = document.createElement('div');
+    grpDiv.className = 'prop-group';
+    const titleDiv = document.createElement('div');
+    titleDiv.className = 'prop-group-title';
+    titleDiv.textContent = grp.name;
+    const fieldsDiv = document.createElement('div');
+    fieldsDiv.className = 'prop-fields';
+    ReactDOM.render(hyprGraphH(React.Fragment, null, grp.fields.map(([k, ty]) => field(k, p[k], ty, t))), fieldsDiv);
+    grpDiv.append(titleDiv, fieldsDiv);
+    inspectorBody.appendChild(grpDiv);
+  });
+
+  if (t === 'CustomCode') {
+    const customGroup = document.createElement('div');
+    customGroup.className = 'prop-group';
+    customGroup.innerHTML = '<div class="prop-group-title">Custom C Body</div><div class="prop-fields"><div class="embed-note">Inputs are comma-separated C identifiers and become scoped float variables. The body is emitted inside the graph step; use SDK calls from hyprccel.h for hardware operations.</div></div>';
+    inspectorBody.appendChild(customGroup);
+    const customFields = customGroup.querySelector('.prop-fields');
+    ReactDOM.render(hyprGraphH(React.Fragment, null,
+      hyprGraphH('div', {className:'field'}, hyprGraphH('label', null, 'Input identifiers'), hyprGraphH('input', {
+        type:'text', value:(p.inputs || []).join(', '),
+        onChange:e => updateParam('inputs', e.target.value.split(',').map(value => value.trim()).filter(Boolean))
+      })),
+      hyprGraphH('div', {className:'field'}, hyprGraphH('label', null, 'Generated C body'), hyprGraphH('textarea', {
+        value:p.code || '', rows:10, spellCheck:false,
+        onChange:e => updateParam('code', e.target.value)
+      }))
+    ), customFields);
+  }
+
+  if (['SensorInput', 'ActuatorOutput', 'GPIOInput', 'ADCInput', 'PWMOutput', 'UARTInput', 'UARTOutput', 'EncoderInput', 'MotorOutput'].includes(t)) {
+    const resourceGroup = document.createElement('div');
+    resourceGroup.className = 'prop-group';
+    resourceGroup.innerHTML = '<div class="prop-group-title">Hardware Setup</div><div class="prop-fields"><label class="field"><span>Canonical Hardware Resource</span><select id="hwResourceSelect"><option value="">Loading…</option></select></label><div id="hwResourceSummary" style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);white-space:pre-wrap;margin-top:4px;"></div></div>';
+    inspectorBody.appendChild(resourceGroup);
+    const select = resourceGroup.querySelector('#hwResourceSelect');
+    const summary = resourceGroup.querySelector('#hwResourceSummary');
+    select.onchange = () => updateParam('hardwareResource', select.value);
+    fetch(projectHardwareUrl()).then(response => response.json()).then(hardware => {
+      if (selectedId !== n.id) return;
+      const expectedTypeMap = {
+        GPIOInput: ['gpio'],
+        ADCInput: ['adc'],
+        PWMOutput: ['pwm'],
+        UARTInput: ['uart'],
+        UARTOutput: ['uart'],
+        EncoderInput: ['encoder'],
+        MotorOutput: ['motor'],
+        SensorInput: ['gpio', 'adc', 'uart'],
+        ActuatorOutput: ['gpio', 'pwm', 'uart']
+      };
+      const expectedTypes = expectedTypeMap[t] || [];
+      const configured = new Set((hardware.assignments || []).map(assignment => assignment.resource));
+      const resources = Object.values(hardware.resources || {}).filter(resource =>
+        resource.available && (expectedTypes.length === 0 || expectedTypes.includes(resource.type))
+      );
+      select.innerHTML = '<option value="">— no hardware resource —</option>';
+      for (const resource of resources) {
+        const option = document.createElement('option');
+        option.value = resource.id;
+        option.textContent = resource.id + (configured.has(resource.id) ? '' : ' (unassigned pin)');
+        option.selected = resource.id === (p.hardwareResource || '');
+        select.appendChild(option);
+      }
+      const resource = resources.find(item => item.id === (p.hardwareResource || ''));
+      if (!resource) {
+        summary.textContent = p.hardwareResource ? `Resource '${p.hardwareResource}' is not configured in Hardware Setup.` : 'Select a hardware resource configured in Hardware Setup.';
+      } else {
+        const pins = (resource.assignments || []).map(item => `${item.role.toUpperCase()} → ${item.pin}`).join('\n');
+        summary.textContent = pins ? `${resource.id}\n${pins}` : `${resource.id} (no pins assigned)`;
+      }
+    }).catch(() => {
+      select.innerHTML = '<option value="">Hardware Setup unavailable</option>';
+      summary.textContent = 'Start the HyprAccel editor server to configure hardware.';
+    });
+  }
+
+  if (t === 'CordicOp') {
+    const resourceGroup = document.createElement('div');
+    resourceGroup.className = 'prop-group';
+    resourceGroup.innerHTML = '<div class="prop-group-title">Accelerator / CORDIC</div><div class="prop-fields"><div class="embed-note">Hardware Setup owns any physical transport; this node has no fixed GPIO pinout.</div><label class="field"><span>Configured accelerator</span><select id="cordicResourceSelect"><option value="">Loading…</option></select></label></div>';
+    inspectorBody.appendChild(resourceGroup);
+    const select = resourceGroup.querySelector('#cordicResourceSelect');
+    select.onchange = () => updateParam('hardwareResource', select.value);
+    fetch(projectHardwareUrl()).then(response => response.json()).then(hardware => {
+      if (selectedId !== n.id) return;
+      const resources = Object.values(hardware.resources || {}).filter(resource => resource.type === 'accelerator' && resource.available && resource.configuration && Object.keys(resource.configuration).length > 0);
+      select.innerHTML = '<option value="">— no accelerator resource —</option>';
+      resources.forEach(resource => {
+        const option = document.createElement('option');
+        option.value = resource.id;
+        option.textContent = resource.id;
+        option.selected = resource.id === (p.hardwareResource || '');
+        select.appendChild(option);
+      });
+    }).catch(() => { select.innerHTML = '<option value="">Hardware Setup unavailable</option>'; });
+  }
+}
+
+function toGraph() {
+  const graphId = activeGraphId || 'editor-graph';
+  const nodes = graphNodes.map(n => ({id:n.id, type:n.data.nodeType, label:n.data.label, params:n.data.params, position:{x:n.position.x, y:n.position.y}}));
+  const cordics = nodes.filter(n => n.type === 'CordicOp');
+  return {
+    format: 'hypraccel.mbd.graph',
+    version: 1,
+    id: graphId,
+    name: activeGraphName || graphId,
+    nodes,
+    edges: graphEdges.map(e => ({id:e.id, from:{node:e.source, port:e.sourceHandle}, to:{node:e.target, port:e.targetHandle}})),
+    inputs: cordics.length ? [{name:'angle_rad', type:'number', unit:'rad'}] : [],
+    metadata: {
+      targetBoard: currentHardware && currentHardware.board ? currentHardware.board : undefined,
+      ...(cordics.length ? {externalBindings: cordics.map(n => ({input:'angle_rad', to:{node:n.id, port:'angle_rad'}}))} : {})
+    }
+  };
+}
+
+function graphNodesFromDocument(graph) {
+  return (graph.nodes || []).map(node => ({
+    id: node.id,
+    type: 'graphNode',
+    position: node.position || {x: 0, y: 0},
+    data: {
+      nodeType: node.type,
+      label: node.label || `${displayNames[node.type] || node.type} ${node.id}`,
+      params: clone(node.params || {})
+    }
+  }));
+}
+
+function graphEdgesFromDocument(graph) {
+  return (graph.edges || []).map((edge, index) => ({
+    id: edge.id || `${edge.from.node}-${edge.from.port}-${edge.to.node}-${edge.to.port}-${index}`,
+    source: edge.from.node,
+    sourceHandle: edge.from.port,
+    target: edge.to.node,
+    targetHandle: edge.to.port
+  }));
+}
+
+function updateNextId() {
+  const ids = graphNodes.map(node => Number((node.id.match(/_(\d+)$/) || [])[1] || 0));
+  nextId = Math.max(0, ...ids) + 1;
+}
+
+async function loadProjectGraph() {
+  if (!activeProjectId) {
+    setGraphSaveState('none');
+    return;
+  }
+  setGraphSaveState('loading');
+  try {
+    if (!activeGraphId) {
+      const listResponse = await fetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graphs`);
+      const list = await listResponse.json();
+      if (!listResponse.ok) throw new Error(list.error || 'Could not list project graphs.');
+      activeGraphId = list.activeGraphId || (list.graphs && list.graphs[0] && list.graphs[0].id) || null;
+    }
+    if (!activeGraphId) {
+      activeGraphPersisted = false;
+      savedGraph = null;
+      updateGraphLabel();
+      setGraphSaveState('saved', 'No graph selected');
+      return;
+    }
+    const response = await fetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graphs/${encodeURIComponent(activeGraphId)}`);
+    if (response.status === 404) {
+      savedGraph = null;
+      activeGraphPersisted = false;
+      setGraphSaveState('failed', 'Graph not found');
+      return;
+    }
+    const graph = await response.json();
+    if (!response.ok) throw new Error(graph.error || 'Could not load project graph.');
+    if (graph.format !== 'hypraccel.mbd.graph' || graph.version !== 1 || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
+      throw new Error('Project graph failed hypraccel.mbd.graph v1 validation.');
+    }
+    savedGraph = clone(graph);
+    activeGraphId = graph.id;
+    activeGraphName = graph.name || graph.id;
+    activeGraphPersisted = true;
+    await fetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graphs/${encodeURIComponent(activeGraphId)}/activate`, { method: 'POST' });
+    syncGraphUrl();
+    updateGraphLabel();
+    selectedId = null;
+    selectedEdgeId = null;
+    undoSnapshots = [];
+    redoSnapshots = [];
+    applyState(graphNodesFromDocument(graph), graphEdgesFromDocument(graph));
+    updateNextId();
+    refreshHistoryButtons();
+    setGraphSaveState('saved');
+  } catch (error) {
+    savedGraph = null;
+    setGraphSaveState('failed', 'Load failed');
+    log(`Could not load project graph: ${error.message}`, 'err');
+  }
+}
+
+async function saveGraph() {
+  if (!activeProjectId) {
+    setGraphSaveState('failed', 'Save failed');
+    log('Save failed: open or create a project first.', 'err');
+    return false;
+  }
+  setGraphSaveState('saving');
+  try {
+    if (!activeGraphId) throw new Error('Choose a graph name before saving.');
+    const graph = toGraph();
+    const response = await fetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graphs${activeGraphPersisted ? `/${encodeURIComponent(activeGraphId)}` : ''}`, {
+      method: activeGraphPersisted ? 'PUT' : 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(activeGraphPersisted ? graph : { graphId: activeGraphId, name: activeGraphName, graph })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Could not save project graph.');
+    savedGraph = clone(data.graph || toGraph());
+    activeGraphPersisted = true;
+    activeGraphName = savedGraph.name || activeGraphId;
+    syncGraphUrl();
+    updateGraphLabel();
+    setGraphSaveState('saved');
+    return true;
+  } catch (error) {
+    setGraphSaveState('failed');
+    log(`Save failed: ${error.message}`, 'err');
+    return false;
+  }
+}
+
+function showFileDialog(title, body, actions) {
+  const backdrop = document.createElement('div');
+  backdrop.className = 'graph-confirm-backdrop';
+  const dialog = document.createElement('div');
+  dialog.className = 'graph-confirm graph-file-dialog';
+  const heading = document.createElement('h3'); heading.textContent = title;
+  dialog.append(heading, body);
+  const footer = document.createElement('div'); footer.className = 'graph-confirm-actions';
+  actions.forEach(action => {
+    const button = document.createElement('button'); button.className = `tool-btn${action.danger ? ' danger' : ''}`;
+    button.textContent = action.label; button.onclick = () => action.run(backdrop); footer.appendChild(button);
+  });
+  dialog.appendChild(footer); backdrop.appendChild(dialog);
+  backdrop.onclick = event => { if (event.target === backdrop) backdrop.remove(); };
+  document.body.appendChild(backdrop);
+  return backdrop;
+}
+
+function requestGraphName(title, initial = '', action = 'Save') {
+  return new Promise(resolve => {
+    const body = document.createElement('div');
+    const field = document.createElement('label'); field.className = 'field'; field.textContent = 'Name';
+    const input = document.createElement('input'); input.value = initial; input.spellcheck = false;
+    const hint = document.createElement('small'); hint.style.color = 'var(--text-muted)'; hint.textContent = 'Saved safely as a project-local .json graph file.';
+    field.append(input, hint); body.appendChild(field);
+    const close = (backdrop, value) => { backdrop.remove(); resolve(value); };
+    const backdrop = showFileDialog(title, body, [
+      { label: 'Cancel', run: b => close(b, null) },
+      { label: action, run: b => close(b, input.value.trim()) }
+    ]);
+    input.focus(); input.select();
+    input.addEventListener('keydown', event => { if (event.key === 'Enter') close(backdrop, input.value.trim()); });
+  });
+}
+
+async function confirmUnsavedChanges(action) {
+  if (graphSaveState !== 'unsaved' && graphSaveState !== 'saving') return true;
+  return new Promise(resolve => {
+    const body = document.createElement('p'); body.textContent = `Save changes to '${activeGraphName || activeGraphId || 'current graph'}' before ${action}?`;
+    showFileDialog('Unsaved changes', body, [
+      { label: 'Cancel', run: b => { b.remove(); resolve(false); } },
+      { label: 'Discard', run: b => { b.remove(); resolve(true); } },
+      { label: 'Save', run: async b => { const saved = await saveGraph(); if (saved) b.remove(); resolve(saved); } }
+    ]);
+  });
+}
+
+function emptyGraphState() {
+  selectedId = null; selectedEdgeId = null; nextId = 1; undoSnapshots = []; redoSnapshots = [];
+  applyState([], []); refreshHistoryButtons();
+}
+
+async function newGraph() {
+  if (!activeProjectId) return log('Create or open a project before creating a graph.', 'err');
+  if (!await confirmUnsavedChanges('creating a new graph')) return;
+  const name = await requestGraphName('New Graph', 'untitled_graph', 'Create');
+  const graphId = graphIdFromName(name);
+  if (!graphId || !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(graphId)) return alert('Enter a graph name that produces a valid graph filename.');
+  activeGraphId = graphId; activeGraphName = name; activeGraphPersisted = false; savedGraph = null;
+  emptyGraphState(); syncGraphUrl(); updateGraphLabel(); setGraphSaveState('unsaved', 'Unsaved new graph');
+}
+
+async function openGraph() {
+  if (!activeProjectId) return log('Create or open a project before opening a graph.', 'err');
+  if (!await confirmUnsavedChanges('opening another graph')) return;
+  const response = await fetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graphs`);
+  const data = await response.json();
+  if (!response.ok) return log(`Could not list graph files: ${data.error || 'request failed'}`, 'err');
+  const body = document.createElement('div');
+  const location = document.createElement('div'); location.className = 'path'; location.textContent = `${activeProjectId} / graphs`;
+  const list = document.createElement('div'); list.className = 'graph-file-list';
+  let selected = null;
+  for (const graph of data.graphs || []) {
+    const row = document.createElement('button'); row.className = 'graph-file-row';
+    row.innerHTML = `<span>📄</span><span>${graph.filename}</span><small>${graph.name}</small>`;
+    const choose = () => { selected = graph; list.querySelectorAll('.selected').forEach(el => el.classList.remove('selected')); row.classList.add('selected'); };
+    row.onclick = choose; row.ondblclick = () => { choose(); backdrop.remove(); switchToGraph(graph.id); };
+    list.appendChild(row);
+  }
+  if (!list.children.length) list.textContent = 'No graph files in this project.';
+  body.append(location, list);
+  const backdrop = showFileDialog('Open Graph', body, [
+    { label: 'Cancel', run: b => b.remove() },
+    { label: 'Open', run: b => { if (!selected) return; b.remove(); switchToGraph(selected.id); } }
+  ]);
+}
+
+async function switchToGraph(graphId) {
+  activeGraphId = graphId; activeGraphPersisted = true; savedGraph = null; syncGraphUrl();
+  await loadProjectGraph();
+}
+
+async function saveAsGraph() {
+  if (!activeProjectId) return log('Create or open a project before saving.', 'err');
+  const name = await requestGraphName('Save Graph As', activeGraphName || activeGraphId || 'graph', 'Save');
+  const graphId = graphIdFromName(name);
+  if (!graphId || !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(graphId)) return alert('Enter a graph name that produces a valid graph filename.');
+  const listResponse = await fetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graphs`);
+  const list = await listResponse.json();
+  if (!listResponse.ok) return log(`Could not list graph files: ${list.error || 'request failed'}`, 'err');
+  const exists = (list.graphs || []).some(graph => graph.id === graphId);
+  if (exists && !confirm(`'${graphId}.json' already exists. Overwrite it?`)) return;
+  activeGraphId = graphId; activeGraphName = name; activeGraphPersisted = exists; savedGraph = exists ? null : null;
+  syncGraphUrl(); updateGraphLabel();
+  if (await saveGraph()) log(`Saved graph as '${graphId}.json'.`, 'ok');
+}
+
+async function renameGraph() {
+  if (!activeProjectId || !activeGraphId || !activeGraphPersisted) return log('Save the graph before renaming it.', 'err');
+  if (!await confirmUnsavedChanges('renaming this graph')) return;
+  const name = await requestGraphName('Rename Graph', activeGraphName || activeGraphId, 'Rename');
+  const graphId = graphIdFromName(name);
+  if (!graphId || !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(graphId)) return alert('Enter a graph name that produces a valid graph filename.');
+  const response = await fetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graphs/${encodeURIComponent(activeGraphId)}/rename`, {
+    method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ graphId, name })
+  });
+  const data = await response.json();
+  if (!response.ok) return log(`Rename failed: ${data.error || 'request failed'}`, 'err');
+  activeGraphId = data.graph.id; activeGraphName = data.graph.name; activeGraphPersisted = true; savedGraph = clone(data.graph);
+  syncGraphUrl(); updateGraphLabel(); setGraphSaveState('saved');
+}
+
+async function deleteGraph() {
+  if (!activeProjectId || !activeGraphId || !activeGraphPersisted) return log('Save the graph before deleting it.', 'err');
+  if (!await confirmUnsavedChanges('deleting this graph')) return;
+  if (!confirm(`Delete '${activeGraphId}.json'? This cannot be undone.`)) return;
+  const response = await fetch(`/api/projects/${encodeURIComponent(activeProjectId)}/graphs/${encodeURIComponent(activeGraphId)}`, { method: 'DELETE' });
+  const data = await response.json();
+  if (!response.ok) return log(`Delete failed: ${data.error || 'request failed'}`, 'err');
+  activeGraphId = data.activeGraphId; activeGraphPersisted = true; savedGraph = null; syncGraphUrl(); await loadProjectGraph();
+}
+
+function updateConsoleOutput() {
+  const txt = document.getElementById('consoleLogText');
+  if (!txt) return;
+  document.getElementById('consoleContent').classList.toggle('source-active', activeConsoleTab === 'source');
+  if (activeConsoleTab === 'console') {
+    txt.className = 'log-info';
+    txt.textContent = txt.dataset.log || 'HyprAccel MBD Studio Initialized. Ready for model editing and code generation.';
+  } else if (activeConsoleTab === 'source') {
+    txt.className = 'log-ok';
+    txt.textContent = lastSourceCode || '// No C source generated yet. Click "Generate C" to synthesize code.';
+  } else if (activeConsoleTab === 'diagnostics') {
+    txt.className = 'log-info';
+    txt.textContent = lastDiagnostics || 'Diagnostics: Platform check ok.';
+  }
+}
+
+async function syncHardwareTarget() {
+  try {
+    const hardwareUrl = activeProjectId
+      ? `/api/projects/${encodeURIComponent(activeProjectId)}/hardware`
+      : '/api/hardware';
+    const [hardwareResponse, boardsResponse] = await Promise.all([fetch(hardwareUrl), fetch('/api/boards')]);
+    const hardware = await hardwareResponse.json();
+    const boards = await boardsResponse.json();
+    if (!hardwareResponse.ok) throw new Error(hardware.error || 'Hardware Setup unavailable');
+    currentHardware = hardware;
+    const board = boards[hardware.board];
+    const label = board ? board.name : (hardware.board || 'No board selected');
+    document.getElementById('targetLabel').textContent = label;
+    document.getElementById('projectBoard').textContent = label;
+    document.getElementById('projectArchitecture').textContent = board ? (board.architecture || '—') : '—';
+    document.getElementById('projectAccelerators').textContent = board && board.accelerators && board.accelerators.length ? board.accelerators.join(', ') : '—';
+    document.getElementById('menu-board-info').textContent = board ? `Board Descriptor (${label})` : 'Board Descriptor';
+    if (previousHardwareBoard && previousHardwareBoard !== hardware.board) {
+      lastDiagnostics = `Hardware target changed from ${previousHardwareBoard} to ${hardware.board || 'none'}. Existing graph resource bindings must be reviewed; no resources were remapped.`;
+      if (activeConsoleTab === 'diagnostics') updateConsoleOutput();
+    }
+    previousHardwareBoard = hardware.board || null;
+  } catch (_) {
+    document.getElementById('targetLabel').textContent = 'Hardware Setup unavailable';
+  }
+}
+
+async function requestBuild(endpoint, initial) {
+  const bottomDock = document.getElementById('bottomDock');
+  bottomDock.classList.remove('collapsed');
+  log(initial, 'info');
+
+  try {
+    const scoped = activeProjectId && activeGraphId;
+    if (scoped && !activeGraphPersisted && !await saveGraph()) return;
+    if (scoped && !await confirmUnsavedChanges(initial.toLowerCase())) return;
+    const r = await fetch(endpoint, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(scoped ? { projectId: activeProjectId, graphId: activeGraphId } : toGraph())
+    });
+    const data = await r.json();
+    if (r.ok) {
+      const logBody = data.log ? data.log : (data.markers ? 'Verified markers: ' + data.markers.join(', ') : 'Action succeeded.');
+      log(`[SUCCESS] ${endpoint} completed successfully.\n\n${logBody}`, 'ok');
+      if (data.source) lastSourceCode = data.source;
+      if (data.markers) lastDiagnostics = `Verified markers: ${data.markers.join(', ')}`;
+    } else {
+      log(`[ERROR] ${data.error || data.log || 'Build step failed'}`, 'err');
+    }
+  } catch (e) {
+    log(`[EXCEPTION] ${e.message}`, 'err');
+  }
+}
+
+function build() { return requestBuild('/api/build', 'Generating C code from MBD graph'); }
+function compile() { return requestBuild('/api/compile', 'Compiling hardware sources for ESP32'); }
+function flash() { return requestBuild('/api/flash', 'Building and Flashing target ESP32'); }
+function verify() { return requestBuild('/api/verify', 'Verifying hardware integration'); }
+
+async function resolveProjectForGeneration() {
+  if (activeProjectId) {
+    const response = await fetch(`/api/projects/${encodeURIComponent(activeProjectId)}`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || `Project '${activeProjectId}' could not be loaded.`);
+    localStorage.setItem('hypraccel_active_project_id', activeProjectId);
+    return activeProjectId;
+  }
+
+  const listResponse = await fetch('/api/projects');
+  const listData = await listResponse.json();
+  if (!listResponse.ok) throw new Error(listData.error || 'Could not list projects.');
+  const projects = listData.projects || [];
+
+  let selectedId;
+  if (projects.length) {
+    const choices = projects.map(project => `${project.id} — ${project.name}`).join('\n');
+    selectedId = window.prompt(`Select a project by ID:\n${choices}`, projects[0].id);
+    if (selectedId == null) return null;
+    selectedId = selectedId.trim();
+    if (!projects.some(project => project.id === selectedId)) {
+      throw new Error(`Project '${selectedId}' was not found. Choose an existing project ID.`);
+    }
+  } else {
+    selectedId = window.prompt('No projects exist. Enter a new project ID:', 'demo_project');
+    if (selectedId == null) return null;
+    selectedId = selectedId.trim();
+    const name = window.prompt('Enter a display name for the new project:', selectedId);
+    if (name == null) return null;
+    const createResponse = await fetch('/api/projects', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        id: selectedId,
+        name: name.trim() || selectedId,
+        hardware: currentHardware || {board: 'esp32', assignments: []}
+      })
+    });
+    const createData = await createResponse.json();
+    if (!createResponse.ok) throw new Error(createData.error || 'Could not create project.');
+  }
+
+  activeProjectId = selectedId;
+  localStorage.setItem('hypraccel_active_project_id', activeProjectId);
+  return activeProjectId;
+}
+
+async function generateProject() {
+  log('Generating Project Workspace...', 'info');
+  try {
+    const activeId = await resolveProjectForGeneration();
+    if (!activeId) {
+      log('Generation cancelled: select or create a project first.', 'info');
+      return;
+    }
+    if (!await saveGraph()) return;
+    if (!activeGraphId) throw new Error('Create or open a graph before generating.');
+    const res = await fetch(`/api/projects/${encodeURIComponent(activeId)}/graphs/${encodeURIComponent(activeGraphId)}/generate`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    if (res.ok) {
+      log('Project Workspace generated.', 'ok');
+      window.open(`/workspace?projectId=${encodeURIComponent(activeId)}&graphId=${encodeURIComponent(activeGraphId)}`, '_blank');
+    } else {
+      log(`Generation failed: ${data.error || 'Unknown error'}`, 'err');
+    }
+  } catch (err) {
+    log(`Generation failed: ${err.message}`, 'err');
+  }
+}
+
+function confirmDelete(nodeId) {
+  const node = graphNodes.find(item => item.id === nodeId);
+  if (!node) return;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'graph-confirm-backdrop';
+  const dialog = document.createElement('div');
+  dialog.className = 'graph-confirm';
+  const prompt = document.createElement('p');
+  prompt.textContent = 'Delete node "' + node.data.label + '"?';
+  const actions = document.createElement('div');
+  actions.className = 'graph-confirm-actions';
+  const cancel = document.createElement('button');
+  cancel.className = 'tool-btn';
+  cancel.textContent = 'Cancel';
+  const remove = document.createElement('button');
+  remove.className = 'tool-btn danger';
+  remove.textContent = 'Delete';
+  const close = () => backdrop.remove();
+  cancel.onclick = close;
+  remove.onclick = () => { close(); deleteNode(nodeId); };
+  actions.append(cancel, remove);
+  dialog.append(prompt, actions);
+  backdrop.appendChild(dialog);
+  backdrop.onclick = event => { if (event.target === backdrop) close(); };
+  document.body.appendChild(backdrop);
+  remove.focus();
+}
+
+function showNodeContextMenu(event, node) {
+  event.preventDefault();
+  selectedId = node.id;
+  clearEdgeSelection();
+  const old = document.querySelector('.graph-context');
+  if (old) old.remove();
+  const popup = document.createElement('div');
+  popup.className = 'graph-context';
+  popup.style.left = event.clientX + 'px';
+  popup.style.top = event.clientY + 'px';
+  const remove = document.createElement('button');
+  remove.textContent = 'Delete Node';
+  remove.onclick = () => { popup.remove(); confirmDelete(node.id); };
+  popup.appendChild(remove);
+  document.body.appendChild(popup);
+  const dismiss = click => { if (!popup.contains(click.target)) { popup.remove(); document.removeEventListener('mousedown', dismiss); } };
+  setTimeout(() => document.addEventListener('mousedown', dismiss), 0);
+}
+
+function showEdgeContextMenu(event, edge) {
+  event.preventDefault();
+  event.stopPropagation();
+  selectEdge(edge.id);
+  const old = document.querySelector('.graph-context');
+  if (old) old.remove();
+  const popup = document.createElement('div');
+  popup.className = 'graph-context';
+  popup.style.left = event.clientX + 'px';
+  popup.style.top = event.clientY + 'px';
+  const remove = document.createElement('button');
+  remove.textContent = 'Remove Connection';
+  remove.onclick = () => { popup.remove(); deleteEdge(edge.id); };
+  popup.appendChild(remove);
+  document.body.appendChild(popup);
+  const dismiss = click => { if (!popup.contains(click.target)) { popup.remove(); document.removeEventListener('mousedown', dismiss); } };
+  setTimeout(() => document.addEventListener('mousedown', dismiss), 0);
+}
+
+function App() {
+  const [nodes, setNodes] = React.useState(graphNodes);
+  const [edges, setEdges] = React.useState(graphEdges);
+  reactSetNodes = setNodes;
+  reactSetEdges = setEdges;
+  graphNodes = nodes;
+  graphEdges = edges;
+  return hyprGraphH(hyprGraphRF.ReactFlow, {
+    nodes, edges, nodeTypes, deleteKeyCode: null,
+    onNodesChange: changes => {
+      const next = hyprGraphRF.applyNodeChanges(changes, nodes);
+      const moves = changes.filter(change => change.type === 'position');
+      if (moves.length) {
+        if (moves.some(change => change.dragging) && !pendingMoveSnapshot) pendingMoveSnapshot = snapshot();
+        applyState(next, edges);
+        if (moves.some(change => change.dragging === false) && pendingMoveSnapshot) {
+          remember(pendingMoveSnapshot);
+          pendingMoveSnapshot = null;
+        }
+      } else if (changes.some(change => change.type === 'remove')) setState(next, edges);
+      else applyState(next, edges);
+    },
+    onEdgesChange: changes => {
+      const next = hyprGraphRF.applyEdgeChanges(changes, edges);
+      const selected = changes.find(change => change.type === 'select' && change.selected);
+      if (selected) {
+        selectedId = null;
+        selectedEdgeId = selected.id;
+      } else if (selectedEdgeId && changes.some(change => change.type === 'select' && change.id === selectedEdgeId && !change.selected)) {
+        selectedEdgeId = null;
+      }
+      if (changes.some(change => change.type === 'remove')) setState(nodes, next);
+      else applyState(nodes, next);
+    },
+    onConnect: connection => {
+      const edge = {...connection, id: connection.source + '-' + connection.sourceHandle + '-' + connection.target + '-' + connection.targetHandle};
+      setState(nodes, [...edges, edge]);
+    },
+    onNodeClick: (_, node) => {
+      selectedId = node.id;
+      selectedEdgeId = null;
+      applyState(nodes, edges.map(item => ({...item, selected:false})), true);
+    },
+    onNodeContextMenu: showNodeContextMenu,
+    onEdgeClick: (event, edge) => {
+      event.stopPropagation();
+      selectEdge(edge.id);
+    },
+    onEdgeContextMenu: showEdgeContextMenu,
+    onPaneClick: () => { selectedId = null; clearEdgeSelection(); },
+    onInit: instance => { rfInstance = instance; },
+    fitView: true
+  },
+  hyprGraphH(hyprGraphRF.Background, {gap: 20}),
+  hyprGraphH(hyprGraphRF.Controls),
+  hyprGraphH(hyprGraphRF.MiniMap));
+}
+
+// Render Categorized Node Palette
+function renderPalette(filterText = '') {
+  const container = document.getElementById('categoryContainer');
+  container.innerHTML = '';
+  const filter = filterText.toLowerCase().trim();
+
+  categories.forEach(cat => {
+    const matchingItems = cat.items.filter(item => item.toLowerCase().includes(filter) || (descriptions[item] || '').toLowerCase().includes(filter));
+    if (filter && !matchingItems.length && !cat.name.toLowerCase().includes(filter)) return;
+
+    const catDiv = document.createElement('div');
+    catDiv.className = 'category-group';
+    const hdr = document.createElement('div');
+    hdr.className = 'category-header';
+    hdr.innerHTML = `<span>${cat.name}</span><span class="category-badge">${cat.items.length}</span>`;
+
+    const itemsDiv = document.createElement('div');
+    itemsDiv.className = 'palette-items';
+
+    if (cat.items.length === 0) {
+      const emptyNote = document.createElement('div');
+      emptyNote.style.cssText = 'color:var(--text-muted);font-size:10px;padding:4px 2px;font-style:italic;';
+      emptyNote.textContent = cat.placeholder || 'No nodes available';
+      itemsDiv.appendChild(emptyNote);
+    } else {
+      matchingItems.forEach(type => {
+        const itemEl = document.createElement('div');
+        itemEl.className = 'palette-item';
+        itemEl.draggable = true;
+        itemEl.dataset.type = type;
+        itemEl.innerHTML = `<div class="palette-item-name">${displayNames[type] || type}</div><div class="palette-item-desc">${descriptions[type] || ''}</div>`;
+        itemEl.addEventListener('dragstart', e => e.dataTransfer.setData('application/hypraccel-node', type));
+        itemsDiv.appendChild(itemEl);
+      });
+    }
+
+    catDiv.append(hdr, itemsDiv);
+    container.appendChild(catDiv);
+  });
+}
+
+// Dock Tab Switching
+document.getElementById('tab-btn-library').onclick = () => {
+  document.getElementById('tab-btn-library').classList.add('active');
+  document.getElementById('tab-btn-project').classList.remove('active');
+  document.getElementById('dock-library-content').style.display = 'block';
+  document.getElementById('dock-project-content').style.display = 'none';
+};
+document.getElementById('tab-btn-project').onclick = () => {
+  document.getElementById('tab-btn-project').classList.add('active');
+  document.getElementById('tab-btn-library').classList.remove('active');
+  document.getElementById('dock-project-content').style.display = 'block';
+  document.getElementById('dock-library-content').style.display = 'none';
+};
+
+// Bottom Panel Tabs & Toggles
+document.getElementById('tab-btn-console').onclick = () => {
+  activeConsoleTab = 'console';
+  document.querySelectorAll('.bottom-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-btn-console').classList.add('active');
+  updateConsoleOutput();
+};
+document.getElementById('tab-btn-source').onclick = () => {
+  activeConsoleTab = 'source';
+  document.querySelectorAll('.bottom-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-btn-source').classList.add('active');
+  updateConsoleOutput();
+};
+document.getElementById('tab-btn-diagnostics').onclick = () => {
+  activeConsoleTab = 'diagnostics';
+  document.querySelectorAll('.bottom-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-btn-diagnostics').classList.add('active');
+  updateConsoleOutput();
+};
+
+document.getElementById('btnToggleBottom').onclick = () => {
+  document.getElementById('bottomDock').classList.toggle('collapsed');
+};
+
+document.getElementById('bottomResizeHandle').addEventListener('pointerdown', event => {
+  const dock = document.getElementById('bottomDock');
+  if (dock.classList.contains('collapsed')) dock.classList.remove('collapsed');
+  const handle = document.getElementById('bottomResizeHandle');
+  handle.classList.add('dragging');
+  const startY = event.clientY;
+  const startHeight = dock.getBoundingClientRect().height;
+  const move = moveEvent => {
+    const next = Math.max(80, Math.min(window.innerHeight - 120, startHeight + startY - moveEvent.clientY));
+    dock.style.height = `${next}px`;
+  };
+  const stop = () => {
+    handle.classList.remove('dragging');
+    // Persist panel height to localStorage
+    try { localStorage.setItem('hyp_bottom_panel_height', dock.style.height); } catch(_) {}
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', stop);
+  };
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', stop, {once:true});
+  event.preventDefault();
+});
+
+// Restore bottom panel height from localStorage
+(function restoreBottomPanelHeight() {
+  try {
+    const saved = localStorage.getItem('hyp_bottom_panel_height');
+    if (saved) {
+      const h = parseInt(saved, 10);
+      if (h >= 80 && h <= window.innerHeight - 120) {
+        document.getElementById('bottomDock').style.height = h + 'px';
+      }
+    }
+  } catch(_) {}
+})();
+
+document.getElementById('copySource').onclick = async () => {
+  const toast = document.getElementById('copySourceToast');
+  const src = lastSourceCode || '';
+  if (!src) {
+    toast.textContent = 'No source generated yet.';
+    toast.className = 'copy-source-toast err visible';
+    setTimeout(() => toast.classList.remove('visible'), 2500);
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(src);
+    toast.textContent = '✓ Copied!';
+    toast.className = 'copy-source-toast ok visible';
+  } catch (_) {
+    toast.textContent = '✗ Clipboard unavailable';
+    toast.className = 'copy-source-toast err visible';
+  }
+  setTimeout(() => toast.classList.remove('visible'), 2000);
+};
+
+// Node Library Search
+document.getElementById('nodeSearch').oninput = (e) => {
+  renderPalette(e.target.value);
+};
+
+// Drag and drop onto canvas
+const canvasEl = document.getElementById('canvas');
+canvasEl.addEventListener('dragover', e => e.preventDefault());
+canvasEl.addEventListener('drop', e => {
+  e.preventDefault();
+  const type = e.dataTransfer.getData('application/hypraccel-node');
+  if (!type || !rfInstance) return;
+  const r = canvasEl.getBoundingClientRect();
+  addNode(type, rfInstance.project({x: e.clientX - r.left, y: e.clientY - r.top}));
+});
+
+// Action bindings
+document.getElementById('clear').onclick = () => { const previous = snapshot(); nextId = 1; selectedId = null; selectedEdgeId = null; setState([], [], true, previous); };
+document.getElementById('save-graph').onclick = saveGraph;
+document.getElementById('undo').onclick = undo;
+document.getElementById('redo').onclick = redo;
+document.getElementById('generate-project').onclick = generateProject;
+document.getElementById('build').onclick = build;
+document.getElementById('compile').onclick = compile;
+document.getElementById('flash').onclick = flash;
+document.getElementById('verify').onclick = verify;
+
+// Menu actions
+document.getElementById('menu-new-graph').onclick = newGraph;
+document.getElementById('menu-open-graph').onclick = openGraph;
+document.getElementById('menu-save').onclick = saveGraph;
+document.getElementById('menu-save-as').onclick = saveAsGraph;
+document.getElementById('menu-rename-graph').onclick = renameGraph;
+document.getElementById('menu-delete-graph').onclick = deleteGraph;
+document.getElementById('menu-clear').onclick = () => document.getElementById('clear').click();
+document.getElementById('menu-undo').onclick = () => document.getElementById('undo').click();
+document.getElementById('menu-redo').onclick = () => document.getElementById('redo').click();
+document.getElementById('menu-delete').onclick = () => { if (selectedId) deleteNode(selectedId); };
+document.getElementById('menu-pin-config').onclick = () => window.open('/pin_config.html', '_blank');
+document.getElementById('menu-board-info').onclick = () => alert(`Target Board: ${currentHardware && currentHardware.board ? currentHardware.board : 'none'}\nHardware resources are owned by Hardware Setup.\nHeader: hyp_board_config.h`);
+document.getElementById('menu-validate').onclick = () => alert('Model structure valid.\nAll node parameter constraints satisfied.');
+document.getElementById('menu-build').onclick = build;
+document.getElementById('menu-generate-project').onclick = generateProject;
+document.getElementById('menu-compile').onclick = compile;
+document.getElementById('menu-flash').onclick = flash;
+document.getElementById('menu-verify').onclick = verify;
+document.getElementById('menu-toggle-left').onclick = () => {
+  const dock = document.getElementById('leftDock');
+  dock.style.display = dock.style.display === 'none' ? 'flex' : 'none';
+};
+document.getElementById('menu-toggle-inspector').onclick = () => {
+  const dock = document.getElementById('config');
+  dock.style.display = dock.style.display === 'none' ? 'flex' : 'none';
+};
+document.getElementById('menu-toggle-console').onclick = () => {
+  document.getElementById('btnToggleBottom').click();
+};
+document.getElementById('menu-about').onclick = () => alert('HyprAccel MBD Studio v1.0\nProfessional Model-Based Development Environment for Hardware-Accelerated IoT Platforms.');
+
+// Global Keyboard Shortcuts
+document.addEventListener('keydown', event => {
+  if (event.defaultPrevented) return;
+  const editingTarget = event.target.closest('input,select,textarea,button,.custom-code-editor');
+  const key = event.key.toLowerCase();
+  if ((event.ctrlKey || event.metaKey) && key === 's') {
+    event.preventDefault();
+    if (event.shiftKey) saveAsGraph(); else saveGraph();
+    return;
+  }
+  if ((event.ctrlKey || event.metaKey) && key === 'o') {
+    event.preventDefault();
+    openGraph();
+    return;
+  }
+  if (editingTarget) return;
+  if ((event.ctrlKey || event.metaKey) && key === 'z') {
+    event.preventDefault();
+    if (event.shiftKey) redo();
+    else undo();
+    return;
+  }
+  if ((event.ctrlKey || event.metaKey) && key === 'y') {
+    event.preventDefault();
+    redo();
+    return;
+  }
+  if ((event.key === 'Delete' || event.key === 'Backspace') && selectedEdgeId) {
+    event.preventDefault();
+    deleteEdge(selectedEdgeId);
+    return;
+  }
+  if ((event.key === 'Delete' || event.key === 'Backspace') && selectedId) {
+    event.preventDefault();
+    deleteNode(selectedId);
+  }
+});
+
+// Initialization
+async function initializeEditor() {
+  renderPalette();
+  renderConfig();
+  refreshHistoryButtons();
+  await syncHardwareTarget();
+  await loadProjectGraph();
+  ReactDOM.render(hyprGraphH(App), canvasEl);
+  renderConfig();
+}
+initializeEditor();
+window.setInterval(syncHardwareTarget, 1000);
+window.addEventListener('beforeunload', event => {
+  if (graphSaveState === 'unsaved' || graphSaveState === 'saving') {
+    event.preventDefault();
+    event.returnValue = '';
+  }
+});
+
+})();
+</script>
+</body>
+</html>

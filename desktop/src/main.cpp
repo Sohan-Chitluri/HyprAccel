@@ -3,6 +3,8 @@
 #include "hardware_view.h"
 #include "clock_view.h"
 #include "project_store.h"
+#include "mbd_view.h"
+#include <QJsonDocument>
 #include <QComboBox>
 #include <QFile>
 #include <QFont>
@@ -51,6 +53,7 @@ public:
     QLabel *targetSummary = nullptr;
     HardwareView *hardwareView = nullptr;
     ClockView *clockView = nullptr;
+    MbdView *mbdView = nullptr;
 
     // Persistence state; no dialogs here so tests (and the smoke test) can
     // drive save/open directly.
@@ -164,6 +167,7 @@ public:
         currentProjectName = name;
         currentProjectRoot = root;
         projectDirty = false;
+        syncMbd(true);
         updateProjectChrome();
     }
 
@@ -178,8 +182,26 @@ public:
         currentProjectName = snapshot.name;
         currentProjectRoot = root;
         projectDirty = false;
+        syncMbd(true);
         updateProjectChrome();
         return dropped;
+    }
+
+    // Keeps the MBD tab bound to the current project and fed with the live
+    // Hardware Setup state (same hardware.json shape the web editor reads).
+    void syncMbd(bool rebindProject) {
+        if (!mbdView) return;
+        QJsonObject hardware;
+        if (const Hypr::Board *board = hardwareView ? hardwareView->pinModel()->board() : nullptr) {
+            QJsonObject existing;
+            if (!currentProjectId.isEmpty()) {
+                QFile file(currentProjectRoot + "/" + currentProjectId + "/hardware/hardware.json");
+                if (file.open(QIODevice::ReadOnly)) existing = QJsonDocument::fromJson(file.readAll()).object();
+            }
+            hardware = Hypr::ProjectStore::hardwareJson(*board, hardwareView->pinModel()->assignments(), existing);
+        }
+        mbdView->setHardware(hardware);
+        if (rebindProject) mbdView->setProject(currentProjectRoot, currentProjectId);
     }
 
     void updateProjectChrome() {
@@ -256,12 +278,13 @@ private:
                 [this](const QString &, const QString &) { projectDirty = true; updateProjectChrome(); });
         connect(clockView, &ClockView::configChanged, this, [this] { projectDirty = true; updateProjectChrome(); });
         workspaces->addTab(panel("Firmware", "Generation, compile, flash and verification will use the existing HyprAccel backend.\n\nNo firmware job has been started."), "Firmware");
-        auto *mbd = new QSplitter;
-        mbd->addWidget(panel("BLOCK LIBRARY", "The existing node schema will supply supported blocks."));
-        mbd->addWidget(panel("Model-Based Development", "No model loaded\n\nThe native block canvas is the next implementation slice, not a simulated execution view."));
-        mbd->addWidget(panel("BLOCK PARAMETERS", "Select a block to edit its parameters."));
-        mbd->setSizes({240, 880, 320});
-        workspaces->addTab(mbd, "MBD");
+        mbdView = new MbdView;
+        mbdView->setObjectName("mbdView");
+        connect(mbdView, &MbdView::statusMessage, this, [this](const QString &message) { statusBar()->showMessage(message); });
+        workspaces->addTab(mbdView, "MBD");
+        connect(boardSelector, &QComboBox::currentIndexChanged, this, [this] { syncMbd(false); });
+        connect(hardwareView->pinModel(), &Hypr::PinAssignmentModel::assignmentChanged, this,
+                [this](const QString &, const QString &) { syncMbd(false); });
         return workspaces;
     }
 
@@ -271,6 +294,7 @@ private:
         currentProjectName.clear();
         currentProjectRoot.clear();
         projectDirty = false;
+        syncMbd(true);
         pages->setCurrentIndex(1);
         workspaces->setCurrentIndex(0);
         statusBar()->showMessage("Unsaved workspace · Choose a board in Pinout & Configuration");
